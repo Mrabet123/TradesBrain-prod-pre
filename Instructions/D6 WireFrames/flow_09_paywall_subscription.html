@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TradesBrain — Flow 09: Paywall &amp; Subscription</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F0F2F5; font-family: Arial, Helvetica, sans-serif; padding: 32px 24px 48px; }
+
+  .flow-header { text-align: center; margin-bottom: 36px; }
+  .flow-tag { display: inline-block; background: #1E3A5F; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 2px; padding: 5px 14px; border-radius: 20px; margin-bottom: 10px; }
+  .flow-title { font-size: 26px; font-weight: 700; color: #1E3A5F; margin-bottom: 6px; }
+  .flow-desc { font-size: 13px; color: #909090; }
+
+  .section-divider { display: flex; align-items: center; gap: 16px; margin: 40px 0 28px; }
+  .section-divider-line { flex: 1; height: 1px; background: #D0D5DD; }
+  .section-divider-label { font-size: 10px; font-weight: 700; color: #2E75B6; letter-spacing: 2px; white-space: nowrap; }
+
+  .phone { width: 320px; margin: 0 auto; background: #fff; border-radius: 40px; border: 2px solid #D0D5DD; overflow: hidden; font-family: Arial, Helvetica, sans-serif; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .status { background: #1E3A5F; padding: 12px 24px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .status-time { font-size: 13px; font-weight: 700; color: #fff; }
+  .sd { width: 14px; height: 8px; background: #fff; border-radius: 2px; opacity: 0.8; }
+  .sd.sm { width: 10px; } .sd.xs { width: 6px; }
+
+  .hdr { background: #1E3A5F; padding: 12px 16px 14px; display: flex; align-items: center; gap: 10px; }
+
+  /* plan cards */
+  .plan-card { flex: 1; padding: 12px 8px; border-radius: 14px; border: 1.5px solid #E8E8E8; text-align: center; background: #fff; position: relative; cursor: pointer; }
+  .plan-card.selected { border-color: #2E75B6; background: #F5F9FF; }
+  .plan-card.popular { border-color: #1E3A5F; }
+  .popular-badge { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1E3A5F; color: #fff; font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 10px; white-space: nowrap; }
+  .plan-check { width: 16px; height: 16px; border-radius: 50%; background: #2E75B6; display: flex; align-items: center; justify-content: center; margin: 6px auto 0; }
+  .plan-empty { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #D0D5DD; margin: 6px auto 0; }
+
+  /* KYC rows */
+  .kyc-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; margin-bottom: 8px; }
+
+  /* settings rows */
+  .srow { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 0.5px solid #F0F0F0; }
+  .stitle { font-size: 10px; font-weight: 700; color: #909090; letter-spacing: 1.5px; padding: 8px 16px 4px; background: #F5F5F5; border-top: 0.5px solid #E8E8E8; border-bottom: 0.5px solid #E8E8E8; }
+  .billing-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 0.5px solid #F0F0F0; }
+
+  /* feature row */
+  .feat-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; color: #1E3A5F; }
+
+  .screen-label { font-size: 10px; font-weight: 700; color: #909090; letter-spacing: 2px; text-align: center; padding: 6px 0 2px; border-bottom: 0.5px solid #E8E8E8; }
+  .annotation { font-size: 11px; color: #909090; text-align: center; font-style: italic; margin: 6px 24px 0; }
+  .screens-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+  .screen-wrap { display: flex; flex-direction: column; align-items: center; }
+</style>
+
+<div class="flow-header">
+  <div class="flow-tag">FLOW 09</div>
+  <div class="flow-title">Paywall &amp; Subscription</div>
+  <div class="flow-desc">24 screens · 33 tap actions · Paywall modal (monthly/annual, all plan selections) · KYC states · Stripe checkout · Payment states · Subscription management · Annual switch · Upgrade · Cancellation · Billing history · Restore purchase</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 1 — PAYWALL MODAL: MONTHLY STATES
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 1–3 · PAYWALL — MONTHLY (ALL 3 PLAN SELECTIONS)</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S1 — PAYWALL MONTHLY SOLO SELECTED (DEFAULT) -->
+  <div class="screen-wrap">
+    <div class="screen-label">S1 — PAYWALL MONTHLY · SOLO SELECTED (DEFAULT)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:18</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);">
+        <div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div>
+        <div style="background:#24446E;border-radius:12px;padding:10px;margin-top:10px;opacity:0.5;"><div style="font-size:12px;color:#E65100;">Trial ended · 0 queries remaining</div></div>
+      </div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 16px;"></div>
+        <div style="text-align:center;margin-bottom:14px;">
+          <div style="font-size:17px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Unlock TradesBrain</div>
+          <div style="font-size:12px;color:#909090;">Choose a plan to continue working with Rex</div>
+        </div>
+        <!-- toggle — monthly -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;">
+          <span style="font-size:12px;font-weight:700;color:#1E3A5F;">Monthly</span>
+          <div style="width:40px;height:22px;background:#E8E8E8;border-radius:11px;position:relative;cursor:pointer;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid #D0D5DD;position:absolute;left:3px;top:3px;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div></div>
+          <span style="font-size:12px;color:#909090;">Annual</span>
+          <div style="padding:2px 8px;background:#EEF5FC;border-radius:10px;font-size:11px;font-weight:700;color:#2E75B6;">Save 20%</div>
+        </div>
+        <!-- plan cards -->
+        <div style="display:flex;gap:6px;margin-bottom:14px;">
+          <div class="plan-card selected">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:3px;">SOLO</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$69</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">1 user<br>All features</div>
+            <div class="plan-check"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="plan-card popular">
+            <div class="popular-badge">MOST POPULAR</div>
+            <div style="font-size:10px;font-weight:700;color:#1E3A5F;margin-bottom:3px;">PRO</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$120</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">1 user<br>Priority + reports</div>
+            <div class="plan-empty"></div>
+          </div>
+          <div class="plan-card">
+            <div style="font-size:10px;font-weight:700;color:#1E3A5F;margin-bottom:3px;">TEAM</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$260</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">3 seats<br>+$89/seat</div>
+            <div class="plan-empty"></div>
+          </div>
+        </div>
+        <button style="width:100%;padding:14px;background:#2E75B6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Subscribe to Solo — $69/mo ↗</button>
+        <div style="text-align:center;font-size:12px;color:#909090;margin-bottom:6px;cursor:pointer;">Browse app in read-only mode →</div>
+        <div style="text-align:center;font-size:11px;color:#AAAAAA;margin-bottom:6px;">Cancel anytime · Secure payment via Stripe</div>
+        <div style="text-align:center;font-size:11px;color:#2E75B6;cursor:pointer;">Restore purchase</div>
+      </div>
+    </div>
+    <div class="annotation">Default state · Solo pre-selected (blue border + check) · CTA shows Solo price · toggle left = monthly · tap plan card → updates CTA · tap Annual → S4 · tap Subscribe → S7 (if KYC ok) or S8/S9</div>
+  </div>
+
+  <!-- S2 — PAYWALL MONTHLY PRO SELECTED -->
+  <div class="screen-wrap">
+    <div class="screen-label">S2 — PAYWALL MONTHLY · PRO SELECTED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:18</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 16px;"></div>
+        <div style="text-align:center;margin-bottom:14px;">
+          <div style="font-size:17px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Unlock TradesBrain</div>
+          <div style="font-size:12px;color:#909090;">Choose a plan to continue working with Rex</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;">
+          <span style="font-size:12px;font-weight:700;color:#1E3A5F;">Monthly</span>
+          <div style="width:40px;height:22px;background:#E8E8E8;border-radius:11px;position:relative;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid #D0D5DD;position:absolute;left:3px;top:3px;"></div></div>
+          <span style="font-size:12px;color:#909090;">Annual</span>
+          <div style="padding:2px 8px;background:#EEF5FC;border-radius:10px;font-size:11px;font-weight:700;color:#2E75B6;">Save 20%</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:14px;">
+          <div class="plan-card">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:3px;">SOLO</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$69</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">1 user<br>All features</div>
+            <div class="plan-empty"></div>
+          </div>
+          <!-- PRO SELECTED -->
+          <div class="plan-card selected">
+            <div class="popular-badge" style="background:#2E75B6;">MOST POPULAR</div>
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:3px;">PRO</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$120</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">1 user<br>Priority + reports</div>
+            <div class="plan-check"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="plan-card">
+            <div style="font-size:10px;font-weight:700;color:#1E3A5F;margin-bottom:3px;">TEAM</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$260</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">3 seats<br>+$89/seat</div>
+            <div class="plan-empty"></div>
+          </div>
+        </div>
+        <button style="width:100%;padding:14px;background:#1E3A5F;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Subscribe to Pro — $120/mo ↗</button>
+        <div style="text-align:center;font-size:12px;color:#909090;margin-bottom:6px;">Browse app in read-only mode →</div>
+        <div style="text-align:center;font-size:11px;color:#AAAAAA;margin-bottom:6px;">Cancel anytime · Secure payment via Stripe</div>
+        <div style="text-align:center;font-size:11px;color:#2E75B6;cursor:pointer;">Restore purchase</div>
+      </div>
+    </div>
+    <div class="annotation">Tap Pro card → Pro selected (blue border + check) · CTA updates to "Pro — $120/mo" · navy CTA matches Pro's brand weight</div>
+  </div>
+
+  <!-- S3 — PAYWALL MONTHLY TEAM SELECTED -->
+  <div class="screen-wrap">
+    <div class="screen-label">S3 — PAYWALL MONTHLY · TEAM SELECTED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:18</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 16px;"></div>
+        <div style="text-align:center;margin-bottom:14px;">
+          <div style="font-size:17px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Unlock TradesBrain</div>
+          <div style="font-size:12px;color:#909090;">Choose a plan to continue working with Rex</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;">
+          <span style="font-size:12px;font-weight:700;color:#1E3A5F;">Monthly</span>
+          <div style="width:40px;height:22px;background:#E8E8E8;border-radius:11px;position:relative;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid #D0D5DD;position:absolute;left:3px;top:3px;"></div></div>
+          <span style="font-size:12px;color:#909090;">Annual</span>
+          <div style="padding:2px 8px;background:#EEF5FC;border-radius:10px;font-size:11px;font-weight:700;color:#2E75B6;">Save 20%</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <div class="plan-card">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:3px;">SOLO</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$69</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">1 user<br>All features</div>
+            <div class="plan-empty"></div>
+          </div>
+          <div class="plan-card popular">
+            <div class="popular-badge">MOST POPULAR</div>
+            <div style="font-size:10px;font-weight:700;color:#1E3A5F;margin-bottom:3px;">PRO</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$120</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">1 user<br>Priority</div>
+            <div class="plan-empty"></div>
+          </div>
+          <!-- TEAM SELECTED -->
+          <div class="plan-card selected">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:3px;">TEAM</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$260</div>
+            <div style="font-size:10px;color:#909090;margin-bottom:6px;">/month</div>
+            <div style="font-size:10px;color:#555;line-height:1.4;">3 seats<br>+$89/seat</div>
+            <div class="plan-check"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          </div>
+        </div>
+        <!-- Team plan details -->
+        <div style="background:#F5F9FF;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#1E3A5F;line-height:1.6;">
+          Base includes owner + 2 techs (3 total) · $89/month per additional seat · Owner dashboard + KPI tracking
+        </div>
+        <button style="width:100%;padding:14px;background:#1E3A5F;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Subscribe to Team — $260/mo ↗</button>
+        <div style="text-align:center;font-size:12px;color:#909090;margin-bottom:6px;">Browse app in read-only mode →</div>
+        <div style="text-align:center;font-size:11px;color:#AAAAAA;margin-bottom:6px;">Cancel anytime · Secure payment via Stripe</div>
+        <div style="text-align:center;font-size:11px;color:#2E75B6;cursor:pointer;">Restore purchase</div>
+      </div>
+    </div>
+    <div class="annotation">Tap Team card → Team selected · CTA updates · Team details note shows (owner + 2 seats + per-seat pricing)</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 2 — PAYWALL ANNUAL + KYC STATES
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 4–6 · PAYWALL ANNUAL · KYC PENDING · KYC REJECTED</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S4 — PAYWALL ANNUAL (SOLO SELECTED) -->
+  <div class="screen-wrap">
+    <div class="screen-label">S4 — PAYWALL ANNUAL VIEW (SOLO SELECTED)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:18</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 16px;"></div>
+        <div style="text-align:center;margin-bottom:14px;">
+          <div style="font-size:17px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Unlock TradesBrain</div>
+          <div style="font-size:12px;color:#909090;">Choose a plan to continue working with Rex</div>
+        </div>
+        <!-- toggle — annual ON -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;">
+          <span style="font-size:12px;color:#909090;">Monthly</span>
+          <div style="width:40px;height:22px;background:#2E75B6;border-radius:11px;position:relative;cursor:pointer;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;right:3px;top:3px;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div></div>
+          <span style="font-size:12px;font-weight:700;color:#1E3A5F;">Annual</span>
+          <div style="padding:2px 8px;background:#E8F5E9;border-radius:10px;font-size:11px;font-weight:700;color:#0A7A3A;">20% off ✓</div>
+        </div>
+        <!-- annual plan cards with strikethrough -->
+        <div style="display:flex;gap:6px;margin-bottom:14px;">
+          <div class="plan-card selected">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:2px;">SOLO</div>
+            <div style="font-size:10px;color:#909090;text-decoration:line-through;">$69</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$55</div>
+            <div style="font-size:10px;color:#0A7A3A;font-weight:700;">/month</div>
+            <div style="font-size:9px;color:#909090;margin-bottom:4px;">billed $662.40/yr</div>
+            <div class="plan-check"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="plan-card popular">
+            <div class="popular-badge">MOST POPULAR</div>
+            <div style="font-size:10px;font-weight:700;color:#1E3A5F;margin-bottom:2px;">PRO</div>
+            <div style="font-size:10px;color:#909090;text-decoration:line-through;">$120</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$96</div>
+            <div style="font-size:10px;color:#0A7A3A;font-weight:700;">/month</div>
+            <div style="font-size:9px;color:#909090;margin-bottom:4px;">billed $1,152/yr</div>
+            <div class="plan-empty"></div>
+          </div>
+          <div class="plan-card">
+            <div style="font-size:10px;font-weight:700;color:#1E3A5F;margin-bottom:2px;">TEAM</div>
+            <div style="font-size:10px;color:#909090;text-decoration:line-through;">$260</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;line-height:1;">$208</div>
+            <div style="font-size:10px;color:#0A7A3A;font-weight:700;">/month</div>
+            <div style="font-size:9px;color:#909090;margin-bottom:4px;">billed $2,496/yr</div>
+            <div class="plan-empty"></div>
+          </div>
+        </div>
+        <button style="width:100%;padding:14px;background:#2E75B6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Subscribe to Solo — $55/mo ↗</button>
+        <div style="text-align:center;font-size:12px;color:#909090;margin-bottom:6px;">Browse app in read-only mode →</div>
+        <div style="text-align:center;font-size:11px;color:#AAAAAA;margin-bottom:6px;">Cancel anytime · Secure payment via Stripe</div>
+        <div style="text-align:center;font-size:11px;color:#2E75B6;cursor:pointer;">Restore purchase</div>
+      </div>
+    </div>
+    <div class="annotation">Annual toggle ON (blue) · prices show discounted + strikethrough monthly · green "20% off ✓" · annual total shown per plan · CTA shows discounted price</div>
+  </div>
+
+  <!-- S5 — KYC PENDING (subscribe blocked) -->
+  <div class="screen-wrap">
+    <div class="screen-label">S5 — KYC PENDING — SUBSCRIBE BLOCKED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:19</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 16px;"></div>
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:17px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">One step before subscribing</div>
+          <div style="font-size:12px;color:#909090;line-height:1.5;">Identity verification required before activating a paid plan</div>
+        </div>
+        <!-- KYC status rows -->
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+          <!-- license verified -->
+          <div class="kyc-row" style="background:#E8F5E9;border:1.5px solid #C8E6C9;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#0A7A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 3" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:700;color:#1B5E20;">Trade license verified ✓</div><div style="font-size:11px;color:#555;">ITA-PLB-2019-04471</div></div>
+          </div>
+          <!-- national ID pending -->
+          <div class="kyc-row" style="background:#FFF8E1;border:1.5px solid #FFB74D;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#E65100;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 4v4M7 10v.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+            <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#E65100;">National ID — under review</div><div style="font-size:11px;color:#555;">Submitted · usually verified within 24h</div></div>
+          </div>
+          <div style="padding:10px 14px;background:#F5F5F5;border-radius:10px;">
+            <div style="font-size:11px;color:#555;line-height:1.6;">Both documents must be verified before subscribing. You will receive a push notification when verification is complete.</div>
+          </div>
+        </div>
+        <button style="width:100%;padding:14px;background:#D0D5DD;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:default;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Subscribe — pending verification</button>
+        <div style="text-align:center;font-size:12px;color:#909090;cursor:pointer;">Browse app in read-only mode →</div>
+      </div>
+    </div>
+    <div class="annotation">Triggered when worker taps Subscribe before KYC completes · license verified ✓ · national ID pending ⚠ · subscribe button greyed/disabled · push notification sent when cleared</div>
+  </div>
+
+  <!-- S6 — KYC REJECTED — RE-UPLOAD -->
+  <div class="screen-wrap">
+    <div class="screen-label">S6 — KYC REJECTED — RE-UPLOAD REQUIRED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:20</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 16px;"></div>
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:17px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Document verification failed</div>
+          <div style="font-size:12px;color:#909090;line-height:1.5;">One or more documents could not be verified</div>
+        </div>
+        <!-- KYC rows — rejected -->
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+          <div class="kyc-row" style="background:#E8F5E9;border:1.5px solid #C8E6C9;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#0A7A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 3" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:700;color:#1B5E20;">Trade license verified ✓</div><div style="font-size:11px;color:#555;">ITA-PLB-2019-04471</div></div>
+          </div>
+          <!-- national ID REJECTED -->
+          <div class="kyc-row" style="background:#FFEBEE;border:1.5px solid #E53935;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#E53935;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;color:#C62828;">National ID rejected ✕</div>
+              <div style="font-size:11px;color:#555;">Image unclear — please re-upload</div>
+            </div>
+          </div>
+          <div style="padding:10px 14px;background:#FFEBEE;border-radius:10px;border:1px solid #FFCDD2;">
+            <div style="font-size:11px;color:#C62828;line-height:1.6;margin-bottom:8px;">Your national ID could not be verified. Ensure the image is clear, all corners are visible, and there is no glare.</div>
+            <button style="width:100%;padding:10px;background:#E53935;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Re-upload national ID →</button>
+          </div>
+        </div>
+        <button style="width:100%;padding:14px;background:#D0D5DD;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:default;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Subscribe — verification required</button>
+        <div style="text-align:center;font-size:12px;color:#909090;cursor:pointer;">Browse app in read-only mode →</div>
+      </div>
+    </div>
+    <div class="annotation">Stripe Identity rejects doc → red badge → re-upload button → opens Settings → Profile (KYC re-upload) · subscribe remains blocked until re-upload + new verification clears · push notification when resolved</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 3 — STRIPE CHECKOUT STATES
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 7–9 · STRIPE CHECKOUT · PAYMENT DECLINED · SUBSCRIPTION ACTIVATED</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S7 — STRIPE CHECKOUT SHEET -->
+  <div class="screen-wrap">
+    <div class="screen-label">S7 — STRIPE CHECKOUT SHEET</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:21</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <!-- paywall dimmed behind -->
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.3);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <!-- Stripe native sheet -->
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.18);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 14px;"></div>
+        <!-- Stripe header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1E3A5F;">TradesBrain — Solo Plan</div>
+            <div style="font-size:20px;font-weight:700;color:#1E3A5F;">$69.00<span style="font-size:13px;color:#909090;font-weight:400;">/month</span></div>
+          </div>
+          <div style="padding:4px 12px;background:#EEF5FC;border-radius:20px;font-size:12px;font-weight:700;color:#2E75B6;">Stripe</div>
+        </div>
+        <!-- card input -->
+        <div style="font-size:11px;font-weight:700;color:#555;letter-spacing:1px;margin-bottom:6px;">CARD INFORMATION</div>
+        <div style="border:1.5px solid #E8E8E8;border-radius:10px;overflow:hidden;margin-bottom:10px;">
+          <div style="padding:12px 14px;border-bottom:0.5px solid #E8E8E8;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:14px;color:#1E3A5F;">1234  5678  9012  3456</span>
+            <div style="display:flex;gap:4px;">
+              <div style="width:28px;height:18px;background:#1A1F71;border-radius:3px;display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;color:#fff;font-weight:700;">VISA</span></div>
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div style="flex:1;padding:10px 14px;border-right:0.5px solid #E8E8E8;font-size:13px;color:#1E3A5F;">05/28</div>
+            <div style="flex:1;padding:10px 14px;font-size:13px;color:#1E3A5F;">• • •</div>
+          </div>
+        </div>
+        <!-- Apple Pay / Google Pay -->
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button style="flex:1;padding:11px;background:#000;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Apple Pay</button>
+          <button style="flex:1;padding:11px;background:#fff;color:#1E3A5F;border:1.5px solid #D0D5DD;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Google Pay</button>
+        </div>
+        <button style="width:100%;padding:14px;background:#2E75B6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Pay $69.00</button>
+        <button style="width:100%;padding:11px;background:#fff;color:#909090;border:1.5px solid #D0D5DD;border-radius:12px;font-size:13px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Cancel</button>
+        <div style="text-align:center;margin-top:8px;"><span style="font-size:10px;color:#AAAAAA;">Powered by Stripe · PCI compliant · TradesBrain never stores card data</span></div>
+      </div>
+    </div>
+    <div class="annotation">Stripe native payment sheet · card details (TradesBrain never stores) · Apple Pay + Google Pay · Pay → S9 subscription activated · Cancel → returns to paywall</div>
+  </div>
+
+  <!-- S8 — PAYMENT DECLINED -->
+  <div class="screen-wrap">
+    <div class="screen-label">S8 — PAYMENT DECLINED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:22</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.3);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.18);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 14px;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1E3A5F;">TradesBrain — Solo Plan</div>
+            <div style="font-size:20px;font-weight:700;color:#1E3A5F;">$69.00<span style="font-size:13px;color:#909090;font-weight:400;">/month</span></div>
+          </div>
+          <div style="padding:4px 12px;background:#EEF5FC;border-radius:20px;font-size:12px;font-weight:700;color:#2E75B6;">Stripe</div>
+        </div>
+        <!-- payment error notice -->
+        <div style="padding:12px 14px;background:#FFEBEE;border:1.5px solid #E53935;border-radius:12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="8" cy="8" r="7" stroke="#E53935" stroke-width="1.3"/><path d="M8 5v4M8 11v.5" stroke="#E53935" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#C62828;margin-bottom:2px;">Payment declined</div>
+            <div style="font-size:11px;color:#555;line-height:1.5;">Your card was declined. Please check your card details or try a different payment method.</div>
+          </div>
+        </div>
+        <!-- card fields — error state -->
+        <div style="font-size:11px;font-weight:700;color:#555;letter-spacing:1px;margin-bottom:6px;">CARD INFORMATION</div>
+        <div style="border:1.5px solid #E53935;border-radius:10px;overflow:hidden;margin-bottom:10px;">
+          <div style="padding:12px 14px;border-bottom:0.5px solid #FFCDD2;display:flex;align-items:center;justify-content:space-between;background:#FFF0F0;">
+            <span style="font-size:14px;color:#E53935;">1234  5678  9012  3456</span>
+          </div>
+          <div style="display:flex;background:#FFF0F0;">
+            <div style="flex:1;padding:10px 14px;border-right:0.5px solid #FFCDD2;font-size:13px;color:#555;">05/28</div>
+            <div style="flex:1;padding:10px 14px;font-size:13px;color:#555;">• • •</div>
+          </div>
+        </div>
+        <button style="width:100%;padding:14px;background:#2E75B6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Try again with this card</button>
+        <button style="width:100%;padding:11px;background:#fff;color:#1E3A5F;border:1.5px solid #D0D5DD;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Use a different card</button>
+        <button style="width:100%;padding:11px;background:#fff;color:#909090;border:1.5px solid #D0D5DD;border-radius:12px;font-size:13px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Cancel</button>
+      </div>
+    </div>
+    <div class="annotation">Stripe native error — red card border · decline message · Try again / Use different card / Cancel · No subscription granted · No optimistic update</div>
+  </div>
+
+  <!-- S9 — SUBSCRIPTION ACTIVATED SUCCESS -->
+  <div class="screen-wrap">
+    <div class="screen-label">S9 — SUBSCRIPTION ACTIVATED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:23</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#0A7A3A;padding:16px 20px;text-align:center;">
+        <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 14l7 7 11-11" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:4px;">You're subscribed!</div>
+        <div style="font-size:13px;color:#A5D6A7;">Solo Plan · $69/month · Active now</div>
+      </div>
+      <div style="padding:20px 16px;">
+        <!-- what's included -->
+        <div style="background:#F5F5F5;border-radius:14px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:10px;">EVERYTHING INCLUDED</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>Rex AI diagnostic — unlimited queries</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>Report and quote generation</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>Trade code lookup</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>Full job history and PDF archive</div>
+        </div>
+        <!-- renewal info -->
+        <div style="background:#EEF5FC;border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;justify-content:space-between;">
+          <div><div style="font-size:11px;color:#909090;">Next renewal</div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">25 May 2026</div></div>
+          <div><div style="font-size:11px;color:#909090;">Billing</div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">$69/month</div></div>
+        </div>
+        <button style="width:100%;padding:14px;background:#1E3A5F;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Start using Rex →</button>
+        <div style="font-size:11px;color:#909090;text-align:center;margin-top:8px;">You're returned to where you left off</div>
+      </div>
+    </div>
+    <div class="annotation">Payment confirmed (optimistic client-side) · green success screen · all included features listed · renewal date shown · "Start using Rex" → returned to feature worker was trying to access</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 4 — SUBSCRIPTION MANAGEMENT
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 10–12 · SUBSCRIPTION MANAGEMENT · UPGRADE · ANNUAL SWITCH</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S10 — SUBSCRIPTION MANAGEMENT (ACTIVE SOLO) -->
+  <div class="screen-wrap">
+    <div class="screen-label">S10 — SUBSCRIPTION — ACTIVE SOLO PLAN</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:25</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Subscription</div>
+      </div>
+      <!-- plan card -->
+      <div style="margin:16px;background:#1E3A5F;border-radius:16px;padding:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div><div style="font-size:12px;color:#4A9FD4;font-weight:700;margin-bottom:3px;">CURRENT PLAN</div><div style="font-size:20px;font-weight:700;color:#fff;">Solo Plan</div></div>
+          <div style="padding:4px 12px;background:#0A7A3A;border-radius:20px;font-size:11px;font-weight:700;color:#fff;">Active ✓</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+          <div><div style="font-size:28px;font-weight:700;color:#fff;">$69<span style="font-size:14px;color:#4A9FD4;">/month</span></div><div style="font-size:11px;color:#909090;margin-top:2px;">Monthly billing</div></div>
+          <div style="text-align:right;"><div style="font-size:11px;color:#4A9FD4;">Renews</div><div style="font-size:13px;font-weight:700;color:#fff;">25 May 2026</div></div>
+        </div>
+      </div>
+      <!-- features -->
+      <div class="stitle">INCLUDED FEATURES</div>
+      <div style="padding:8px 16px 4px;">
+        <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;"></div>Rex AI diagnostic — unlimited</div>
+        <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;"></div>Report and quote generation</div>
+        <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;"></div>Trade code lookup</div>
+        <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;"></div>Full job history and PDF archive · 1 seat</div>
+      </div>
+      <!-- manage actions -->
+      <div class="stitle" style="margin-top:8px;">MANAGE PLAN</div>
+      <div class="srow" style="cursor:pointer;">
+        <div style="font-size:14px;color:#1E3A5F;">Switch to annual billing</div>
+        <div style="display:flex;align-items:center;gap:6px;"><div style="padding:2px 8px;background:#EEF5FC;border-radius:8px;font-size:11px;font-weight:700;color:#2E75B6;">Save 20%</div><div style="color:#CCCCCC;font-size:16px;">›</div></div>
+      </div>
+      <div class="srow" style="cursor:pointer;">
+        <div style="font-size:14px;color:#1E3A5F;">Upgrade to Pro or Team</div>
+        <div style="color:#CCCCCC;font-size:16px;">›</div>
+      </div>
+      <div class="srow" style="cursor:pointer;">
+        <div style="font-size:14px;color:#1E3A5F;">Billing history</div>
+        <div style="color:#CCCCCC;font-size:16px;">›</div>
+      </div>
+      <div class="srow" style="cursor:pointer;">
+        <div style="font-size:14px;color:#E53935;">Cancel subscription</div>
+        <div style="color:#CCCCCC;font-size:16px;">›</div>
+      </div>
+    </div>
+    <div class="annotation">← → Settings · Switch to annual → S11 · Upgrade → S12 · Billing history → S15 · Cancel → S16</div>
+  </div>
+
+  <!-- S11 — SWITCH TO ANNUAL CONFIRMATION -->
+  <div class="screen-wrap">
+    <div class="screen-label">S11 — SWITCH TO ANNUAL CONFIRMATION</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:26</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Switch to annual billing</div>
+      </div>
+      <div style="padding:20px 16px 0;">
+        <!-- savings breakdown -->
+        <div style="background:#1E3A5F;border-radius:16px;padding:18px;margin-bottom:16px;color:#fff;">
+          <div style="font-size:12px;color:#4A9FD4;font-weight:700;margin-bottom:10px;">SWITCHING FROM → TO</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div><div style="font-size:13px;color:#909090;">Monthly (current)</div><div style="font-size:20px;font-weight:700;text-decoration:line-through;color:#909090;">$69/month</div></div>
+            <div style="font-size:20px;color:#4A9FD4;">→</div>
+            <div style="text-align:right;"><div style="font-size:13px;color:#4A9FD4;">Annual (new)</div><div style="font-size:20px;font-weight:700;color:#fff;">$55.20/month</div></div>
+          </div>
+          <div style="background:rgba(10,122,58,0.3);border-radius:10px;padding:10px 12px;text-align:center;">
+            <div style="font-size:14px;font-weight:700;color:#A5D6A7;">You save $165.60 per year</div>
+            <div style="font-size:11px;color:#909090;margin-top:2px;">Billed as $662.40 once a year</div>
+          </div>
+        </div>
+        <!-- what changes -->
+        <div style="background:#F5F5F5;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:8px;">WHAT CHANGES</div>
+          <div class="feat-row" style="margin-bottom:4px;"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>Billed annually — next charge: $662.40 on 25 May 2026</div>
+          <div class="feat-row" style="margin-bottom:4px;"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>All features remain exactly the same</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>No interruption to service</div>
+        </div>
+        <button style="width:100%;padding:14px;background:#0A7A3A;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:10px;">Confirm — switch to annual</button>
+        <button style="width:100%;padding:13px;background:#fff;color:#555;border:1.5px solid #D0D5DD;border-radius:12px;font-size:14px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Keep monthly plan</button>
+      </div>
+    </div>
+    <div class="annotation">Confirm → annual switch activated, returns to subscription mgmt (S10) with updated billing · Keep monthly → returns to S10 unchanged</div>
+  </div>
+
+  <!-- S12 — UPGRADE PLAN SELECTOR -->
+  <div class="screen-wrap">
+    <div class="screen-label">S12 — UPGRADE PLAN SELECTOR</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:26</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Upgrade plan</div>
+      </div>
+      <div style="padding:16px 16px 0;">
+        <!-- current plan strip -->
+        <div style="padding:10px 14px;background:#F5F5F5;border-radius:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-size:11px;color:#909090;">Current plan</div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Solo · $69/month</div></div>
+          <div style="padding:3px 8px;background:#E8F5E9;border-radius:8px;font-size:11px;font-weight:700;color:#0A7A3A;">Active ✓</div>
+        </div>
+        <!-- Pro upgrade -->
+        <div style="border:1.5px solid #1E3A5F;border-radius:14px;padding:14px;margin-bottom:10px;position:relative;">
+          <div style="position:absolute;top:-10px;left:14px;background:#1E3A5F;color:#fff;font-size:9px;font-weight:700;padding:3px 10px;border-radius:10px;">MOST POPULAR</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+            <div><div style="font-size:14px;font-weight:700;color:#1E3A5F;">Pro Plan</div><div style="font-size:11px;color:#909090;">1 user · Priority features + enhanced reports</div></div>
+            <div style="text-align:right;"><div style="font-size:20px;font-weight:700;color:#1E3A5F;">$120</div><div style="font-size:11px;color:#909090;">/month</div></div>
+          </div>
+          <div style="font-size:11px;color:#555;margin-bottom:10px;">Everything in Solo + priority support + advanced report formatting</div>
+          <button style="width:100%;padding:11px;background:#1E3A5F;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Upgrade to Pro — $120/mo →</button>
+        </div>
+        <!-- Team upgrade -->
+        <div style="border:1.5px solid #E8E8E8;border-radius:14px;padding:14px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+            <div><div style="font-size:14px;font-weight:700;color:#1E3A5F;">Team Plan</div><div style="font-size:11px;color:#909090;">Owner + 2 techs · +$89/seat</div></div>
+            <div style="text-align:right;"><div style="font-size:20px;font-weight:700;color:#1E3A5F;">$260</div><div style="font-size:11px;color:#909090;">/month</div></div>
+          </div>
+          <div style="font-size:11px;color:#555;margin-bottom:10px;">Everything in Pro + team management, KPI dashboard, per-seat billing</div>
+          <button style="width:100%;padding:11px;background:#fff;color:#1E3A5F;border:1.5px solid #1E3A5F;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Upgrade to Team — $260/mo →</button>
+        </div>
+        <div style="font-size:11px;color:#909090;text-align:center;padding-bottom:16px;">Upgrades take effect immediately · prorated for current cycle</div>
+      </div>
+    </div>
+    <div class="annotation">← → S10 subscription mgmt · Upgrade to Pro → Stripe checkout for difference · Upgrade to Team → Stripe checkout · takes effect immediately · prorated billing</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 5 — CANCELLATION + RESTORE PURCHASE
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 13–15 · CANCELLATION · CANCELLED CONFIRMED · RESTORE PURCHASE</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S13 — CANCELLATION SCREEN WITH DAYS REMAINING -->
+  <div class="screen-wrap">
+    <div class="screen-label">S13 — CANCELLATION — DAYS REMAINING</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:27</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Cancel subscription</div>
+      </div>
+      <div style="padding:20px 16px 0;">
+        <!-- if cancel today -->
+        <div style="background:#FFF8E1;border:1.5px solid #FFB74D;border-radius:14px;padding:16px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:10px;">If you cancel today</div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:0.5px solid #FFE0B2;padding-bottom:8px;margin-bottom:8px;font-size:12px;color:#555;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;margin-top:1px;"><path d="M2 7l3.5 3.5L12 3" stroke="#0A7A3A" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Access continues until <b>25 May 2026</b>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:0.5px solid #FFE0B2;padding-bottom:8px;margin-bottom:8px;font-size:12px;color:#555;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;margin-top:1px;"><path d="M2 7l3.5 3.5L12 3" stroke="#0A7A3A" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <b>30 days remaining</b> from today
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:0.5px solid #FFE0B2;padding-bottom:8px;margin-bottom:8px;font-size:12px;color:#555;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;margin-top:1px;"><path d="M2 7l3.5 3.5L12 3" stroke="#0A7A3A" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Job history and PDFs always accessible
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;font-size:12px;color:#E53935;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="7" cy="7" r="6" stroke="#E53935" stroke-width="1.3"/><path d="M7 4v4M7 10v.5" stroke="#E53935" stroke-width="1.6" stroke-linecap="round"/></svg>
+            Rex and all features stop after 25 May
+          </div>
+        </div>
+        <!-- save offer -->
+        <div style="background:#EEF5FC;border-radius:12px;padding:14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px;">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="flex-shrink:0;margin-top:2px;"><circle cx="9" cy="9" r="7.5" stroke="#2E75B6" stroke-width="1.4"/><path d="M9 8v5M9 5.5v.5" stroke="#2E75B6" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <div style="font-size:12px;color:#1E3A5F;line-height:1.5;">Switch to <b>annual and save 20%</b> — $55.20/month instead of $69. No interruption to service.</div>
+        </div>
+        <button style="width:100%;padding:13px;background:#EEF5FC;color:#2E75B6;border:1.5px solid #2E75B6;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:10px;">Switch to annual — keep access</button>
+        <button style="width:100%;padding:13px;background:#fff;color:#E53935;border:1.5px solid #E53935;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Confirm cancellation</button>
+        <div style="text-align:center;font-size:11px;color:#AAAAAA;margin-top:10px;padding-bottom:20px;">Your data is never deleted when you cancel</div>
+      </div>
+    </div>
+    <div class="annotation">Switch to annual → S11 · Confirm cancellation → S14 cancelled success screen · exact end date + days remaining always calculated and shown</div>
+  </div>
+
+  <!-- S14 — CANCELLATION CONFIRMED SUCCESS -->
+  <div class="screen-wrap">
+    <div class="screen-label">S14 — CANCELLATION CONFIRMED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:28</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Subscription</div>
+      </div>
+      <div style="padding:20px 16px;">
+        <!-- cancellation confirmed card -->
+        <div style="background:#F5F5F5;border-radius:16px;padding:20px;margin-bottom:16px;text-align:center;">
+          <div style="width:52px;height:52px;border-radius:50%;background:#fff;border:2px solid #D0D5DD;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 9v5M12 17.5v.5" stroke="#909090" stroke-width="2" stroke-linecap="round"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#909090" stroke-width="1.6"/></svg>
+          </div>
+          <div style="font-size:15px;font-weight:700;color:#1E3A5F;margin-bottom:6px;">Cancellation confirmed</div>
+          <div style="font-size:12px;color:#555;line-height:1.6;margin-bottom:12px;">Your Solo Plan is cancelled. Full access continues until your billing cycle ends.</div>
+          <!-- access countdown -->
+          <div style="background:#fff;border-radius:10px;padding:12px;display:inline-block;min-width:180px;">
+            <div style="font-size:11px;color:#909090;margin-bottom:4px;">Access remaining</div>
+            <div style="font-size:22px;font-weight:700;color:#1E3A5F;">30 days</div>
+            <div style="font-size:11px;color:#909090;margin-top:2px;">Until 25 May 2026</div>
+          </div>
+        </div>
+        <!-- what still works -->
+        <div style="background:#EEF5FC;border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+          <div style="font-size:11px;font-weight:700;color:#2E75B6;margin-bottom:8px;letter-spacing:1px;">STILL AVAILABLE UNTIL 25 MAY</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;"></div>Rex · Reports · Quotes · Code Lookup</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;"></div>All features — full access, no restrictions</div>
+          <div class="feat-row"><div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;"></div>Job history and PDFs always accessible</div>
+        </div>
+        <button style="width:100%;padding:13px;background:#2E75B6;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Resubscribe anytime →</button>
+        <button style="width:100%;padding:12px;background:#fff;color:#1E3A5F;border:1.5px solid #D0D5DD;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Back to settings</button>
+      </div>
+    </div>
+    <div class="annotation">Cancellation confirmed · days remaining shown · full access until end date · Resubscribe → paywall modal · Back → Settings · data never deleted</div>
+  </div>
+
+  <!-- S15 — RESTORE PURCHASE -->
+  <div class="screen-wrap">
+    <div class="screen-label">S15 — RESTORE PURCHASE</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:19</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <!-- checking state -->
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:24px 18px 28px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 20px;"></div>
+        <!-- checking variant -->
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="width:52px;height:52px;border-radius:50%;background:#EEF5FC;border:2px solid #2E75B6;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke="#2E75B6" stroke-width="1.5" stroke-dasharray="4 2"/></svg>
+          </div>
+          <div style="font-size:15px;font-weight:700;color:#1E3A5F;margin-bottom:6px;">Checking for existing purchase…</div>
+          <div style="font-size:12px;color:#909090;">Verifying with Stripe · this takes a moment</div>
+        </div>
+        <!-- divider -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <div style="flex:1;height:0.5px;background:#E8E8E8;"></div>
+          <div style="font-size:11px;color:#AAAAAA;">OR IF NOT FOUND</div>
+          <div style="flex:1;height:0.5px;background:#E8E8E8;"></div>
+        </div>
+        <!-- not found variant -->
+        <div style="padding:12px 14px;background:#F5F5F5;border-radius:12px;margin-bottom:14px;text-align:center;">
+          <div style="font-size:12px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">No active subscription found</div>
+          <div style="font-size:11px;color:#909090;line-height:1.5;">No existing purchase was found for this account. Subscribe below to get started.</div>
+        </div>
+        <button style="width:100%;padding:14px;background:#2E75B6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">See plans →</button>
+        <button style="width:100%;padding:11px;background:#fff;color:#909090;border:1.5px solid #D0D5DD;border-radius:12px;font-size:13px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Cancel</button>
+      </div>
+    </div>
+    <div class="annotation">Tap "Restore purchase" on paywall → checking spinner state (top) then: if found → subscription restored, returns to feature / if not found → "No active subscription" (bottom) + See plans CTA</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 6 — BILLING HISTORY + INVOICE DOWNLOAD
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 16–17 · BILLING HISTORY &amp; INVOICE DOWNLOAD TOAST</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S16 — BILLING HISTORY -->
+  <div class="screen-wrap">
+    <div class="screen-label">S16 — BILLING HISTORY</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:30</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Billing history</div>
+      </div>
+      <div style="padding:12px 0;">
+        <div class="stitle">PAYMENT HISTORY</div>
+        <!-- billing rows -->
+        <div style="padding:12px 16px;border-bottom:0.5px solid #F0F0F0;">
+          <div class="billing-row">
+            <div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Solo Plan · April 2026</div><div style="font-size:11px;color:#909090;margin-top:2px;">24 Apr 2026</div></div>
+            <div style="text-align:right;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">$69.00</div><div style="font-size:11px;color:#0A7A3A;">Paid ✓</div></div>
+          </div>
+          <button style="padding:5px 12px;background:#F5F5F5;border:1px solid #E8E8E8;border-radius:8px;font-size:11px;color:#2E75B6;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-top:6px;">⬇ Download invoice</button>
+        </div>
+        <div style="padding:12px 16px;border-bottom:0.5px solid #F0F0F0;">
+          <div class="billing-row">
+            <div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Solo Plan · March 2026</div><div style="font-size:11px;color:#909090;margin-top:2px;">24 Mar 2026</div></div>
+            <div style="text-align:right;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">$69.00</div><div style="font-size:11px;color:#0A7A3A;">Paid ✓</div></div>
+          </div>
+          <button style="padding:5px 12px;background:#F5F5F5;border:1px solid #E8E8E8;border-radius:8px;font-size:11px;color:#2E75B6;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-top:6px;">⬇ Download invoice</button>
+        </div>
+        <div style="padding:12px 16px;border-bottom:0.5px solid #F0F0F0;">
+          <div class="billing-row">
+            <div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Solo Plan · February 2026</div><div style="font-size:11px;color:#909090;margin-top:2px;">24 Feb 2026</div></div>
+            <div style="text-align:right;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">$69.00</div><div style="font-size:11px;color:#0A7A3A;">Paid ✓</div></div>
+          </div>
+          <button style="padding:5px 12px;background:#F5F5F5;border:1px solid #E8E8E8;border-radius:8px;font-size:11px;color:#2E75B6;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-top:6px;">⬇ Download invoice</button>
+        </div>
+        <div style="padding:12px 16px;border-bottom:0.5px solid #F0F0F0;">
+          <div class="billing-row">
+            <div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Solo Plan · January 2026</div><div style="font-size:11px;color:#909090;margin-top:2px;">24 Jan 2026 · First payment</div></div>
+            <div style="text-align:right;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">$69.00</div><div style="font-size:11px;color:#0A7A3A;">Paid ✓</div></div>
+          </div>
+          <button style="padding:5px 12px;background:#F5F5F5;border:1px solid #E8E8E8;border-radius:8px;font-size:11px;color:#2E75B6;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-top:6px;">⬇ Download invoice</button>
+        </div>
+        <div style="padding:14px 16px;text-align:center;">
+          <div style="font-size:12px;color:#909090;">Invoices also emailed to marco@vplumbing.it</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">← → S10 subscription mgmt · ⬇ Download invoice → S17 toast · Stripe-hosted invoice PDF · also emailed to registered address</div>
+  </div>
+
+  <!-- S17 — INVOICE DOWNLOAD TOAST -->
+  <div class="screen-wrap">
+    <div class="screen-label">S17 — INVOICE DOWNLOAD TOAST</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:30</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Billing history</div>
+      </div>
+      <div style="position:relative;min-height:476px;">
+        <!-- billing history dimmed -->
+        <div style="opacity:0.3;padding:12px 0;pointer-events:none;">
+          <div style="padding:12px 16px;border-bottom:0.5px solid #F0F0F0;"><div style="height:40px;background:#F5F5F5;border-radius:8px;"></div></div>
+          <div style="padding:12px 16px;border-bottom:0.5px solid #F0F0F0;"><div style="height:40px;background:#F5F5F5;border-radius:8px;"></div></div>
+          <div style="padding:12px 16px;border-bottom:0.5px solid #F0F0F0;"><div style="height:40px;background:#F5F5F5;border-radius:8px;"></div></div>
+        </div>
+        <!-- INVOICE DOWNLOAD TOAST -->
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:240px;background:#1E3A5F;border-radius:16px;padding:22px 18px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+          <div style="width:48px;height:48px;border-radius:50%;background:#0A7A3A;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 11l5 5L18 6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:6px;">Invoice downloaded</div>
+          <div style="font-size:12px;color:#4A9FD4;line-height:1.5;">Invoice_Apr2026.pdf saved to your device</div>
+          <div style="font-size:10px;color:#909090;margin-top:8px;">Auto-dismisses · 3 seconds</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">⬇ Download invoice tap → Stripe-hosted PDF saved to device · centred toast with green check · auto-dismisses after 3s · returns to billing history</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     LOCKED RULES — COMPLETE TAP MAP
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div>
+<!-- ══════════════════════════════════════════════════
+     SECTION NEW — FLOW 09 MISSING SCREENS
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">ADDED SCREENS · ANNUAL PRO/TEAM · DIFFERENT CARD · PAYMENT MGMT · RESTORE FOUND · KYC NOTIF · ERROR STATES</div><div class="section-divider-line"></div></div>
+
+<!-- ROW 1: Annual Pro selected + Annual Team selected -->
+<div class="screens-row">
+
+  <!-- ANNUAL PRO SELECTED -->
+  <div class="screen-wrap">
+    <div class="screen-label">PAYWALL ANNUAL · PRO SELECTED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:18</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 14px;"></div>
+        <div style="text-align:center;margin-bottom:12px;"><div style="font-size:16px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Unlock TradesBrain</div></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;">
+          <span style="font-size:12px;color:#909090;">Monthly</span>
+          <div style="width:40px;height:22px;background:#2E75B6;border-radius:11px;position:relative;cursor:pointer;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;right:3px;top:3px;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div></div>
+          <span style="font-size:12px;font-weight:700;color:#1E3A5F;">Annual</span>
+          <div style="padding:2px 8px;background:#E8F5E9;border-radius:10px;font-size:11px;font-weight:700;color:#0A7A3A;">20% off ✓</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:14px;">
+          <div class="plan-card">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:2px;">SOLO</div>
+            <div style="font-size:10px;color:#909090;text-decoration:line-through;">$69</div>
+            <div style="font-size:18px;font-weight:700;color:#1E3A5F;line-height:1;">$55</div>
+            <div style="font-size:10px;color:#0A7A3A;font-weight:700;">/month</div>
+            <div class="plan-empty"></div>
+          </div>
+          <div class="plan-card selected" style="border-color:#2E75B6;">
+            <div class="popular-badge" style="background:#2E75B6;">MOST POPULAR</div>
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:2px;">PRO</div>
+            <div style="font-size:10px;color:#909090;text-decoration:line-through;">$120</div>
+            <div style="font-size:18px;font-weight:700;color:#1E3A5F;line-height:1;">$96</div>
+            <div style="font-size:10px;color:#0A7A3A;font-weight:700;">/month</div>
+            <div style="font-size:9px;color:#909090;margin-bottom:3px;">$1,152/yr</div>
+            <div class="plan-check"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="plan-card">
+            <div style="font-size:10px;font-weight:700;color:#1E3A5F;margin-bottom:2px;">TEAM</div>
+            <div style="font-size:10px;color:#909090;text-decoration:line-through;">$260</div>
+            <div style="font-size:18px;font-weight:700;color:#1E3A5F;line-height:1;">$208</div>
+            <div style="font-size:10px;color:#0A7A3A;font-weight:700;">/month</div>
+            <div style="font-size:9px;color:#909090;margin-bottom:3px;">$2,496/yr</div>
+            <div class="plan-empty"></div>
+          </div>
+        </div>
+        <button style="width:100%;padding:13px;background:#1E3A5F;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Subscribe to Pro — $96/mo ↗</button>
+        <div style="text-align:center;font-size:12px;color:#909090;margin-bottom:6px;">Browse app in read-only mode →</div>
+        <div style="text-align:center;font-size:11px;color:#AAAAAA;margin-bottom:6px;">Cancel anytime · $1,152 billed annually</div>
+        <div style="text-align:center;font-size:11px;color:#2E75B6;cursor:pointer;">Restore purchase</div>
+      </div>
+    </div>
+    <div class="annotation">Tap Pro on annual toggle → Pro selected (blue) · CTA shows $96/mo · annual total $1,152 shown · same pattern applies to Team annual ($208/mo · $2,496/yr)</div>
+  </div>
+
+  <!-- USE DIFFERENT CARD STATE -->
+  <div class="screen-wrap">
+    <div class="screen-label">STRIPE — USE DIFFERENT CARD (CLEARED FIELDS)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:23</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.3);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 18px 24px;box-shadow:0 -4px 32px rgba(0,0,0,0.18);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 14px;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div><div style="font-size:13px;font-weight:700;color:#1E3A5F;">TradesBrain — Solo Plan</div><div style="font-size:20px;font-weight:700;color:#1E3A5F;">$69.00<span style="font-size:13px;color:#909090;font-weight:400;">/month</span></div></div>
+          <div style="padding:4px 12px;background:#EEF5FC;border-radius:20px;font-size:12px;font-weight:700;color:#2E75B6;">Stripe</div>
+        </div>
+        <!-- CLEARED card fields — empty, ready for new entry -->
+        <div style="font-size:11px;font-weight:700;color:#555;letter-spacing:1px;margin-bottom:6px;">NEW CARD INFORMATION</div>
+        <div style="border:1.5px solid #2E75B6;border-radius:10px;overflow:hidden;margin-bottom:10px;">
+          <div style="padding:12px 14px;border-bottom:0.5px solid #E8E8E8;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:14px;color:#CCCCCC;">Card number</span>
+            <div style="display:flex;gap:4px;">
+              <div style="width:24px;height:16px;background:#F0F0F0;border-radius:3px;"></div>
+              <div style="width:24px;height:16px;background:#F0F0F0;border-radius:3px;"></div>
+            </div>
+          </div>
+          <div style="display:flex;">
+            <div style="flex:1;padding:10px 14px;border-right:0.5px solid #E8E8E8;font-size:13px;color:#CCCCCC;">MM / YY</div>
+            <div style="flex:1;padding:10px 14px;font-size:13px;color:#CCCCCC;">CVC</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button style="flex:1;padding:11px;background:#000;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Apple Pay</button>
+          <button style="flex:1;padding:11px;background:#fff;color:#1E3A5F;border:1.5px solid #D0D5DD;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Google Pay</button>
+        </div>
+        <button style="width:100%;padding:14px;background:#D0D5DD;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:default;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Pay $69.00</button>
+        <button style="width:100%;padding:11px;background:#fff;color:#909090;border:1.5px solid #D0D5DD;border-radius:12px;font-size:13px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Cancel</button>
+        <div style="text-align:center;margin-top:8px;font-size:10px;color:#AAAAAA;">Previous card cleared · enter new card details · Pay activates when card valid</div>
+      </div>
+    </div>
+    <div class="annotation">Tap "Use different card" on declined screen → all card fields cleared and empty · Pay button disabled until new valid card entered · Apple/Google Pay still available · Cancel → back to paywall</div>
+  </div>
+
+  <!-- RESTORE PURCHASE — FOUND STATE -->
+  <div class="screen-wrap">
+    <div class="screen-label">RESTORE PURCHASE — SUBSCRIPTION FOUND + RESTORED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:20</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:24px 18px 28px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 20px;"></div>
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="width:56px;height:56px;border-radius:50%;background:#E8F5E9;border:2px solid #0A7A3A;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M4 13l7 7 11-11" stroke="#0A7A3A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:15px;font-weight:700;color:#1E3A5F;margin-bottom:6px;">Subscription restored</div>
+          <div style="font-size:12px;color:#909090;line-height:1.5;">Your active subscription has been found and restored to this device.</div>
+        </div>
+        <div style="background:#F5F5F5;border-radius:12px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:10px;">RESTORED PLAN</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="font-size:13px;color:#555;">Plan</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">Solo — $69/month</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;color:#555;">Renews</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">25 May 2026</span></div>
+        </div>
+        <button style="width:100%;padding:14px;background:#0A7A3A;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Start using Rex →</button>
+        <div style="font-size:11px;color:#909090;text-align:center;margin-top:8px;">Full access restored · returned to where you left off</div>
+      </div>
+    </div>
+    <div class="annotation">Stripe finds active subscription → green success · plan + renewal date shown · "Start using Rex" → returned to feature being accessed · no new charge applied</div>
+  </div>
+
+</div>
+
+<!-- ROW 2: Payment method mgmt + KYC push notification + Error states -->
+<div class="screens-row" style="margin-top:24px;">
+
+  <!-- STRIPE CUSTOMER PORTAL (MANAGE PAYMENT METHOD) -->
+  <div class="screen-wrap">
+    <div class="screen-label">S10 UPDATED — SUBSCRIPTION MGMT + PAYMENT METHOD ROW</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:25</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Subscription</div>
+      </div>
+      <div style="margin:16px;background:#1E3A5F;border-radius:16px;padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+          <div><div style="font-size:12px;color:#4A9FD4;font-weight:700;">CURRENT PLAN</div><div style="font-size:18px;font-weight:700;color:#fff;margin-top:2px;">Solo Plan</div></div>
+          <div style="padding:4px 10px;background:#0A7A3A;border-radius:20px;font-size:10px;font-weight:700;color:#fff;">Active ✓</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <div style="font-size:24px;font-weight:700;color:#fff;">$69<span style="font-size:13px;color:#4A9FD4;">/mo</span></div>
+          <div style="text-align:right;"><div style="font-size:10px;color:#4A9FD4;">Renews</div><div style="font-size:13px;font-weight:700;color:#fff;">25 May 2026</div></div>
+        </div>
+      </div>
+      <!-- Payment method row ADDED -->
+      <div style="font-size:10px;font-weight:700;color:#909090;letter-spacing:1.5px;padding:6px 16px 4px;background:#F5F5F5;border-top:0.5px solid #E8E8E8;border-bottom:0.5px solid #E8E8E8;">MANAGE PLAN</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid #F0F0F0;cursor:pointer;"><div style="font-size:14px;color:#1E3A5F;">Switch to annual billing</div><div style="display:flex;align-items:center;gap:6px;"><div style="padding:2px 8px;background:#EEF5FC;border-radius:8px;font-size:11px;font-weight:700;color:#2E75B6;">Save 20%</div><div style="color:#CCCCCC;font-size:16px;">›</div></div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid #F0F0F0;cursor:pointer;"><div style="font-size:14px;color:#1E3A5F;">Upgrade to Pro or Team</div><div style="color:#CCCCCC;font-size:16px;">›</div></div>
+      <!-- NEW ROW — Manage payment method -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid #F0F0F0;cursor:pointer;background:#F5F9FF;">
+        <div>
+          <div style="font-size:14px;color:#1E3A5F;">Manage payment method</div>
+          <div style="font-size:11px;color:#909090;margin-top:2px;">Visa ···· 3456 · Expires 05/28</div>
+        </div>
+        <div style="color:#CCCCCC;font-size:16px;">›</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid #F0F0F0;cursor:pointer;"><div style="font-size:14px;color:#1E3A5F;">Billing history</div><div style="color:#CCCCCC;font-size:16px;">›</div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid #F0F0F0;cursor:pointer;"><div style="font-size:14px;color:#E53935;">Cancel subscription</div><div style="color:#CCCCCC;font-size:16px;">›</div></div>
+      <!-- Stripe portal note -->
+      <div style="padding:10px 16px;background:#F5F5F5;">
+        <div style="font-size:11px;color:#909090;line-height:1.5;">Tapping "Manage payment method" opens the Stripe customer portal — secure and hosted by Stripe. Add, remove, or change your payment method.</div>
+      </div>
+    </div>
+    <div class="annotation">S10 now includes "Manage payment method" row showing last 4 digits of card · tap → Stripe customer portal opens in browser (hosted by Stripe · TradesBrain never handles card data)</div>
+  </div>
+
+  <!-- KYC CLEARED PUSH NOTIFICATION STATE -->
+  <div class="screen-wrap">
+    <div class="screen-label">KYC CLEARED — PUSH NOTIFICATION + DEEP LINK</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">14:32</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <!-- Home screen visible behind notification -->
+      <div style="background:#1E3A5F;padding:16px 20px;">
+        <div style="font-size:20px;font-weight:700;color:#fff;margin-bottom:6px;">Marco 👋</div>
+        <div style="background:#24446E;border-radius:12px;padding:10px 12px;opacity:0.6;font-size:12px;color:#4A9FD4;">8 queries remaining</div>
+      </div>
+      <!-- Push notification banner at top -->
+      <div style="margin:10px 12px;background:#1E3A5F;border-radius:14px;padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="width:40px;height:40px;border-radius:10px;background:#0A7A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 10l5 5 9-9" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:3px;">Identity verified ✓</div>
+            <div style="font-size:12px;color:#4A9FD4;line-height:1.5;">Your documents have been verified. You can now subscribe to TradesBrain.</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:10px 12px;background:#0A7A3A;border-radius:10px;text-align:center;cursor:pointer;">
+          <div style="font-size:13px;font-weight:700;color:#fff;">Subscribe now →</div>
+          <div style="font-size:11px;color:#A5D6A7;margin-top:2px;">Tap to open subscription plans · last selected plan pre-loaded</div>
+        </div>
+      </div>
+      <!-- Below: rest of home screen dimmed -->
+      <div style="padding:10px 12px;opacity:0.3;">
+        <div style="height:80px;background:#F5F5F5;border-radius:12px;margin-bottom:8px;"></div>
+        <div style="height:60px;background:#F5F5F5;border-radius:12px;"></div>
+      </div>
+    </div>
+    <div class="annotation">Both KYC docs verified → push notification sent immediately · notification shows on any screen · "Subscribe now" deep link → paywall with last-selected plan pre-loaded · trial queries continue working normally during KYC review</div>
+  </div>
+
+  <!-- ERROR STATES: NO INTERNET + DUPLICATE + WEBHOOK -->
+  <div class="screen-wrap">
+    <div class="screen-label">ERROR STATES — OFFLINE · DUPLICATE · WEBHOOK DELAY</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:24</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#1E3A5F;padding:16px 20px;filter:brightness(0.4);"><div style="font-size:20px;font-weight:700;color:#fff;">Marco 👋</div></div>
+      <div style="background:#fff;border-radius:24px 24px 0 0;padding:16px 18px 20px;box-shadow:0 -4px 32px rgba(0,0,0,0.14);">
+        <div style="width:36px;height:4px;background:#E0E0E0;border-radius:2px;margin:0 auto 14px;"></div>
+        <div style="font-size:13px;font-weight:700;color:#1E3A5F;margin-bottom:12px;">Subscription error states</div>
+
+        <!-- Error 1: No internet -->
+        <div style="background:#FFEBEE;border:1.5px solid #E53935;border-radius:12px;padding:12px;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;color:#C62828;margin-bottom:4px;">NO CONNECTION</div>
+          <div style="font-size:12px;color:#555;line-height:1.5;margin-bottom:8px;">No internet — cannot subscribe. Check your connection and try again.</div>
+          <button style="width:100%;padding:9px;background:#E53935;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Try again when connected</button>
+        </div>
+
+        <!-- Error 2: Already subscribed -->
+        <div style="background:#EEF5FC;border:1.5px solid #2E75B6;border-radius:12px;padding:12px;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">ALREADY SUBSCRIBED</div>
+          <div style="font-size:12px;color:#555;line-height:1.5;margin-bottom:8px;">You already have an active Solo plan. No new charge was made.</div>
+          <button style="width:100%;padding:9px;background:#1E3A5F;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Manage subscription →</button>
+        </div>
+
+        <!-- Error 3: Webhook delay -->
+        <div style="background:#FFF8E1;border:1.5px solid #F59E0B;border-radius:12px;padding:12px;">
+          <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:4px;">PAYMENT PROCESSING</div>
+          <div style="font-size:12px;color:#555;line-height:1.5;margin-bottom:6px;">Payment confirmed. Activating your plan — this takes a moment.</div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border-radius:8px;">
+            <div style="width:16px;height:16px;border:2px solid #F59E0B;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>
+            <div style="font-size:11px;color:#92400E;">Confirming with payment provider…</div>
+          </div>
+          <div style="font-size:10px;color:#AAAAAA;text-align:center;margin-top:6px;">If this persists beyond 30s, close and reopen the app</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">3 error states on one screen · No internet → retry CTA · Already active → "Manage subscription" → S10 · Webhook delay → spinner + optimistic access granted client-side, corrected on next open</div>
+  </div>
+
+</div>
+
+<div class="section-divider-label">LOCKED RULES + COMPLETE TAP MAP</div><div class="section-divider-line"></div></div>
+<div style="max-width:980px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #D0D5DD;overflow:hidden;">
+  <div style="background:#1E3A5F;padding:12px 20px;"><div style="font-size:12px;font-weight:700;color:#fff;letter-spacing:1px;">COMPLETE TAP ACTION MAP — FLOW 09 (23 ACTIONS · ALL COVERED)</div></div>
+  <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:0;font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+    <div style="padding-right:20px;border-right:0.5px solid #E8E8E8;">
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:8px;font-size:11px;letter-spacing:1px;padding-bottom:4px;border-bottom:1.5px solid #2E75B6;">PAYWALL MODAL TAPS</div>
+      <div style="color:#555;line-height:2.1;">
+        Monthly/Annual toggle → S1↔S4 switches pricing display<br>
+        Tap Solo card → S1 (blue border + check · CTA updates)<br>
+        Tap Pro card → S2 (Pro selected · CTA updates to $120)<br>
+        Tap Team card → S3 (Team selected · CTA shows $260 + details)<br>
+        Subscribe (KYC verified) → S7 Stripe checkout<br>
+        Subscribe (KYC pending) → S5 KYC pending gate<br>
+        Subscribe (KYC rejected) → S6 KYC rejected + re-upload CTA<br>
+        Re-upload national ID → Settings → Profile KYC upload<br>
+        Browse read-only → dismisses paywall · read-only access<br>
+        Restore purchase → S15 checking + result
+      </div>
+    </div>
+    <div style="padding-left:20px;">
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:8px;font-size:11px;letter-spacing:1px;padding-bottom:4px;border-bottom:1.5px solid #2E75B6;">CHECKOUT + MANAGEMENT TAPS</div>
+      <div style="color:#555;line-height:2.1;">
+        Pay $X (Stripe checkout) → S9 subscription activated<br>
+        Payment declined → S8 error state · retry or new card<br>
+        Cancel checkout → returns to paywall (S1)<br>
+        Start using Rex (S9) → returned to feature being accessed<br>
+        Switch to annual → → S11 annual switch confirmation<br>
+        Confirm annual switch → annual activated · back to S10<br>
+        Keep monthly → back to S10 unchanged<br>
+        Upgrade to Pro or Team → → S12 upgrade selector<br>
+        Upgrade to Pro/Team (S12) → Stripe checkout for diff<br>
+        Billing history → → S16 billing history screen<br>
+        ⬇ Download invoice → S17 download toast (3s)<br>
+        Cancel subscription → → S13 cancellation + days remaining<br>
+        Switch to annual (S13) → S11 annual confirmation<br>
+        Confirm cancellation (S13) → S14 cancelled confirmed<br>
+        Resubscribe (S14) → paywall modal (S1)<br>
+        Back to settings (S14) → Settings
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid #D0D5DD;">
+  <div style="font-size:11px;color:#AAAAAA;font-weight:700;letter-spacing:1px;">TRADESBRAIN · FLOW 09 · PAYWALL &amp; SUBSCRIPTION · v1.0 · CONFIDENTIAL</div>
+  <div style="font-size:11px;color:#AAAAAA;margin-top:4px;">24 screens · 33 tap actions · Paywall (monthly/annual · 3 plan selections) · KYC pending + rejected · Stripe checkout · Payment declined · Subscription activated · Subscription mgmt · Annual switch · Upgrade selector · Cancellation + confirmed · Restore purchase · Billing history · Invoice download</div>
+</div>
+
+</body>
+</html>

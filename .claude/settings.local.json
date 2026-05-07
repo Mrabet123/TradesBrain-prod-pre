@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"App screens: $\\(find ./app -name \"*.tsx\")"
+    ]
+  }
+}

@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TradesBrain — Flow 11: Team Management</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F0F2F5; font-family: Arial, Helvetica, sans-serif; padding: 32px 24px 48px; }
+  .flow-header { text-align: center; margin-bottom: 36px; }
+  .flow-tag { display: inline-block; background: #1E3A5F; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 2px; padding: 5px 14px; border-radius: 20px; margin-bottom: 10px; }
+  .flow-title { font-size: 26px; font-weight: 700; color: #1E3A5F; margin-bottom: 6px; }
+  .flow-desc { font-size: 13px; color: #909090; }
+  .section-divider { display: flex; align-items: center; gap: 16px; margin: 40px 0 28px; }
+  .section-divider-line { flex: 1; height: 1px; background: #D0D5DD; }
+  .section-divider-label { font-size: 10px; font-weight: 700; color: #2E75B6; letter-spacing: 2px; white-space: nowrap; }
+  .phone { width: 320px; margin: 0 auto; background: #fff; border-radius: 40px; border: 2px solid #D0D5DD; overflow: hidden; font-family: Arial, Helvetica, sans-serif; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .status { background: #1E3A5F; padding: 12px 24px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .st { font-size: 13px; font-weight: 700; color: #fff; }
+  .sd { width: 14px; height: 8px; background: #fff; border-radius: 2px; opacity: 0.8; }
+  .sd.sm { width: 10px; } .sd.xs { width: 6px; }
+  .hdr { background: #1E3A5F; padding: 12px 16px 14px; display: flex; align-items: center; gap: 10px; }
+  .tab-bar { display: flex; background: #fff; border-bottom: 2px solid #E8E8E8; }
+  .tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 11px; font-weight: 700; cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -2px; }
+  .tab.on { color: #2E75B6; border-bottom-color: #2E75B6; }
+  .tab.off { color: #909090; }
+  .period-btn { flex: 1; padding: 7px 4px; text-align: center; font-size: 11px; font-weight: 700; cursor: pointer; border-radius: 8px; }
+  .period-btn.on { background: #1E3A5F; color: #fff; }
+  .period-btn.off { color: #909090; }
+  .kpi-card { background: #F5F9FF; border: 1.5px solid #D0E4F5; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .kpi-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 0.5px solid #F0F0F0; }
+  .member-card { margin: 0 12px 10px; border: 1.5px solid #E8E8E8; border-radius: 14px; overflow: hidden; }
+  .member-card-body { padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 44px; height: 44px; border-radius: 12px; background: #1E3A5F; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .badge { padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+  .stitle { font-size: 10px; font-weight: 700; color: #909090; letter-spacing: 1.5px; padding: 8px 16px 4px; background: #F5F5F5; border-top: 0.5px solid #E8E8E8; border-bottom: 0.5px solid #E8E8E8; }
+  .field-block { padding: 12px 16px; border-bottom: 0.5px solid #F0F0F0; }
+  .field-label { font-size: 11px; color: #909090; margin-bottom: 5px; }
+  .field-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #E8E8E8; border-radius: 10px; font-size: 13px; color: #1E3A5F; font-family: Arial, Helvetica, sans-serif; background: #F9F9F9; }
+  .field-input.focused { border-color: #2E75B6; background: #fff; }
+  .doc-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 0.5px solid #F0F0F0; }
+  .doc-icon { width: 40px; height: 48px; background: #1E3A5F; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .trade-opt { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 0.5px solid #F0F0F0; cursor: pointer; }
+  .radio-on { width: 20px; height: 20px; border-radius: 50%; background: #2E75B6; border: 2px solid #2E75B6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .radio-off { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #D0D5DD; flex-shrink: 0; }
+  .screen-label { font-size: 10px; font-weight: 700; color: #909090; letter-spacing: 2px; text-align: center; padding: 6px 0 2px; border-bottom: 0.5px solid #E8E8E8; }
+  .annotation { font-size: 11px; color: #909090; text-align: center; font-style: italic; margin: 6px 24px 0; max-width: 320px; }
+  .screens-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+  .screen-wrap { display: flex; flex-direction: column; align-items: center; }
+</style>
+
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <symbol id="rex-icon" viewBox="0 0 28 28">
+      <circle cx="14" cy="14" r="14" fill="#1E3A5F"/>
+      <polygon points="14,5 12,12 14,11 16,12" fill="#2E75B6"/>
+      <polygon points="14,23 12,16 14,17 16,16" fill="#4A9FD4" opacity="0.6"/>
+      <polygon points="23,14 16,12 17,14 16,16" fill="#4A9FD4" opacity="0.6"/>
+      <polygon points="5,14 12,12 11,14 12,16" fill="#4A9FD4" opacity="0.6"/>
+      <circle cx="14" cy="14" r="3.5" fill="#2E75B6"/>
+      <circle cx="14" cy="14" r="1.8" fill="#1E3A5F"/>
+      <circle cx="14" cy="14" r="0.8" fill="#2E75B6"/>
+    </symbol>
+    <symbol id="doc-svg" viewBox="0 0 22 22">
+      <rect x="3" y="2" width="14" height="18" rx="3" stroke="#2E75B6" stroke-width="1.4"/>
+      <line x1="7" y1="7" x2="13" y2="7" stroke="#4A9FD4" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="7" y1="10" x2="13" y2="10" stroke="#4A9FD4" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
+    </symbol>
+    <symbol id="chk" viewBox="0 0 10 10">
+      <path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="flow-header">
+  <div class="flow-tag">FLOW 11</div>
+  <div class="flow-title">Team Management</div>
+  <div class="flow-desc">10 screens · 26 tap actions · Team hub (KPI + members tabs) · Aggregate KPI (daily/weekly/monthly) · Per-member KPI · Member list · Member detail (4 tabs read-only) · Add member form · Trade selector · Creation success · Delete member · Max seats reached</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 1 — TEAM HUB: KPI DASHBOARD
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 1–2 · TEAM HUB — KPI DASHBOARD (AGGREGATE + PER-MEMBER)</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S1 — TEAM KPI DASHBOARD (AGGREGATE — WEEKLY) -->
+  <div class="screen-wrap">
+    <div class="screen-label">S1 — TEAM KPI DASHBOARD — AGGREGATE (WEEKLY)</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:30</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:700;color:#fff;">Team Management</div>
+          <div style="font-size:11px;color:#4A9FD4;">Visentin Plumbing · 4 technicians</div>
+        </div>
+        <button style="padding:6px 12px;background:#2E75B6;border:none;border-radius:8px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">+ Add</button>
+      </div>
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <div class="tab on">📊 KPI Dashboard</div>
+        <div class="tab off">👥 Members (4)</div>
+      </div>
+      <!-- Period toggle -->
+      <div style="display:flex;gap:4px;padding:10px 12px;background:#F5F5F5;border-bottom:0.5px solid #E8E8E8;">
+        <div class="period-btn off">Daily</div>
+        <div class="period-btn on">Weekly</div>
+        <div class="period-btn off">Monthly</div>
+      </div>
+      <div style="overflow-y:auto;padding:12px 12px 0;">
+        <!-- Aggregate team totals card -->
+        <div style="background:#1E3A5F;border-radius:14px;padding:14px;margin-bottom:12px;">
+          <div style="font-size:10px;color:#4A9FD4;font-weight:700;letter-spacing:1px;margin-bottom:10px;">TEAM TOTALS — THIS WEEK</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div style="text-align:center;">
+              <div style="font-size:22px;font-weight:700;color:#fff;">47</div>
+              <div style="font-size:10px;color:#4A9FD4;">Jobs done</div>
+            </div>
+            <div style="text-align:center;border-left:0.5px solid rgba(255,255,255,0.15);border-right:0.5px solid rgba(255,255,255,0.15);">
+              <div style="font-size:22px;font-weight:700;color:#fff;">124h</div>
+              <div style="font-size:10px;color:#4A9FD4;">On site</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:22px;font-weight:700;color:#fff;">$18.4k</div>
+              <div style="font-size:10px;color:#4A9FD4;">Quoted</div>
+            </div>
+          </div>
+          <div style="height:0.5px;background:rgba(255,255,255,0.15);margin:12px 0;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div style="text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#A5D6A7;">38</div>
+              <div style="font-size:10px;color:#4A9FD4;">Reports</div>
+            </div>
+            <div style="text-align:center;border-left:0.5px solid rgba(255,255,255,0.15);border-right:0.5px solid rgba(255,255,255,0.15);">
+              <div style="font-size:18px;font-weight:700;color:#A5D6A7;">35</div>
+              <div style="font-size:10px;color:#4A9FD4;">Quotes</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#A5D6A7;">312</div>
+              <div style="font-size:10px;color:#4A9FD4;">Rex queries</div>
+            </div>
+          </div>
+        </div>
+        <!-- Per-member breakdown rows — tap to drill -->
+        <div style="font-size:10px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:8px;">PER TECHNICIAN — tap to view detail</div>
+        <!-- Member rows -->
+        <div class="kpi-card" style="cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <div class="avatar" style="width:36px;height:36px;border-radius:10px;font-size:13px;">LC</div>
+            <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Luca Conti</div><div style="font-size:10px;color:#909090;">🔧 Plumber</div></div>
+            <div style="font-size:10px;color:#2E75B6;font-weight:700;">View →</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">14</div><div style="font-size:9px;color:#909090;">Jobs</div></div>
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">38h</div><div style="font-size:9px;color:#909090;">On site</div></div>
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">12</div><div style="font-size:9px;color:#909090;">Reports</div></div>
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#0A7A3A;">$5.2k</div><div style="font-size:9px;color:#909090;">Quoted</div></div>
+          </div>
+        </div>
+        <div class="kpi-card" style="cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <div class="avatar" style="width:36px;height:36px;border-radius:10px;font-size:13px;background:#2E75B6;">SR</div>
+            <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Sofia Russo</div><div style="font-size:10px;color:#909090;">🔧 Plumber</div></div>
+            <div style="font-size:10px;color:#2E75B6;font-weight:700;">View →</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">12</div><div style="font-size:9px;color:#909090;">Jobs</div></div>
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">31h</div><div style="font-size:9px;color:#909090;">On site</div></div>
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">10</div><div style="font-size:9px;color:#909090;">Reports</div></div>
+            <div style="text-align:center;background:#fff;border-radius:8px;padding:6px 2px;"><div style="font-size:14px;font-weight:700;color:#0A7A3A;">$4.8k</div><div style="font-size:9px;color:#909090;">Quoted</div></div>
+          </div>
+        </div>
+        <div style="text-align:center;padding:8px 0;font-size:11px;color:#2E75B6;font-weight:700;cursor:pointer;">+ 2 more technicians</div>
+      </div>
+    </div>
+    <div class="annotation">Daily/Weekly/Monthly toggle · aggregate team totals at top (navy card) · per-member rows below · tap member row → S2 per-member KPI · + Add → S6 form · ← → Settings</div>
+  </div>
+
+  <!-- S2 — PER-MEMBER KPI DRILL-DOWN -->
+  <div class="screen-wrap">
+    <div class="screen-label">S2 — PER-MEMBER KPI DETAIL (LUCA CONTI)</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:31</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:700;color:#fff;">Luca Conti</div>
+          <div style="font-size:11px;color:#4A9FD4;">🔧 Plumber · Active since 12 Jan 2026</div>
+        </div>
+        <button style="padding:6px 10px;background:#E53935;border:none;border-radius:8px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Delete</button>
+      </div>
+      <!-- Period toggle -->
+      <div style="display:flex;gap:4px;padding:10px 12px;background:#F5F5F5;border-bottom:0.5px solid #E8E8E8;">
+        <div class="period-btn off">Daily</div>
+        <div class="period-btn on">Weekly</div>
+        <div class="period-btn off">Monthly</div>
+      </div>
+      <div style="overflow-y:auto;padding:12px 12px 0;">
+        <!-- Summary card -->
+        <div style="background:#1E3A5F;border-radius:14px;padding:14px;margin-bottom:12px;">
+          <div style="font-size:10px;color:#4A9FD4;font-weight:700;letter-spacing:1px;margin-bottom:10px;">LUCA — THIS WEEK</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:#fff;">14</div><div style="font-size:10px;color:#4A9FD4;">Jobs done</div></div>
+            <div style="text-align:center;border-left:0.5px solid rgba(255,255,255,0.15);border-right:0.5px solid rgba(255,255,255,0.15);">
+              <div style="font-size:22px;font-weight:700;color:#fff;">38h</div><div style="font-size:10px;color:#4A9FD4;">On site</div>
+            </div>
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:#fff;">$5.2k</div><div style="font-size:10px;color:#4A9FD4;">Quoted</div></div>
+          </div>
+        </div>
+        <!-- Full KPI breakdown -->
+        <div style="font-size:10px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:8px;">DETAILED BREAKDOWN</div>
+        <div style="background:#fff;border:1.5px solid #E8E8E8;border-radius:14px;overflow:hidden;margin-bottom:12px;">
+          <div class="kpi-row"><span style="font-size:13px;color:#1E3A5F;">Jobs completed</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">14</span></div>
+          <div class="kpi-row"><span style="font-size:13px;color:#1E3A5F;">Avg time per job</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">2h 43m</span></div>
+          <div class="kpi-row"><span style="font-size:13px;color:#1E3A5F;">Total time on site</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">38h 12m</span></div>
+          <div class="kpi-row"><span style="font-size:13px;color:#1E3A5F;">Rex queries used</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">89</span></div>
+          <div class="kpi-row"><span style="font-size:13px;color:#1E3A5F;">Reports generated</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">12</span></div>
+          <div class="kpi-row"><span style="font-size:13px;color:#1E3A5F;">Quotes generated</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">11</span></div>
+          <div class="kpi-row"><span style="font-size:13px;color:#1E3A5F;">Total quote value</span><span style="font-size:13px;font-weight:700;color:#0A7A3A;">$5,240</span></div>
+          <div class="kpi-row" style="border-bottom:none;"><span style="font-size:13px;color:#1E3A5F;">Most common job</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">Leak repair</span></div>
+        </div>
+        <!-- View member activity -->
+        <button style="width:100%;padding:12px;background:#EEF5FC;border:1.5px solid #2E75B6;border-radius:12px;font-size:13px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">View Luca's job history →</button>
+        <button style="width:100%;padding:12px;background:#FFEBEE;border:1.5px solid #E53935;border-radius:12px;font-size:13px;font-weight:700;color:#C62828;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:12px;">Delete Luca's account →</button>
+      </div>
+    </div>
+    <div class="annotation">Per-member KPI · Daily/Weekly/Monthly toggle (same as aggregate) · 8 KPI metrics · "View job history" → S4 member detail · Delete → S9 confirmation · ← back to S1</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 2 — MEMBERS LIST
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREEN 3 · MEMBERS LIST TAB</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S3 — MEMBERS LIST -->
+  <div class="screen-wrap">
+    <div class="screen-label">S3 — MEMBERS LIST</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:32</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Team Management</div><div style="font-size:11px;color:#4A9FD4;">Visentin Plumbing · 4 of 10 seats used</div></div>
+        <button style="padding:6px 12px;background:#2E75B6;border:none;border-radius:8px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">+ Add</button>
+      </div>
+      <div class="tab-bar">
+        <div class="tab off">📊 KPI Dashboard</div>
+        <div class="tab on">👥 Members (4)</div>
+      </div>
+      <!-- Seat count strip -->
+      <div style="padding:8px 12px;background:#F5F9FF;border-bottom:0.5px solid #D0E4F5;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:11px;color:#2E75B6;">4 / 10 seats used · $260 base + 1 additional seat ($89)</div>
+        <div style="font-size:11px;font-weight:700;color:#1E3A5F;">$349/mo</div>
+      </div>
+      <div style="overflow-y:auto;padding:10px 0 4px;">
+        <!-- Member 1 -->
+        <div class="member-card">
+          <div class="member-card-body">
+            <div class="avatar">LC</div>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:700;color:#1E3A5F;">Luca Conti</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                <div class="badge" style="background:#EEF5FC;color:#2E75B6;">🔧 Plumber</div>
+                <div class="badge" style="background:#E8F5E9;color:#0A7A3A;">Active</div>
+              </div>
+              <div style="font-size:11px;color:#909090;margin-top:3px;">14 jobs this week · luca.conti@vp.it</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+          <!-- Swipe reveal actions -->
+          <div style="display:flex;border-top:0.5px solid #F0F0F0;">
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;">View detail →</div>
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#E53935;cursor:pointer;border-left:0.5px solid #F0F0F0;">Delete</div>
+          </div>
+        </div>
+        <!-- Member 2 -->
+        <div class="member-card">
+          <div class="member-card-body">
+            <div class="avatar" style="background:#2E75B6;">SR</div>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:700;color:#1E3A5F;">Sofia Russo</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                <div class="badge" style="background:#EEF5FC;color:#2E75B6;">🔧 Plumber</div>
+                <div class="badge" style="background:#E8F5E9;color:#0A7A3A;">Active</div>
+              </div>
+              <div style="font-size:11px;color:#909090;margin-top:3px;">12 jobs this week · sofia.russo@vp.it</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+          <div style="display:flex;border-top:0.5px solid #F0F0F0;">
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;">View detail →</div>
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#E53935;cursor:pointer;border-left:0.5px solid #F0F0F0;">Delete</div>
+          </div>
+        </div>
+        <!-- Member 3 — temp password not yet changed -->
+        <div class="member-card" style="border-color:#FFB74D;">
+          <div class="member-card-body">
+            <div class="avatar" style="background:#E65100;">FM</div>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:700;color:#1E3A5F;">Franco Martini</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                <div class="badge" style="background:#EEF5FC;color:#2E75B6;">⚡ Electrician</div>
+                <div class="badge" style="background:#FFF8E1;color:#E65100;">First login pending</div>
+              </div>
+              <div style="font-size:11px;color:#909090;margin-top:3px;">Added 24 Apr 2026 · franco.m@vp.it</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+          <div style="display:flex;border-top:0.5px solid #F0F0F0;">
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;">View detail →</div>
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#E53935;cursor:pointer;border-left:0.5px solid #F0F0F0;">Delete</div>
+          </div>
+        </div>
+        <!-- Member 4 -->
+        <div class="member-card">
+          <div class="member-card-body">
+            <div class="avatar" style="background:#0A7A3A;">AB</div>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:700;color:#1E3A5F;">Anna Bianchi</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                <div class="badge" style="background:#EEF5FC;color:#2E75B6;">🔧 Plumber</div>
+                <div class="badge" style="background:#E8F5E9;color:#0A7A3A;">Active</div>
+              </div>
+              <div style="font-size:11px;color:#909090;margin-top:3px;">9 jobs this week · anna.b@vp.it</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+          <div style="display:flex;border-top:0.5px solid #F0F0F0;">
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;">View detail →</div>
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#E53935;cursor:pointer;border-left:0.5px solid #F0F0F0;">Delete</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Members tab · seat count + current billing shown · 4 member cards · "First login pending" badge for unactivated account · tap card → S4 detail · Delete → S9 modal · + Add → S6 form</div>
+  </div>
+
+  <!-- S3b — MAX SEATS REACHED -->
+  <div class="screen-wrap">
+    <div class="screen-label">S3b — MAX SEATS REACHED (10/10)</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:35</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Team Management</div><div style="font-size:11px;color:#F59E0B;">10 / 10 seats used — maximum reached</div></div>
+        <!-- Add button disabled -->
+        <button style="padding:6px 12px;background:#909090;border:none;border-radius:8px;font-size:12px;font-weight:700;color:#fff;cursor:not-allowed;font-family:Arial,Helvetica,sans-serif;">+ Add</button>
+      </div>
+      <div class="tab-bar">
+        <div class="tab off">📊 KPI Dashboard</div>
+        <div class="tab on">👥 Members (10)</div>
+      </div>
+      <!-- Max notice -->
+      <div style="padding:10px 12px;background:#FFF8E1;border-bottom:0.5px solid #FFB74D;display:flex;align-items:center;gap:8px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#E65100" stroke-width="1.3"/><path d="M8 5v4M8 11v.5" stroke="#E65100" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div style="font-size:11px;color:#E65100;font-weight:700;">Maximum of 10 technician accounts reached · contact support to expand</div>
+      </div>
+      <div style="overflow-y:auto;padding:10px 0 4px;">
+        <!-- 3 sample cards compressed -->
+        <div class="member-card"><div class="member-card-body"><div class="avatar">LC</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Luca Conti</div><div style="font-size:11px;color:#909090;margin-top:2px;">🔧 Plumber · Active</div></div><div style="font-size:18px;color:#CCCCCC;">›</div></div></div>
+        <div class="member-card"><div class="member-card-body"><div class="avatar" style="background:#2E75B6;">SR</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Sofia Russo</div><div style="font-size:11px;color:#909090;margin-top:2px;">🔧 Plumber · Active</div></div><div style="font-size:18px;color:#CCCCCC;">›</div></div></div>
+        <div style="text-align:center;padding:10px;font-size:12px;color:#909090;">+ 8 more technicians</div>
+        <!-- Seat billing summary -->
+        <div style="margin:8px 12px;background:#F5F5F5;border-radius:12px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:8px;">CURRENT BILLING</div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-bottom:4px;"><span>Team base (3 seats)</span><span>$260</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-bottom:8px;"><span>Additional seats (7 × $89)</span><span>$623</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:#1E3A5F;"><span>Total per month</span><span>$883</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">+ Add button disabled and greyed · amber notice "Maximum of 10 reached" · billing breakdown shows base + additional seats total · tap any member card → S4 detail · Delete available to free seats</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 3 — MEMBER DETAIL (4 TABS)
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREEN 4 · MEMBER DETAIL — 4 TABS (ALL READ-ONLY)</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S4 — MEMBER DETAIL: REX SESSIONS TAB -->
+  <div class="screen-wrap">
+    <div class="screen-label">S4 — MEMBER DETAIL — TAB 1 REX SESSIONS</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:33</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Luca Conti</div><div style="font-size:11px;color:#4A9FD4;">🔧 Plumber · 14 jobs this week</div></div>
+        <button style="padding:6px 10px;background:#E53935;border:none;border-radius:8px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Delete</button>
+      </div>
+      <!-- 4 tabs -->
+      <div class="tab-bar" style="font-size:10px;">
+        <div class="tab on" style="font-size:10px;">Rex</div>
+        <div class="tab off" style="font-size:10px;">Reports</div>
+        <div class="tab off" style="font-size:10px;">Quotes</div>
+        <div class="tab off" style="font-size:10px;">Photos</div>
+      </div>
+      <!-- Read-only notice -->
+      <div style="padding:6px 12px;background:#F5F5F5;border-bottom:0.5px solid #E8E8E8;">
+        <div style="font-size:11px;color:#909090;text-align:center;">🔒 Read-only · Owner cannot edit member content</div>
+      </div>
+      <div style="overflow-y:auto;padding:10px 0 4px;">
+        <!-- Session cards -->
+        <div style="margin:0 12px 8px;border:1.5px solid #E8E8E8;border-radius:12px;overflow:hidden;cursor:pointer;">
+          <div style="padding:12px 14px;display:flex;align-items:flex-start;justify-content:space-between;">
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <div class="badge" style="background:#E8F5E9;color:#0A7A3A;">✓ Done</div>
+                <div style="font-size:11px;color:#909090;">25 Apr · 10:06</div>
+              </div>
+              <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Boiler leak — Via Garibaldi 8</div>
+              <div style="font-size:11px;color:#909090;margin-top:3px;">1h 42m on site · Report 1 · Quote 1</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+        </div>
+        <div style="margin:0 12px 8px;border:1.5px solid #E8E8E8;border-radius:12px;overflow:hidden;cursor:pointer;">
+          <div style="padding:12px 14px;display:flex;align-items:flex-start;justify-content:space-between;">
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <div class="badge" style="background:#E8F5E9;color:#0A7A3A;">✓ Done</div>
+                <div style="font-size:11px;color:#909090;">25 Apr · 08:30</div>
+              </div>
+              <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Drain blockage — Corso Italia 55</div>
+              <div style="font-size:11px;color:#909090;margin-top:3px;">55m on site · Report 1</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+        </div>
+        <div style="margin:0 12px 8px;border:1.5px solid #E8E8E8;border-radius:12px;overflow:hidden;cursor:pointer;">
+          <div style="padding:12px 14px;display:flex;align-items:flex-start;justify-content:space-between;">
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <div class="badge" style="background:#E8F5E9;color:#0A7A3A;">✓ Done</div>
+                <div style="font-size:11px;color:#909090;">24 Apr · 14:15</div>
+              </div>
+              <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Pressure valve — Torre Colombo</div>
+              <div style="font-size:11px;color:#909090;margin-top:3px;">38m on site · Report 1 · Quote 1</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+        </div>
+        <div style="text-align:center;padding:8px;font-size:12px;color:#2E75B6;font-weight:700;cursor:pointer;">Load 11 more sessions ↓</div>
+      </div>
+    </div>
+    <div class="annotation">All member Rex sessions listed · tap session to view full read-only conversation + docs · owner cannot edit anything · Delete button in header → S9 modal · tabs: Rex / Reports / Quotes / Photos</div>
+  </div>
+
+  <!-- S4b — MEMBER DETAIL: REPORTS TAB -->
+  <div class="screen-wrap">
+    <div class="screen-label">S4b — MEMBER DETAIL — TAB 2 REPORTS</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:33</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Luca Conti</div><div style="font-size:11px;color:#4A9FD4;">🔧 Plumber · Reports</div></div>
+        <button style="padding:6px 10px;background:#E53935;border:none;border-radius:8px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Delete</button>
+      </div>
+      <div class="tab-bar" style="font-size:10px;">
+        <div class="tab off" style="font-size:10px;">Rex</div>
+        <div class="tab on" style="font-size:10px;">Reports</div>
+        <div class="tab off" style="font-size:10px;">Quotes</div>
+        <div class="tab off" style="font-size:10px;">Photos</div>
+      </div>
+      <div style="padding:6px 12px;background:#F5F5F5;border-bottom:0.5px solid #E8E8E8;">
+        <div style="font-size:11px;color:#909090;text-align:center;">🔒 Read-only · 12 confirmed reports this week</div>
+      </div>
+      <div style="overflow-y:auto;padding:12px 12px 0;">
+        <div class="doc-row">
+          <div class="doc-icon"><svg width="18" height="18"><use href="#doc-svg"/></svg></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Boiler leak — Via Garibaldi 8</div>
+            <div style="font-size:11px;color:#909090;margin-top:2px;">25 Apr · Report 1 · $285 confirmed</div>
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">View</button>
+              <button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">⬇ Download</button>
+            </div>
+          </div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-icon"><svg width="18" height="18"><use href="#doc-svg"/></svg></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Drain blockage — Corso Italia 55</div>
+            <div style="font-size:11px;color:#909090;margin-top:2px;">25 Apr · Report 1 · $120 confirmed</div>
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">View</button>
+              <button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">⬇ Download</button>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center;padding:8px;font-size:12px;color:#2E75B6;font-weight:700;cursor:pointer;">Load more reports ↓</div>
+        <div style="padding:10px 12px;background:#F5F5F5;border-radius:10px;margin:4px 0 12px;">
+          <div style="font-size:11px;color:#909090;">Owner can View and Download member reports. Cannot edit or regenerate.</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Confirmed reports tab · View + Download per report · owner cannot edit · Photos tab: same grid layout as Flow 08 S10a · Quotes tab: same structure as reports</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 4 — ADD MEMBER FORM
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREENS 5–7 · ADD MEMBER FORM · TRADE SELECTOR · CREATION SUCCESS</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S5 — ADD MEMBER FORM -->
+  <div class="screen-wrap">
+    <div class="screen-label">S5 — ADD MEMBER FORM</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:40</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Add team member</div>
+      </div>
+      <!-- Seat billing notice -->
+      <div style="padding:8px 12px;background:#EEF5FC;border-bottom:0.5px solid #D0E4F5;">
+        <div style="font-size:11px;color:#2E75B6;line-height:1.5;">Adding this member adds 1 seat · <b>+$89/month</b> billed immediately on creation. Total will be $349/mo.</div>
+      </div>
+      <div style="overflow-y:auto;padding:0 0 16px;">
+        <!-- Step 1: Personal details -->
+        <div class="stitle">PERSONAL DETAILS</div>
+        <div class="field-block">
+          <div class="field-label">Full name *</div>
+          <input class="field-input focused" value="Franco Martini" readonly/>
+        </div>
+        <div class="field-block">
+          <div class="field-label">Email address *</div>
+          <input class="field-input" value="franco.martini@vplumbing.it" readonly/>
+        </div>
+        <div class="field-block">
+          <div class="field-label">Phone number * (country code)</div>
+          <div style="display:flex;gap:8px;">
+            <select style="padding:10px 8px;border:1.5px solid #E8E8E8;border-radius:10px;font-size:13px;color:#1E3A5F;background:#F9F9F9;font-family:Arial,Helvetica,sans-serif;width:90px;" disabled><option>🇮🇹 +39</option></select>
+            <input class="field-input" style="flex:1;" value="347 891 2345" readonly/>
+          </div>
+        </div>
+
+        <!-- Step 2: Trade & credentials -->
+        <div class="stitle">TRADE &amp; CREDENTIALS</div>
+        <div class="field-block">
+          <div class="field-label">Trade type *</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1.5px solid #E8E8E8;border-radius:10px;background:#F9F9F9;cursor:pointer;">
+            <span style="font-size:13px;color:#1E3A5F;">⚡ Electrician</span>
+            <span style="color:#CCCCCC;font-size:14px;">›</span>
+          </div>
+          <div style="font-size:11px;color:#909090;margin-top:4px;">Tap to select trade type → opens selector</div>
+        </div>
+        <div class="field-block">
+          <div class="field-label">VAT number *</div>
+          <input class="field-input" value="IT09876540123" readonly/>
+          <div style="font-size:11px;color:#909090;margin-top:4px;">Locked permanently on creation</div>
+        </div>
+        <div class="field-block">
+          <div class="field-label">License number *</div>
+          <input class="field-input" value="ITA-ELE-2021-00892" readonly/>
+        </div>
+        <div class="field-block">
+          <div class="field-label">License proof photo *</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid #E8E8E8;border-radius:10px;background:#F9F9F9;">
+            <div style="width:36px;height:36px;background:#D0D5DD;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;">📄</div>
+            <div><div style="font-size:12px;color:#1E3A5F;">license_franco.jpg</div><div style="font-size:10px;color:#909090;">Uploaded</div></div>
+          </div>
+        </div>
+        <div class="field-block">
+          <div class="field-label">National ID photo *</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid #E8E8E8;border-radius:10px;background:#F9F9F9;">
+            <div style="width:36px;height:36px;background:#D0D5DD;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;">🪪</div>
+            <div><div style="font-size:12px;color:#1E3A5F;">id_franco.jpg</div><div style="font-size:10px;color:#909090;">Uploaded · KYC runs after creation</div></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Temp password -->
+        <div class="stitle">TEMPORARY PASSWORD</div>
+        <div class="field-block">
+          <div class="field-label">Temporary password * (member must change on first login)</div>
+          <input class="field-input" type="password" value="TempPass123!" readonly/>
+          <div style="font-size:11px;color:#2E75B6;margin-top:4px;">Sent via SMS and email · member forced to change on first login</div>
+        </div>
+
+        <!-- Create button -->
+        <div style="padding:16px 16px 0;">
+          <button style="width:100%;padding:14px;background:#0A7A3A;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Create member account →</button>
+          <button style="width:100%;padding:12px;background:#fff;color:#555;border:1.5px solid #D0D5DD;border-radius:12px;font-size:13px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Cancel</button>
+          <div style="font-size:11px;color:#909090;text-align:center;margin-top:8px;">+$89/month added to subscription immediately on creation</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Owner fills ALL fields for new member · seat cost notice (+$89/mo) · trade type tap → S6 selector · KYC runs after creation · temp password sent via SMS + email · Create → S7 success · Cancel → S3</div>
+  </div>
+
+  <!-- S6 — TRADE TYPE SELECTOR (overlay) -->
+  <div class="screen-wrap">
+    <div class="screen-label">S6 — TRADE TYPE SELECTOR (OVERLAY)</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:41</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Select trade type</div>
+      </div>
+      <div style="padding:12px 16px;background:#EEF5FC;border-bottom:0.5px solid #D0E4F5;">
+        <div style="font-size:11px;color:#2E75B6;line-height:1.5;">Determines which Rex system prompt and code database this member uses. Can be changed by the member later in their own Settings.</div>
+      </div>
+      <div style="overflow-y:auto;">
+        <div class="trade-opt">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:18px;">🔧</span>
+            <div><div style="font-size:14px;font-weight:700;color:#1E3A5F;">Plumber</div><div style="font-size:11px;color:#909090;">IPC 2021 · UPC 2021 · ASME · NFPA</div></div>
+          </div>
+          <div class="radio-off"></div>
+        </div>
+        <div class="trade-opt" style="background:#F5F9FF;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:18px;">⚡</span>
+            <div><div style="font-size:14px;font-weight:700;color:#2E75B6;">Electrician</div><div style="font-size:11px;color:#909090;">NEC 2023</div></div>
+          </div>
+          <div class="radio-on"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="trade-opt">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:18px;">❄️</span>
+            <div><div style="font-size:14px;color:#1E3A5F;">HVAC Technician</div><div style="font-size:11px;color:#909090;">ASHRAE · IMC</div></div>
+          </div>
+          <div class="radio-off"></div>
+        </div>
+        <div class="trade-opt">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:18px;">🏠</span>
+            <div><div style="font-size:14px;color:#1E3A5F;">Roofer</div><div style="font-size:11px;color:#909090;">IBC roofing codes</div></div>
+          </div>
+          <div class="radio-off"></div>
+        </div>
+        <div class="trade-opt">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:18px;">🔨</span>
+            <div><div style="font-size:14px;color:#1E3A5F;">Other / General Contractor</div><div style="font-size:11px;color:#909090;">Rex asks trade per session</div></div>
+          </div>
+          <div class="radio-off"></div>
+        </div>
+        <div style="padding:16px;">
+          <button style="width:100%;padding:13px;background:#1E3A5F;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Confirm trade type →</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Trade type for this member's Rex profile · Electrician selected · Confirm → back to S5 form with trade updated · ← → back to S5 with no change</div>
+  </div>
+
+  <!-- S7 — CREATION SUCCESS -->
+  <div class="screen-wrap">
+    <div class="screen-label">S7 — MEMBER CREATION SUCCESS</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:42</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Team Management</div>
+      </div>
+      <div style="padding:24px 16px;">
+        <!-- Success card -->
+        <div style="background:#E8F5E9;border:1.5px solid #C8E6C9;border-radius:16px;padding:20px;margin-bottom:16px;text-align:center;">
+          <div style="width:60px;height:60px;border-radius:50%;background:#0A7A3A;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 14l7 7 11-11" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:16px;font-weight:700;color:#1B5E20;margin-bottom:6px;">Franco Martini created</div>
+          <div style="font-size:12px;color:#555;line-height:1.6;">Account created successfully. Franco will receive login credentials by SMS and email and must change the temporary password on first login.</div>
+        </div>
+        <!-- What was sent -->
+        <div style="background:#F5F5F5;border-radius:12px;padding:14px;margin-bottom:14px;">
+          <div style="font-size:11px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:10px;">WHAT FRANCO RECEIVED</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:#555;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>
+            SMS with temporary password and login link
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:#555;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>
+            Email with same credentials
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#555;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#0A7A3A;flex-shrink:0;"></div>
+            Forced to set new password and verify OTP on first login
+          </div>
+        </div>
+        <!-- Billing update -->
+        <div style="background:#EEF5FC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#2E75B6;margin-bottom:6px;">BILLING UPDATED</div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;"><span>New monthly total</span><span style="font-weight:700;color:#1E3A5F;">$349/month</span></div>
+          <div style="font-size:11px;color:#909090;margin-top:3px;">+$89 prorated for remaining days this cycle</div>
+        </div>
+        <!-- KYC notice -->
+        <div style="padding:10px 14px;background:#FFF8E1;border-radius:10px;margin-bottom:16px;border-left:3px solid #F59E0B;">
+          <div style="font-size:11px;color:#92400E;line-height:1.5;font-weight:700;">KYC running in background</div>
+          <div style="font-size:11px;color:#555;margin-top:2px;">Franco's documents are being verified. He can use the app during review — KYC status shown in his profile.</div>
+        </div>
+        <button style="width:100%;padding:13px;background:#1E3A5F;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Back to team →</button>
+      </div>
+    </div>
+    <div class="annotation">Creation confirmed · what Franco received listed · billing updated (+$89/mo) · KYC running in background · "First login pending" badge on card until Franco logs in · Back to team → S3</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 5 — DELETE MEMBER
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">SCREEN 8 · DELETE MEMBER CONFIRMATION</div><div class="section-divider-line"></div></div>
+<div class="screens-row">
+
+  <!-- S8 — DELETE MEMBER CONFIRMATION -->
+  <div class="screen-wrap">
+    <div class="screen-label">S8 — DELETE MEMBER CONFIRMATION MODAL</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:45</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Team Management</div>
+      </div>
+      <div style="position:relative;min-height:476px;">
+        <!-- dimmed member list behind -->
+        <div style="opacity:0.2;padding:12px;pointer-events:none;">
+          <div class="member-card"><div class="member-card-body"><div class="avatar">LC</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Luca Conti</div></div></div></div>
+          <div class="member-card" style="border-color:#E53935;"><div class="member-card-body"><div class="avatar" style="background:#2E75B6;">SR</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Sofia Russo</div></div></div></div>
+        </div>
+        <!-- Delete modal -->
+        <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;border-top:2px solid #E8E8E8;padding:22px 20px;box-shadow:0 -8px 32px rgba(0,0,0,0.18);">
+          <div style="width:36px;height:4px;background:#D0D5DD;border-radius:2px;margin:0 auto 16px;"></div>
+          <div style="text-align:center;margin-bottom:16px;">
+            <div style="width:52px;height:52px;border-radius:50%;background:#FFEBEE;border:2px solid #E53935;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 8v5M11 15.5v.5" stroke="#E53935" stroke-width="2" stroke-linecap="round"/><path d="M9.5 3.67L2.5 16.5A1.5 1.5 0 003.75 18.5h14.5a1.5 1.5 0 001.25-2L12.5 3.67a1.5 1.5 0 00-3 0z" stroke="#E53935" stroke-width="1.6"/></svg>
+            </div>
+            <div style="font-size:15px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Delete Sofia Russo?</div>
+            <div style="font-size:12px;color:#555;line-height:1.6;">Permanently and immediately deletes her account and all associated data. This cannot be undone.</div>
+          </div>
+          <!-- What gets destroyed -->
+          <div style="background:#FFEBEE;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:#555;line-height:2.0;">
+            ✕ Sofia's TradesBrain account<br>
+            ✕ All Rex sessions and messages<br>
+            ✕ All confirmed reports and quotes<br>
+            ✕ All job photos and attachments
+          </div>
+          <!-- Billing note -->
+          <div style="background:#F5F5F5;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:#555;">
+            Billing: 1 seat removed · subscription updates to <b>$260/month</b> from next cycle.
+          </div>
+          <button style="width:100%;padding:13px;background:#E53935;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Delete Sofia permanently</button>
+          <button style="width:100%;padding:13px;background:#fff;color:#555;border:1.5px solid #D0D5DD;border-radius:12px;font-size:14px;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Cancel — keep member</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Delete tap (from member list, member detail, or per-member KPI) → this modal · exact list of what's destroyed · billing reduction note · Confirm → member gone, card removed from list · Cancel → back to previous screen</div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     FLOW 11 — MISSING SCREENS
+════════════════════════════════════════════════════ -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">ADDED SCREENS · SWIPE DELETE · QUOTES TAB · PHOTOS TAB · SESSION DETAIL · FORM VALIDATION · ERRORS</div><div class="section-divider-line"></div></div>
+
+<div class="screens-row">
+
+  <!-- SWIPE LEFT — DELETE REVEAL -->
+  <div class="screen-wrap">
+    <div class="screen-label">MEMBERS LIST — SWIPE LEFT TO REVEAL DELETE</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:33</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Team Management</div><div style="font-size:11px;color:#4A9FD4;">4 of 10 seats used</div></div>
+        <button style="padding:6px 12px;background:#2E75B6;border:none;border-radius:8px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">+ Add</button>
+      </div>
+      <div class="tab-bar"><div class="tab off">📊 KPI Dashboard</div><div class="tab on">👥 Members (4)</div></div>
+      <div style="overflow-y:auto;padding:10px 0 4px;">
+        <!-- Normal card -->
+        <div class="member-card">
+          <div class="member-card-body">
+            <div class="avatar">LC</div>
+            <div style="flex:1;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">Luca Conti</div><div style="font-size:11px;color:#909090;margin-top:3px;">🔧 Plumber · Active</div></div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+        </div>
+        <!-- SWIPED card — delete revealed -->
+        <div style="margin:0 12px 10px;border-radius:14px;overflow:hidden;position:relative;">
+          <div style="display:flex;align-items:stretch;">
+            <!-- Card shifted left -->
+            <div style="flex:1;background:#fff;border:1.5px solid #E53935;border-right:none;border-radius:14px 0 0 14px;padding:12px 14px;display:flex;align-items:center;gap:12px;transform:translateX(-2px);">
+              <div class="avatar" style="background:#2E75B6;">SR</div>
+              <div style="flex:1;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">Sofia Russo</div><div style="font-size:11px;color:#909090;margin-top:2px;">🔧 Plumber · Active · 12 jobs</div></div>
+            </div>
+            <!-- Delete action revealed -->
+            <div style="width:72px;background:#E53935;display:flex;align-items:center;justify-content:center;border-radius:0 14px 14px 0;cursor:pointer;flex-shrink:0;">
+              <div style="text-align:center;"><div style="font-size:16px;">🗑</div><div style="font-size:11px;font-weight:700;color:#fff;margin-top:2px;">Delete</div></div>
+            </div>
+          </div>
+        </div>
+        <!-- Normal cards -->
+        <div class="member-card">
+          <div class="member-card-body">
+            <div class="avatar" style="background:#E65100;">FM</div>
+            <div style="flex:1;"><div style="font-size:14px;font-weight:700;color:#1E3A5F;">Franco Martini</div><div style="font-size:11px;color:#909090;margin-top:2px;">⚡ Electrician · First login pending</div></div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+        </div>
+        <div style="padding:10px 16px;font-size:11px;color:#909090;text-align:center;">← swipe any card left to reveal Delete · tap Delete → confirmation modal</div>
+      </div>
+    </div>
+    <div class="annotation">Swipe card left → red Delete action slides in from right · tap Delete → S8 confirmation modal · swipe back right → card returns to normal · same interaction as Flow 08 job cards</div>
+  </div>
+
+  <!-- MEMBER DETAIL: QUOTES TAB -->
+  <div class="screen-wrap">
+    <div class="screen-label">MEMBER DETAIL — TAB 3 QUOTES (READ-ONLY)</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:34</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Luca Conti</div><div style="font-size:11px;color:#4A9FD4;">🔧 Plumber · Quotes</div></div>
+        <button style="padding:6px 10px;background:#E53935;border:none;border-radius:8px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Delete</button>
+      </div>
+      <div class="tab-bar" style="font-size:10px;">
+        <div class="tab off" style="font-size:10px;">Rex</div>
+        <div class="tab off" style="font-size:10px;">Reports</div>
+        <div class="tab on" style="font-size:10px;">Quotes</div>
+        <div class="tab off" style="font-size:10px;">Photos</div>
+      </div>
+      <div style="padding:6px 12px;background:#F5F5F5;border-bottom:0.5px solid #E8E8E8;"><div style="font-size:11px;color:#909090;text-align:center;">🔒 Read-only · 11 confirmed quotes this week</div></div>
+      <div style="overflow-y:auto;padding:12px 12px 0;">
+        <div class="doc-row">
+          <div class="doc-icon"><svg width="18" height="18"><use href="#doc-svg"/></svg></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Boiler leak — Via Garibaldi 8</div><div style="font-size:11px;color:#909090;margin-top:2px;">25 Apr · Quote 1 · $285 · Cash</div><div style="display:flex;gap:6px;margin-top:6px;"><button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">View</button><button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">⬇ Download</button></div></div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-icon"><svg width="18" height="18"><use href="#doc-svg"/></svg></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Pressure valve — Torre Colombo</div><div style="font-size:11px;color:#909090;margin-top:2px;">24 Apr · Quote 1 · $140 · Bank transfer</div><div style="display:flex;gap:6px;margin-top:6px;"><button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">View</button><button style="padding:5px 10px;background:#EEF5FC;border:1px solid #2E75B6;border-radius:7px;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">⬇ Download</button></div></div>
+        </div>
+        <div style="text-align:center;padding:8px;font-size:12px;color:#2E75B6;font-weight:700;cursor:pointer;">Load more quotes ↓</div>
+        <div style="padding:10px 12px;background:#F5F5F5;border-radius:10px;margin:4px 0 12px;"><div style="font-size:11px;color:#909090;">Owner can View and Download member quotes. Cannot edit, regenerate, or add new versions.</div></div>
+      </div>
+    </div>
+    <div class="annotation">Quotes tab · confirmed quotes only · View + Download per quote · owner read-only · same pattern as Reports tab · tap View → full quote read-only (same as Flow 08 full doc view)</div>
+  </div>
+
+  <!-- MEMBER DETAIL: PHOTOS TAB -->
+  <div class="screen-wrap">
+    <div class="screen-label">MEMBER DETAIL — TAB 4 PHOTOS (READ-ONLY)</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:35</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Luca Conti</div><div style="font-size:11px;color:#4A9FD4;">🔧 Plumber · Photos</div></div>
+        <button style="padding:6px 10px;background:#E53935;border:none;border-radius:8px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Delete</button>
+      </div>
+      <div class="tab-bar" style="font-size:10px;">
+        <div class="tab off" style="font-size:10px;">Rex</div>
+        <div class="tab off" style="font-size:10px;">Reports</div>
+        <div class="tab off" style="font-size:10px;">Quotes</div>
+        <div class="tab on" style="font-size:10px;">Photos</div>
+      </div>
+      <div style="padding:6px 12px;background:#F5F5F5;border-bottom:0.5px solid #E8E8E8;"><div style="font-size:11px;color:#909090;text-align:center;">🔒 Read-only · 47 photos this week</div></div>
+      <div style="overflow-y:auto;">
+        <div style="padding:8px 12px 4px;font-size:10px;font-weight:700;color:#909090;letter-spacing:1px;">BOILER LEAK — VIA GARIBALDI 8 · 25 APR</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;padding:3px;">
+          <div style="aspect-ratio:1;background:#1E3A5F;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="#2E75B6" stroke-width="1.2"/><circle cx="11" cy="12" r="4" stroke="#4A9FD4" stroke-width="1.2"/></svg></div>
+          <div style="aspect-ratio:1;background:#1E3A5F;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="#2E75B6" stroke-width="1.2"/><circle cx="11" cy="12" r="4" stroke="#4A9FD4" stroke-width="1.2"/></svg></div>
+          <div style="aspect-ratio:1;background:#1E3A5F;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="#2E75B6" stroke-width="1.2"/><circle cx="11" cy="12" r="4" stroke="#4A9FD4" stroke-width="1.2"/></svg></div>
+        </div>
+        <div style="padding:8px 12px 4px;font-size:10px;font-weight:700;color:#909090;letter-spacing:1px;">DRAIN BLOCKAGE — CORSO ITALIA · 25 APR</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;padding:3px;">
+          <div style="aspect-ratio:1;background:#1E3A5F;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="#2E75B6" stroke-width="1.2"/><circle cx="11" cy="12" r="4" stroke="#4A9FD4" stroke-width="1.2"/></svg></div>
+          <div style="aspect-ratio:1;background:#1E3A5F;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="1" y="4" width="20" height="15" rx="3" stroke="#2E75B6" stroke-width="1.2"/></svg></div>
+          <div style="aspect-ratio:1;background:#24446E;border-radius:4px;opacity:0.3;"></div>
+        </div>
+        <div style="padding:10px 12px;text-align:center;"><button style="padding:10px 20px;background:#1E3A5F;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">⬇ Download all 47 photos</button></div>
+      </div>
+    </div>
+    <div class="annotation">Photos grouped by job session · tap any photo → full screen viewer (same as Flow 08 S10b) · ⬇ Download all → download toast · read-only · owner cannot delete individual photos</div>
+  </div>
+
+</div>
+
+<div class="screens-row" style="margin-top:24px;">
+
+  <!-- MEMBER SESSION DETAIL (TAP SESSION IN REX TAB) -->
+  <div class="screen-wrap">
+    <div class="screen-label">TAP SESSION IN REX TAB → SESSION READ-ONLY VIEW</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:36</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:14px;font-weight:700;color:#fff;">Boiler leak — Via Garibaldi 8</div><div style="font-size:11px;color:#4A9FD4;">Luca Conti · 25 Apr · 1h 42m</div></div>
+      </div>
+      <!-- read-only notice — prominent since owner viewing member session -->
+      <div style="padding:8px 12px;background:#EEF5FC;border-bottom:0.5px solid #D0E4F5;display:flex;align-items:center;gap:8px;">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" stroke="#2E75B6" stroke-width="1.2"/><path d="M4 5h1.5v4H4M4 5V4h2" stroke="#2E75B6" stroke-width="1" stroke-linecap="round"/></svg>
+        <div style="font-size:11px;color:#2E75B6;">Read-only · Owner view · Luca's session · 8 messages</div>
+      </div>
+      <!-- session conversation abbreviated -->
+      <div style="overflow-y:auto;padding:12px 0;">
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;margin-bottom:8px;">
+          <svg width="26" height="26" style="flex-shrink:0;margin-top:2px;"><use href="#rex-icon"/></svg>
+          <div style="background:#F0F4F8;border-radius:16px 16px 16px 4px;padding:10px 14px;max-width:88%;"><p style="font-size:12px;color:#1E3A5F;margin:0;line-height:1.5;">Show me the problem, Luca.</p></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding:0 12px;margin-bottom:8px;">
+          <div style="background:#2E75B6;border-radius:16px 16px 4px 16px;padding:10px 14px;max-width:88%;"><p style="font-size:12px;color:#fff;margin:0;">Boiler joint leaking — steady drip. [📷 photo_001]</p></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;margin-bottom:8px;">
+          <svg width="26" height="26" style="flex-shrink:0;margin-top:2px;"><use href="#rex-icon"/></svg>
+          <div style="background:#F0F4F8;border-radius:16px 16px 16px 4px;padding:10px 14px;max-width:88%;"><p style="font-size:12px;color:#1E3A5F;margin:0;line-height:1.5;">Compression fitting failure at the union joint. Isolate the system first — close the zone valve.</p></div>
+        </div>
+        <div style="text-align:center;margin:6px 12px;">
+          <div style="display:inline-block;padding:5px 14px;background:#EEF5FC;border-radius:20px;font-size:11px;color:#2E75B6;font-weight:700;cursor:pointer;">4 more messages — tap to expand</div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;margin-bottom:8px;">
+          <svg width="26" height="26" style="flex-shrink:0;margin-top:2px;"><use href="#rex-icon"/></svg>
+          <div style="background:#E8F5E9;border:1px solid #C8E6C9;border-radius:16px 16px 16px 4px;padding:10px 14px;max-width:88%;"><p style="font-size:12px;color:#1B5E20;margin:0;"><b>Job done.</b> Union reseated, no leaks. 1h 42m on site.</p></div>
+        </div>
+        <!-- Documents linked to this session -->
+        <div style="margin:8px 12px;background:#F5F5F5;border-radius:10px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:6px;">DOCUMENTS FROM THIS SESSION</div>
+          <div style="display:flex;gap:6px;">
+            <div style="flex:1;background:#EEF5FC;border:1px solid #2E75B6;border-radius:8px;padding:7px;text-align:center;cursor:pointer;font-size:11px;font-weight:700;color:#2E75B6;">Report 1</div>
+            <div style="flex:1;background:#EEF5FC;border:1px solid #2E75B6;border-radius:8px;padding:7px;text-align:center;cursor:pointer;font-size:11px;font-weight:700;color:#2E75B6;">Quote 1</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Tap session card in Rex tab → this view · read-only · "Owner view" notice · abbreviated conversation · expand 4 more messages · report/quote shortcuts to full doc view · ← back to member detail Rex tab</div>
+  </div>
+
+  <!-- ADD MEMBER FORM VALIDATION ERRORS -->
+  <div class="screen-wrap">
+    <div class="screen-label">ADD MEMBER — FORM VALIDATION ERRORS</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:45</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Add team member</div>
+      </div>
+      <div style="overflow-y:auto;padding:0 0 16px;">
+        <div style="padding:10px 12px;background:#FFEBEE;border-bottom:0.5px solid #FFCDD2;display:flex;align-items:flex-start;gap:8px;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="7" cy="7" r="6" stroke="#E53935" stroke-width="1.3"/><path d="M7 4v4M7 10v.5" stroke="#E53935" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <div style="font-size:11px;color:#C62828;font-weight:700;">4 required fields need attention before creating this account</div>
+        </div>
+
+        <div class="stitle">PERSONAL DETAILS</div>
+        <!-- name — valid -->
+        <div class="field-block">
+          <div class="field-label">Full name *</div>
+          <input class="field-input" style="border-color:#0A7A3A;" value="Franco Martini" readonly/>
+        </div>
+        <!-- email — error: duplicate -->
+        <div class="field-block" style="background:#FFF5F5;">
+          <div class="field-label" style="color:#E53935;">Email address * — already registered</div>
+          <input class="field-input" style="border-color:#E53935;background:#FFF5F5;" value="franco.martini@vplumbing.it" readonly/>
+          <div style="font-size:11px;color:#E53935;margin-top:4px;">This email is already linked to a TradesBrain account. Use a different email.</div>
+        </div>
+        <!-- phone — empty -->
+        <div class="field-block" style="background:#FFF5F5;">
+          <div class="field-label" style="color:#E53935;">Phone number * — required</div>
+          <input class="field-input" style="border-color:#E53935;background:#FFF5F5;" placeholder="Phone number" readonly/>
+        </div>
+
+        <div class="stitle">TRADE &amp; CREDENTIALS</div>
+        <div class="field-block">
+          <div class="field-label">Trade type *</div>
+          <div style="padding:10px 12px;border:1.5px solid #0A7A3A;border-radius:10px;background:#F9F9F9;font-size:13px;color:#1E3A5F;">⚡ Electrician</div>
+        </div>
+        <!-- national ID missing -->
+        <div class="field-block" style="background:#FFF5F5;">
+          <div class="field-label" style="color:#E53935;">National ID photo * — required</div>
+          <button style="width:100%;padding:10px;background:#FFF5F5;border:1.5px dashed #E53935;border-radius:10px;font-size:12px;color:#E53935;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">📷 Upload national ID</button>
+        </div>
+        <!-- temp password missing -->
+        <div class="field-block" style="background:#FFF5F5;">
+          <div class="field-label" style="color:#E53935;">Temporary password * — required</div>
+          <input class="field-input" style="border-color:#E53935;background:#FFF5F5;" placeholder="Set a temporary password" readonly/>
+        </div>
+
+        <div style="padding:16px;">
+          <!-- button disabled while errors exist -->
+          <button style="width:100%;padding:14px;background:#D0D5DD;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:default;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Create member account (fix errors first)</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Tap Create with errors → fields highlight red + summary banner at top · duplicate email shows specific error message · empty required fields show red border + label · Create button disabled until all errors resolved</div>
+  </div>
+
+  <!-- UNSAVED FORM + ERROR STATES -->
+  <div class="screen-wrap">
+    <div class="screen-label">ADD MEMBER — UNSAVED CHANGES + NO INTERNET ERROR</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:47</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;">Add team member</div>
+      </div>
+      <!-- Unsaved changes modal -->
+      <div style="position:relative;min-height:476px;">
+        <div style="opacity:0.2;padding:12px;pointer-events:none;">
+          <div style="height:50px;background:#F5F5F5;border-radius:8px;margin-bottom:8px;"></div>
+          <div style="height:80px;background:#F5F5F5;border-radius:8px;margin-bottom:8px;"></div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;border-top:2px solid #E8E8E8;padding:22px;box-shadow:0 -8px 32px rgba(0,0,0,0.18);">
+          <div style="width:36px;height:4px;background:#D0D5DD;border-radius:2px;margin:0 auto 16px;"></div>
+          <!-- VARIANT A: Unsaved changes -->
+          <div style="margin-bottom:16px;">
+            <div style="font-size:14px;font-weight:700;color:#1E3A5F;margin-bottom:6px;">Unsaved member form</div>
+            <div style="font-size:12px;color:#555;line-height:1.5;">You have started filling in a new member's details. Leave now and your progress will be lost.</div>
+          </div>
+          <button style="width:100%;padding:12px;background:#1E3A5F;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:8px;">Keep editing</button>
+          <button style="width:100%;padding:12px;background:#FFEBEE;color:#C62828;border:1.5px solid #E53935;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;margin-bottom:14px;">Discard and go back</button>
+          <!-- VARIANT B: No internet error -->
+          <div style="border-top:0.5px solid #E8E8E8;padding-top:14px;">
+            <div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:8px;">ALSO: IF NO INTERNET ON CREATE TAP</div>
+            <div style="padding:10px 12px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;">
+              <div style="font-size:12px;font-weight:700;color:#E65100;margin-bottom:4px;">No connection</div>
+              <div style="font-size:11px;color:#555;line-height:1.4;margin-bottom:8px;">Member account could not be created. Check your connection and try again — your form data is preserved.</div>
+              <button style="width:100%;padding:8px;background:#E65100;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Try again</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">← back or Cancel with data entered → unsaved changes modal · Keep editing → stays on form · Discard → S3 member list · No internet on Create tap → orange error inline, form data preserved, Try again</div>
+  </div>
+
+</div>
+
+<!-- KYC REJECTED BADGE ON MEMBER CARD -->
+<div class="screens-row" style="margin-top:24px;">
+  <div class="screen-wrap">
+    <div class="screen-label">KYC REJECTED — MEMBER CARD BADGE + PROFILE STATE</div>
+    <div class="phone">
+      <div class="status"><span class="st">11:50</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;cursor:pointer;">←</div>
+        <div style="flex:1;"><div style="font-size:15px;font-weight:700;color:#fff;">Team Management</div><div style="font-size:11px;color:#4A9FD4;">4 of 10 seats used</div></div>
+        <button style="padding:6px 12px;background:#2E75B6;border:none;border-radius:8px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">+ Add</button>
+      </div>
+      <div class="tab-bar"><div class="tab off">📊 KPI Dashboard</div><div class="tab on">👥 Members (4)</div></div>
+      <div style="overflow-y:auto;padding:10px 0 4px;">
+        <!-- Normal active card -->
+        <div class="member-card"><div class="member-card-body"><div class="avatar">LC</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#1E3A5F;">Luca Conti</div><div style="display:flex;gap:5px;margin-top:3px;"><div class="badge" style="background:#EEF5FC;color:#2E75B6;">🔧 Plumber</div><div class="badge" style="background:#E8F5E9;color:#0A7A3A;">Active</div></div></div><div style="font-size:18px;color:#CCCCCC;">›</div></div></div>
+        <!-- KYC REJECTED MEMBER CARD -->
+        <div class="member-card" style="border-color:#E53935;">
+          <div class="member-card-body">
+            <div class="avatar" style="background:#E65100;">FM</div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Franco Martini</div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:3px;">
+                <div class="badge" style="background:#EEF5FC;color:#2E75B6;">⚡ Electrician</div>
+                <div class="badge" style="background:#FFEBEE;color:#C62828;">ID rejected ✕</div>
+              </div>
+              <div style="font-size:11px;color:#E53935;margin-top:3px;">National ID verification failed</div>
+            </div>
+            <div style="font-size:18px;color:#CCCCCC;">›</div>
+          </div>
+          <div style="padding:8px 12px;background:#FFF5F5;border-top:0.5px solid #FFCDD2;font-size:11px;color:#C62828;">
+            ⚠ Member can use app during review · Cannot subscribe to paid plan · Tap to view · member must re-upload via their Settings
+          </div>
+          <div style="display:flex;border-top:0.5px solid #F0F0F0;">
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#2E75B6;cursor:pointer;">View detail →</div>
+            <div style="flex:1;padding:8px;text-align:center;font-size:11px;font-weight:700;color:#E53935;cursor:pointer;border-left:0.5px solid #F0F0F0;">Delete</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">KYC rejected for member → red "ID rejected ✕" badge on card · red card border · amber note: member can still use app · cannot subscribe to paid plan · member must re-upload via their own Settings · owner cannot re-upload on member's behalf</div>
+  </div>
+</div>
+
+<!-- LOCKED RULES TABLE -->
+<div class="section-divider"><div class="section-divider-line"></div><div class="section-divider-label">LOCKED RULES + COMPLETE TAP MAP</div><div class="section-divider-line"></div></div>
+<div style="max-width:980px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #D0D5DD;overflow:hidden;">
+  <div style="background:#1E3A5F;padding:12px 20px;"><div style="font-size:12px;font-weight:700;color:#fff;letter-spacing:1px;">COMPLETE TAP MAP — FLOW 11 TEAM MANAGEMENT (26 ACTIONS · ALL COVERED)</div></div>
+  <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;padding-bottom:4px;border-bottom:1.5px solid #2E75B6;">TEAM HUB + KPI</div>
+      <div style="color:#555;line-height:2.0;">
+        ← back → Settings main menu<br>
+        KPI Dashboard tab → S1 aggregate<br>
+        Members tab → S3 member list<br>
+        + Add button → S5 add member form<br>
+        Daily / Weekly / Monthly toggle → updates all metrics (S1 and S2)<br>
+        Tap member row in KPI → S2 per-member drill<br>
+        "View Luca's job history" (S2) → S4 member detail Rex tab<br>
+        Delete button (S2 header) → S8 delete modal
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;padding-bottom:4px;border-bottom:1.5px solid #2E75B6;">MEMBERS LIST + DETAIL</div>
+      <div style="color:#555;line-height:2.0;">
+        Tap member card → S4 member detail (Rex tab)<br>
+        "View detail" on card → S4 member detail<br>
+        Delete on card → S8 delete modal<br>
+        + Add (max reached) → disabled · S3b notice shown<br>
+        S4 tabs: Rex / Reports / Quotes / Photos (all read-only)<br>
+        Tap session in Rex tab → full session read-only<br>
+        View report → full report read-only<br>
+        ⬇ Download report → download toast<br>
+        Delete button (S4 header) → S8 delete modal
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;padding-bottom:4px;border-bottom:1.5px solid #2E75B6;">ADD MEMBER + DELETE</div>
+      <div style="color:#555;line-height:2.0;">
+        Trade type field tap → S6 trade selector overlay<br>
+        Confirm trade (S6) → back to S5 with trade updated<br>
+        ← on S6 → back to S5 no change<br>
+        Create member → S7 creation success<br>
+        Cancel form → S3 member list · no change<br>
+        Back to team (S7) → S3 member list<br>
+        Delete confirm (S8) → member deleted · billing updates · card removed<br>
+        Cancel delete (S8) → back to previous screen · no change<br>
+        Owner NEVER logs in as member · read-only access to all member data
+      </div>
+    </div>
+    <div style="grid-column:1/-1;">
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;padding-bottom:4px;border-bottom:1.5px solid #2E75B6;">LOCKED RULES — WHAT OWNER CAN AND CANNOT DO</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#0A7A3A;margin-bottom:6px;">OWNER CAN</div>
+          <div style="color:#555;line-height:2.0;font-size:11px;">
+            ✓ Create team member accounts (fills all fields)<br>
+            ✓ Delete any team member account<br>
+            ✓ View all member Rex sessions (read-only)<br>
+            ✓ View all member reports and quotes (read-only)<br>
+            ✓ View all member job photos (read-only)<br>
+            ✓ Download member PDFs<br>
+            ✓ View KPI metrics per member and aggregate<br>
+            ✓ Switch KPI period: daily / weekly / monthly
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#E53935;margin-bottom:6px;">OWNER CANNOT</div>
+          <div style="color:#555;line-height:2.0;font-size:11px;">
+            ✗ Log in as or operate from inside a member account<br>
+            ✗ Edit any content inside a member account<br>
+            ✗ Modify settings within a member account<br>
+            ✗ Change a member's trade type (member manages own)<br>
+            ✗ Regenerate member reports or quotes<br>
+            ✗ Add members beyond 10 (max seat cap)<br>
+            ✗ See member passwords at any time<br>
+            ✗ Delete their own account from Team Management
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="grid-column:1/-1;">
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;padding-bottom:4px;border-bottom:1.5px solid #2E75B6;">MEMBER FIRST LOGIN FLOW (member's side — no owner screens)</div>
+      <div style="color:#555;line-height:2.0;font-size:11px;">
+        1. Owner creates account (S5) → member receives SMS + email with temp password<br>
+        2. Member opens TradesBrain → signs in with email + temp password<br>
+        3. App forces password change immediately on first login<br>
+        4. Phone OTP verification required before proceeding<br>
+        5. Member sets permanent password → lands on Home screen<br>
+        6. Member's "First login pending" badge on owner's member card clears<br>
+        7. Member can then sign in via email+password or phone OTP going forward<br>
+        8. Member cannot delete their own account — only owner can delete member accounts
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid #D0D5DD;">
+  <div style="font-size:11px;color:#AAAAAA;font-weight:700;letter-spacing:1px;">TRADESBRAIN · FLOW 11 · TEAM MANAGEMENT · v1.0 · CONFIDENTIAL</div>
+  <div style="font-size:11px;color:#AAAAAA;margin-top:4px;">17 screens · 35 tap actions · Team hub (KPI + members tabs) · Aggregate KPI daily/weekly/monthly · Per-member KPI drill-down · Members list · Max seats state · Member detail (Rex/Reports/Quotes/Photos — all read-only) · Add member form · Trade selector · Creation success · Delete member modal · Full locked rules table</div>
+</div>
+
+</body>
+</html>

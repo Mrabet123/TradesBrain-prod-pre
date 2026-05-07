@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TradesBrain — Flow 01: App Entry & Onboarding</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F0F2F5; font-family: Arial, Helvetica, sans-serif; padding: 32px 24px 48px; }
+
+  /* ── FLOW HEADER ── */
+  .flow-header { text-align: center; margin-bottom: 36px; }
+  .flow-tag { display: inline-block; background: #1E3A5F; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 2px; padding: 5px 14px; border-radius: 20px; margin-bottom: 10px; }
+  .flow-title { font-size: 26px; font-weight: 700; color: #1E3A5F; margin-bottom: 6px; }
+  .flow-desc { font-size: 13px; color: #909090; }
+
+  /* ── SECTION DIVIDERS ── */
+  .section-divider { display: flex; align-items: center; gap: 16px; margin: 40px 0 28px; }
+  .section-divider-line { flex: 1; height: 1px; background: #D0D5DD; }
+  .section-divider-label { font-size: 10px; font-weight: 700; color: #2E75B6; letter-spacing: 2px; white-space: nowrap; }
+
+  /* ── PHONE SHELL ── */
+  .phone { width: 320px; margin: 0 auto; background: #fff; border-radius: 40px; border: 2px solid #D0D5DD; overflow: hidden; font-family: Arial, Helvetica, sans-serif; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+
+  /* ── STATUS BAR ── */
+  .status { background: #fff; padding: 12px 24px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .status-time { font-size: 13px; font-weight: 700; color: #1E3A5F; }
+  .status-icons { display: flex; gap: 5px; align-items: center; }
+  .sd { width: 14px; height: 8px; background: #1E3A5F; border-radius: 2px; }
+  .sd.sm { width: 10px; }
+  .sd.xs { width: 6px; }
+
+  /* ── NAVY STATUS BAR (splash) ── */
+  .status-navy { background: #1E3A5F; padding: 12px 24px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .status-navy .status-time { color: #fff; }
+  .status-navy .sd { background: #fff; }
+
+  /* ── SCREEN LABEL & ANNOTATION ── */
+  .screen-label { font-size: 10px; font-weight: 700; color: #909090; letter-spacing: 2px; text-align: center; padding: 6px 0 2px; border-bottom: 0.5px solid #E8E8E8; }
+  .annotation { font-size: 11px; color: #909090; text-align: center; font-style: italic; margin: 6px 24px 0; }
+
+  /* ── ROW LAYOUT ── */
+  .screens-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; padding: 0; }
+  .screen-wrap { display: flex; flex-direction: column; align-items: center; }
+
+  /* ── FORM ELEMENTS ── */
+  .field-group { margin: 0 20px 13px; }
+  .field-label { font-size: 11px; font-weight: 700; color: #1E3A5F; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .req { color: #2E75B6; }
+  .opt { color: #909090; font-weight: 400; }
+  .field-input { width: 100%; box-sizing: border-box; padding: 11px 14px; border: 1.5px solid #D0D5DD; border-radius: 10px; font-size: 14px; color: #1E3A5F; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+  .field-input.filled { border-color: #2E75B6; background: #F5F9FF; }
+  .field-hint { font-size: 11px; color: #909090; margin-top: 4px; }
+  .field-locked { font-size: 11px; color: #E65100; margin-top: 4px; font-weight: 600; }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar { height: 4px; background: #E8E8E8; margin: 0 20px 16px; border-radius: 2px; }
+  .progress-fill { height: 4px; background: #2E75B6; border-radius: 2px; }
+
+  /* ── STEP HEADER ── */
+  .step-header { display: flex; align-items: center; gap: 10px; padding: 12px 20px 8px; }
+  .step-back { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid #D0D5DD; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #1E3A5F; flex-shrink: 0; }
+  .step-title { font-size: 16px; font-weight: 700; color: #1E3A5F; }
+  .step-sub { font-size: 12px; color: #909090; margin-top: 1px; }
+  .step-num { margin-left: auto; font-size: 11px; color: #909090; white-space: nowrap; }
+
+  /* ── SECTION TITLE inside phone ── */
+  .section-title { font-size: 10px; font-weight: 700; color: #909090; letter-spacing: 2px; padding: 10px 20px 6px; background: #F5F5F5; border-top: 0.5px solid #E8E8E8; border-bottom: 0.5px solid #E8E8E8; margin-bottom: 13px; }
+
+  /* ── TRADE GRID ── */
+  .trade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 20px 13px; }
+  .trade-btn { padding: 10px 8px; border: 1.5px solid #D0D5DD; border-radius: 10px; font-size: 12px; font-weight: 700; color: #555; text-align: center; background: #fff; }
+  .trade-btn.active { border-color: #2E75B6; background: #EEF5FC; color: #1E3A5F; }
+
+  /* ── ACCOUNT TYPE GRID ── */
+  .acct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 20px 13px; }
+  .acct-btn { padding: 12px 8px; border: 1.5px solid #D0D5DD; border-radius: 10px; font-size: 12px; font-weight: 700; color: #555; text-align: center; background: #fff; }
+  .acct-btn.active { border-color: #2E75B6; background: #EEF5FC; color: #1E3A5F; }
+
+  /* ── UPLOAD BOX ── */
+  .upload-box { margin: 0 20px 13px; border: 1.5px dashed #2E75B6; border-radius: 10px; padding: 14px; text-align: center; background: #F5F9FF; }
+  .upload-box.uploaded { border-style: solid; background: #F0FFF4; border-color: #0A7A3A; }
+  .upload-box.optional { border-color: #D0D5DD; background: #F5F5F5; }
+  .upload-text { font-size: 12px; color: #2E75B6; font-weight: 700; }
+  .upload-sub { font-size: 11px; color: #909090; margin-top: 3px; }
+  .upload-done { font-size: 12px; color: #0A7A3A; font-weight: 700; margin-bottom: 2px; }
+
+  /* ── REQUIRED BADGE ── */
+  .required-badge { display: inline-block; font-size: 9px; font-weight: 700; color: #fff; background: #E65100; border-radius: 4px; padding: 1px 5px; margin-left: 6px; letter-spacing: 0.5px; vertical-align: middle; }
+
+  /* ── BUTTONS ── */
+  .btn-primary { display: block; width: calc(100% - 40px); margin: 0 20px; padding: 15px; background: #2E75B6; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; text-align: center; font-family: Arial, Helvetica, sans-serif; }
+  .btn-secondary { display: block; width: calc(100% - 40px); margin: 0 20px; padding: 14px; background: #fff; color: #1E3A5F; border: 2px solid #1E3A5F; border-radius: 12px; font-size: 15px; font-weight: 700; text-align: center; font-family: Arial, Helvetica, sans-serif; }
+  .btn-disabled { display: block; width: calc(100% - 40px); margin: 0 20px; padding: 15px; background: #D0D5DD; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; text-align: center; font-family: Arial, Helvetica, sans-serif; }
+  .btn-navy { display: block; width: calc(100% - 40px); margin: 0 20px; padding: 15px; background: #1E3A5F; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; text-align: center; font-family: Arial, Helvetica, sans-serif; }
+
+  /* ── OTP BOXES ── */
+  .otp-box { width: 42px; height: 52px; border: 2px solid #D0D5DD; border-radius: 12px; font-size: 22px; font-weight: 700; color: #1E3A5F; text-align: center; display: flex; align-items: center; justify-content: center; background: #fff; flex-shrink: 0; }
+  .otp-box.filled { border-color: #2E75B6; background: #F5F9FF; }
+  .otp-box.verified { border-color: #0A7A3A; background: #F0FFF4; }
+  .otp-box.error { border-color: #E53935; background: #FFF0F0; }
+
+  /* ── TERMS ── */
+  .toc-section { margin: 0 20px 14px; }
+  .toc-section-title { font-size: 12px; font-weight: 700; color: #1E3A5F; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1.5px solid #2E75B6; }
+  .toc-body { font-size: 12px; color: #555; line-height: 1.6; }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav { display: flex; background: #fff; border-top: 0.5px solid #E8E8E8; }
+  .nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 10px; gap: 3px; }
+  .nav-tab-label { font-size: 10px; color: #909090; }
+  .nav-tab-label.active { color: #2E75B6; font-weight: 700; }
+  .nav-dot { width: 4px; height: 4px; border-radius: 50%; background: #D0D5DD; }
+  .nav-dot.active { background: #2E75B6; }
+
+  /* ── STRENGTH BAR ── */
+  .strength-bar { display: flex; gap: 4px; margin-top: 6px; }
+  .strength-seg { flex: 1; height: 3px; border-radius: 2px; background: #E8E8E8; }
+  .strength-seg.strong { background: #0A7A3A; }
+  .strength-seg.med { background: #F59E0B; }
+
+  /* ── COUNTRY SELECTOR ── */
+  .country-sel { width: 72px; flex-shrink: 0; padding: 11px 10px; border: 1.5px solid #2E75B6; border-radius: 10px; font-size: 12px; color: #1E3A5F; background: #F5F9FF; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="flow-header">
+  <div class="flow-tag">FLOW 01</div>
+  <div class="flow-title">App Entry &amp; Onboarding</div>
+  <div class="flow-desc">Splash → Welcome → Sign Up (3 steps + Terms) → OTP Verification → Home</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 1 — SPLASH + WELCOME
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">SCREEN 1A–1B · SPLASH &amp; WELCOME</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="screens-row">
+
+  <!-- 1A SPLASH -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 1A — SPLASH</div>
+    <div class="phone">
+      <div class="status-navy">
+        <span class="status-time">9:41</span>
+        <div class="status-icons"><div class="sd xs" style="background:#fff;"></div><div class="sd sm" style="background:#fff;"></div><div class="sd" style="background:#fff;"></div></div>
+      </div>
+      <div style="background:#1E3A5F;min-height:580px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;">
+        <!-- Compass icon -->
+        <div style="margin-bottom:28px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="96" height="96">
+          <rect width="200" height="200" rx="44" fill="#1E3A5F"/>
+          <polygon points="188,100 144,176.21 56,176.21 12,100 56,23.79 144,23.79" fill="#24446E"/>
+          <polygon points="182.28,100 141.14,171.26 58.86,171.26 17.72,100 58.86,28.74 141.14,28.74" fill="#152C48"/>
+          <circle cx="100" cy="100" r="66.44" fill="#1E3A5F"/>
+          <rect x="67.44" y="-0.76" width="65.12" height="12.76" rx="3" fill="#24446E"/>
+          <rect x="67.44" y="188" width="65.12" height="12.76" rx="3" fill="#24446E"/>
+          <circle cx="100" cy="100" r="59.84" fill="none" stroke="#4A9FD4" stroke-width="1.1" opacity="0.70"/>
+          <circle cx="100" cy="100" r="46.08" fill="none" stroke="#4A9FD4" stroke-width="0.8" opacity="0.45"/>
+          <line x1="100" y1="49.73" x2="100" y2="40.16" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="100" y1="150.27" x2="100" y2="159.84" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="150.27" y1="100" x2="159.84" y2="100" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="49.73" y1="100" x2="40.16" y2="100" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="135.97" y1="64.03" x2="142.31" y2="57.69" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <line x1="135.97" y1="135.97" x2="142.31" y2="142.31" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <line x1="64.03" y1="135.97" x2="57.69" y2="142.31" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <line x1="64.03" y1="64.03" x2="57.69" y2="57.69" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <polygon points="100,43.15 80.85,100 100,75.47 119.15,100" fill="#2E75B6"/>
+          <polygon points="100,43.15 100,75.47 119.15,100" fill="#5A9FD4"/>
+          <circle cx="100" cy="43.15" r="6.28" fill="#2E75B6"/>
+          <polygon points="100,156.85 119.15,100 100,124.53 80.85,100" fill="#4A9FD4"/>
+          <polygon points="100,156.85 100,124.53 80.85,100" fill="#2E75B6" opacity="0.45"/>
+          <circle cx="100" cy="156.85" r="4.71" fill="#4A9FD4"/>
+          <polygon points="156.85,100 100,80.85 124.53,100 100,119.15" fill="#4A9FD4"/>
+          <polygon points="156.85,100 124.53,100 100,119.15" fill="#2E75B6" opacity="0.45"/>
+          <circle cx="156.85" cy="100" r="4.71" fill="#4A9FD4"/>
+          <polygon points="43.15,100 100,119.15 75.47,100 100,80.85" fill="#4A9FD4"/>
+          <polygon points="43.15,100 75.47,100 100,80.85" fill="#2E75B6" opacity="0.45"/>
+          <circle cx="43.15" cy="100" r="4.71" fill="#4A9FD4"/>
+          <polygon points="134.27,65.73 91.62,91.62 115.23,84.77 108.38,108.38" fill="#4A9FD4" opacity="0.75"/>
+          <polygon points="134.27,134.27 108.38,91.62 115.23,115.23 91.62,108.38" fill="#4A9FD4" opacity="0.75"/>
+          <polygon points="65.73,134.27 108.38,108.38 84.77,115.23 91.62,91.62" fill="#4A9FD4" opacity="0.75"/>
+          <polygon points="65.73,65.73 91.62,108.38 84.77,84.77 108.38,91.62" fill="#4A9FD4" opacity="0.75"/>
+          <circle cx="100" cy="100" r="11.97" fill="#2E75B6"/>
+          <circle cx="100" cy="100" r="6.58" fill="#1E3A5F"/>
+          <circle cx="100" cy="100" r="2.99" fill="#2E75B6"/>
+        </svg>
+        </div>
+        <div style="margin-bottom:8px;text-align:center;">
+          <span style="font-size:34px;font-weight:400;color:#fff;letter-spacing:-1px;">Trades</span><span style="font-size:34px;font-weight:700;color:#2E75B6;letter-spacing:-1px;">Brain</span>
+        </div>
+        <div style="font-size:11px;color:#909090;letter-spacing:2.4px;text-align:center;margin-bottom:64px;">AI CO-PILOT FOR THE TRADES</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:7px;height:7px;border-radius:50%;background:#2E75B6;"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#4A9FD4;opacity:0.6;"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#4A9FD4;opacity:0.3;"></div>
+        </div>
+        <div style="font-size:12px;color:#4A9FD4;margin-top:10px;opacity:0.7;">Loading...</div>
+      </div>
+    </div>
+    <div class="annotation">Auto-advances to Welcome after ~2s</div>
+  </div>
+
+  <!-- 1B WELCOME -->
+  <div class="screen-wrap">
+    <div class="screen-label">SCREEN 1B — WELCOME</div>
+    <div class="phone">
+      <div class="status-navy">
+        <span class="status-time">9:41</span>
+        <div class="status-icons"><div class="sd xs" style="background:#fff;"></div><div class="sd sm" style="background:#fff;"></div><div class="sd" style="background:#fff;"></div></div>
+      </div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;">
+        <!-- navy top block -->
+        <div style="background:#1E3A5F;padding:44px 24px 32px;display:flex;flex-direction:column;align-items:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="64" height="64" style="margin-bottom:14px;">
+          <rect width="200" height="200" rx="44" fill="#1E3A5F"/>
+          <polygon points="188,100 144,176.21 56,176.21 12,100 56,23.79 144,23.79" fill="#24446E"/>
+          <polygon points="182.28,100 141.14,171.26 58.86,171.26 17.72,100 58.86,28.74 141.14,28.74" fill="#152C48"/>
+          <circle cx="100" cy="100" r="66.44" fill="#1E3A5F"/>
+          <rect x="67.44" y="-0.76" width="65.12" height="12.76" rx="3" fill="#24446E"/>
+          <rect x="67.44" y="188" width="65.12" height="12.76" rx="3" fill="#24446E"/>
+          <circle cx="100" cy="100" r="59.84" fill="none" stroke="#4A9FD4" stroke-width="1.1" opacity="0.70"/>
+          <circle cx="100" cy="100" r="46.08" fill="none" stroke="#4A9FD4" stroke-width="0.8" opacity="0.45"/>
+          <line x1="100" y1="49.73" x2="100" y2="40.16" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="100" y1="150.27" x2="100" y2="159.84" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="150.27" y1="100" x2="159.84" y2="100" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="49.73" y1="100" x2="40.16" y2="100" stroke="#4A9FD4" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+          <line x1="135.97" y1="64.03" x2="142.31" y2="57.69" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <line x1="135.97" y1="135.97" x2="142.31" y2="142.31" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <line x1="64.03" y1="135.97" x2="57.69" y2="142.31" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <line x1="64.03" y1="64.03" x2="57.69" y2="57.69" stroke="#4A9FD4" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+          <polygon points="100,43.15 80.85,100 100,75.47 119.15,100" fill="#2E75B6"/>
+          <polygon points="100,43.15 100,75.47 119.15,100" fill="#5A9FD4"/>
+          <circle cx="100" cy="43.15" r="6.28" fill="#2E75B6"/>
+          <polygon points="100,156.85 119.15,100 100,124.53 80.85,100" fill="#4A9FD4"/>
+          <polygon points="100,156.85 100,124.53 80.85,100" fill="#2E75B6" opacity="0.45"/>
+          <circle cx="100" cy="156.85" r="4.71" fill="#4A9FD4"/>
+          <polygon points="156.85,100 100,80.85 124.53,100 100,119.15" fill="#4A9FD4"/>
+          <polygon points="156.85,100 124.53,100 100,119.15" fill="#2E75B6" opacity="0.45"/>
+          <circle cx="156.85" cy="100" r="4.71" fill="#4A9FD4"/>
+          <polygon points="43.15,100 100,119.15 75.47,100 100,80.85" fill="#4A9FD4"/>
+          <polygon points="43.15,100 75.47,100 100,80.85" fill="#2E75B6" opacity="0.45"/>
+          <circle cx="43.15" cy="100" r="4.71" fill="#4A9FD4"/>
+          <polygon points="134.27,65.73 91.62,91.62 115.23,84.77 108.38,108.38" fill="#4A9FD4" opacity="0.75"/>
+          <polygon points="134.27,134.27 108.38,91.62 115.23,115.23 91.62,108.38" fill="#4A9FD4" opacity="0.75"/>
+          <polygon points="65.73,134.27 108.38,108.38 84.77,115.23 91.62,91.62" fill="#4A9FD4" opacity="0.75"/>
+          <polygon points="65.73,65.73 91.62,108.38 84.77,84.77 108.38,91.62" fill="#4A9FD4" opacity="0.75"/>
+          <circle cx="100" cy="100" r="11.97" fill="#2E75B6"/>
+          <circle cx="100" cy="100" r="6.58" fill="#1E3A5F"/>
+          <circle cx="100" cy="100" r="2.99" fill="#2E75B6"/>
+        </svg>
+          <div style="margin-bottom:4px;text-align:center;">
+            <span style="font-size:26px;font-weight:400;color:#fff;letter-spacing:-0.5px;">Trades</span><span style="font-size:26px;font-weight:700;color:#2E75B6;letter-spacing:-0.5px;">Brain</span>
+          </div>
+          <div style="font-size:12px;color:#4A9FD4;letter-spacing:1px;">Your AI co-pilot on every job site</div>
+        </div>
+        <!-- white bottom block -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:36px 0 32px;gap:12px;">
+          <button class="btn-primary">Create account</button>
+          <button class="btn-secondary">Sign in</button>
+          <div style="font-size:11px;color:#AAAAAA;text-align:center;margin-top:4px;">By continuing you agree to our Terms &amp; Privacy Policy</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Two paths — new user or returning user</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 2 — SIGN UP STEPS 1, 2, 3
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">SCREEN 2A–2C · SIGN UP — 3 STEPS</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="screens-row">
+
+  <!-- STEP 1 — ACCOUNT BASICS -->
+  <div class="screen-wrap">
+    <div class="screen-label">STEP 1 — ACCOUNT BASICS</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;">
+        <div class="step-header">
+          <div class="step-back">←</div>
+          <div><div class="step-title">Create account</div><div class="step-sub">Your details</div></div>
+          <div class="step-num">1 of 3</div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:33%;"></div></div>
+        <div style="flex:1;overflow-y:auto;padding-bottom:16px;">
+          <div class="field-group">
+            <div class="field-label">Full name <span class="req">*</span></div>
+            <input class="field-input filled" value="Marco Visentin" readonly/>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Email address <span class="req">*</span></div>
+            <input class="field-input filled" value="marco@vplumbing.it" readonly/>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Password <span class="req">*</span></div>
+            <input class="field-input filled" value="••••••••••" type="password" readonly/>
+            <div class="field-hint">Minimum 8 characters</div>
+            <div class="strength-bar">
+              <div class="strength-seg strong"></div>
+              <div class="strength-seg strong"></div>
+              <div class="strength-seg strong"></div>
+              <div class="strength-seg med"></div>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Phone number <span class="req">*</span></div>
+            <div style="display:flex;gap:8px;">
+              <div class="country-sel">🇮🇹 +39</div>
+              <input class="field-input filled" style="flex:1;" value="347 812 4490" readonly/>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Hourly rate <span class="req">*</span></div>
+            <div style="display:flex;align-items:center;border:1.5px solid #2E75B6;border-radius:10px;overflow:hidden;background:#F5F9FF;">
+              <span style="padding:11px 12px;font-size:14px;color:#909090;border-right:1px solid #D0D5DD;">$</span>
+              <input class="field-input" style="border:none;background:transparent;flex:1;" value="95" readonly/>
+              <span style="padding:11px 12px;font-size:12px;color:#909090;">/hr</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">VAT number <span class="req">*</span></div>
+            <input class="field-input filled" value="IT02345670891" readonly/>
+            <div class="field-locked">🔒 Cannot be changed after account creation</div>
+          </div>
+          <div class="field-group" style="margin-bottom:0;">
+            <div class="field-label">Company name <span class="opt">(optional)</span></div>
+            <input class="field-input" placeholder="e.g. Visentin Plumbing" readonly/>
+          </div>
+        </div>
+        <div style="padding:14px 0 20px;">
+          <button class="btn-primary">Continue →</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">All required fields filled → Continue active</div>
+  </div>
+
+  <!-- STEP 2 — TRADE PROFILE + IDENTITY -->
+  <div class="screen-wrap">
+    <div class="screen-label">STEP 2 — TRADE PROFILE &amp; IDENTITY</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;">
+        <div class="step-header">
+          <div class="step-back">←</div>
+          <div><div class="step-title">Create account</div><div class="step-sub">Trade &amp; identity</div></div>
+          <div class="step-num">2 of 3</div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:66%;"></div></div>
+        <div style="flex:1;overflow-y:auto;padding-bottom:16px;">
+
+          <div class="section-title">YOUR TRADE</div>
+          <div class="trade-grid">
+            <div class="trade-btn active">🔧 Plumber</div>
+            <div class="trade-btn">⚡ Electrician</div>
+            <div class="trade-btn">❄️ HVAC</div>
+            <div class="trade-btn">🏠 Roofer</div>
+            <div class="trade-btn" style="grid-column:1/-1;">Other trade</div>
+          </div>
+
+          <div class="section-title">ACCOUNT TYPE</div>
+          <div class="acct-grid">
+            <div class="acct-btn active">
+              <div style="font-size:18px;margin-bottom:4px;">👤</div>
+              <div>Solopreneur</div>
+              <div style="font-size:10px;color:#909090;font-weight:400;margin-top:2px;">Just me</div>
+            </div>
+            <div class="acct-btn">
+              <div style="font-size:18px;margin-bottom:4px;">👥</div>
+              <div>Team owner</div>
+              <div style="font-size:10px;color:#909090;font-weight:400;margin-top:2px;">Me + technicians</div>
+            </div>
+          </div>
+
+          <div class="section-title">LICENSE &amp; IDENTITY <span class="required-badge">ALL REQUIRED</span></div>
+
+          <div class="field-group">
+            <div class="field-label">License number <span class="req">*</span></div>
+            <input class="field-input filled" value="ITA-PLB-2019-04471" readonly/>
+            <div class="field-locked">🔒 Cannot be changed after account creation</div>
+          </div>
+
+          <div class="field-group" style="margin-bottom:0;">
+            <div class="field-label">License proof <span class="req">*</span></div>
+          </div>
+          <div class="upload-box uploaded" style="margin-bottom:13px;">
+            <div class="upload-done">✓ license_proof.jpg uploaded</div>
+            <div class="upload-sub">Stored for accountability · Tap to replace</div>
+          </div>
+
+          <div class="field-group" style="margin-bottom:0;">
+            <div class="field-label">National ID <span class="req">*</span></div>
+            <div style="font-size:11px;color:#E65100;margin-bottom:5px;font-weight:600;">Required — KYC verification runs automatically after account creation</div>
+          </div>
+          <div class="upload-box" style="margin-bottom:13px;">
+            <div style="font-size:20px;margin-bottom:4px;">📄</div>
+            <div class="upload-text">Tap to upload national ID</div>
+            <div class="upload-sub">JPG, PNG or PDF · Clear photo, all corners visible</div>
+          </div>
+
+          <div class="section-title">COMPANY (OPTIONAL)</div>
+          <div class="field-group" style="margin-bottom:0;">
+            <div class="field-label">Company logo <span class="opt">(optional)</span></div>
+          </div>
+          <div class="upload-box optional" style="margin-bottom:0;">
+            <div style="font-size:18px;margin-bottom:4px;color:#AAAAAA;">🖼</div>
+            <div style="font-size:12px;color:#AAAAAA;font-weight:700;">Upload company logo</div>
+            <div class="upload-sub">Optional · PNG or JPG</div>
+          </div>
+
+        </div>
+        <div style="padding:14px 0 20px;">
+          <button class="btn-primary">Continue →</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">License number + proof + national ID all required</div>
+  </div>
+
+  <!-- STEP 3 — REVIEW + TERMS -->
+  <div class="screen-wrap">
+    <div class="screen-label">STEP 3 — REVIEW &amp; TERMS</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;">
+        <div class="step-header">
+          <div class="step-back">←</div>
+          <div><div class="step-title">Create account</div><div class="step-sub">Review &amp; confirm</div></div>
+          <div class="step-num">3 of 3</div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:100%;"></div></div>
+        <div style="flex:1;overflow-y:auto;padding-bottom:16px;">
+
+          <!-- review summary -->
+          <div style="margin:4px 20px 14px;border:1.5px solid #E8E8E8;border-radius:12px;overflow:hidden;">
+            <div style="background:#F5F5F5;padding:8px 14px;font-size:10px;font-weight:700;color:#909090;letter-spacing:1.5px;">SUMMARY</div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Name</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">Marco Visentin</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Trade</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">Plumber</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Account</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">Solopreneur</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">License proof</span><span style="font-size:13px;color:#0A7A3A;font-weight:700;">✓ Uploaded</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;"><span style="font-size:12px;color:#909090;">National ID</span><span style="font-size:13px;color:#0A7A3A;font-weight:700;">✓ Uploaded</span></div>
+          </div>
+
+          <!-- KYC note -->
+          <div style="margin:0 20px 14px;padding:12px 14px;background:#FFF8E8;border:1.5px solid #F59E0B;border-radius:10px;">
+            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:3px;">⏳ Identity verification</div>
+            <div style="font-size:11px;color:#92400E;line-height:1.5;">KYC runs automatically after account creation. Your 10 free trial queries are available immediately — no waiting required.</div>
+          </div>
+
+          <!-- Terms block -->
+          <div style="margin:0 20px 14px;padding:16px;background:#F5F5F5;border-radius:12px;border:1.5px solid #E8E8E8;">
+            <div style="font-size:12px;font-weight:700;color:#1E3A5F;margin-bottom:6px;">Terms of Use &amp; Privacy Policy</div>
+            <div style="font-size:12px;color:#555;line-height:1.5;margin-bottom:12px;">Before creating your account, please read and accept our full terms and legal compliance requirements.</div>
+            <button class="btn-navy" style="width:100%;margin:0;padding:10px;font-size:13px;">Read Terms and Conditions</button>
+          </div>
+
+          <!-- checkbox — unchecked until user reads -->
+          <div style="margin:0 20px 16px;padding:14px 16px;background:#F5F5F5;border:1.5px solid #D0D5DD;border-radius:12px;display:flex;align-items:flex-start;gap:12px;">
+            <div style="width:22px;height:22px;border-radius:6px;border:2px solid #D0D5DD;background:#fff;flex-shrink:0;margin-top:1px;"></div>
+            <div style="font-size:12px;color:#909090;line-height:1.5;">I have read and agree to the Terms of Use and Privacy Policy. I confirm I am a licensed trade professional.</div>
+          </div>
+
+        </div>
+        <div style="padding:0 0 20px;">
+          <div class="btn-disabled">Create account</div>
+          <div style="font-size:11px;color:#AAAAAA;text-align:center;margin-top:8px;">Read Terms and tick checkbox to continue</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Tap "Read Terms" → opens full overlay · checkbox unlocks button</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 3 — TERMS OVERLAY
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">SCREEN 2D · TERMS &amp; CONDITIONS OVERLAY</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="screens-row">
+
+  <!-- TERMS FULL OVERLAY -->
+  <div class="screen-wrap">
+    <div class="screen-label">TERMS &amp; CONDITIONS — FULL SCREEN</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;">
+        <!-- header -->
+        <div style="padding:14px 20px 10px;border-bottom:0.5px solid #E8E8E8;display:flex;align-items:center;gap:12px;">
+          <div class="step-back">✕</div>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#1E3A5F;">Terms of Use</div>
+            <div style="font-size:11px;color:#909090;">Version 1.0 · April 2026</div>
+          </div>
+        </div>
+        <!-- sections -->
+        <div style="flex:1;overflow-y:auto;padding:16px 0 8px;">
+
+          <div class="toc-section">
+            <div class="toc-section-title">1. Acceptance of terms</div>
+            <div class="toc-body">By creating an account you agree to be bound by these Terms of Use and our Privacy Policy. If you do not agree, do not use TradesBrain.</div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">2. Service description</div>
+            <div class="toc-body">TradesBrain provides an AI co-pilot service for licensed trade professionals. Rex is an AI assistant — all professional decisions and code compliance remain your responsibility.</div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">3. Eligibility</div>
+            <div class="toc-body">You must be a licensed trade professional aged 18 or over. You confirm your license details are accurate and current.</div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">4. Account creation &amp; identity</div>
+            <div class="toc-body">You agree to provide accurate identity and license information. VAT number, license number and verified documents are permanently locked after verification.</div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">5. KYC verification</div>
+            <div class="toc-body">Identity verification is required before accessing paid plans. Stripe Identity processes your documents. Paid access unlocks only after all verification triggers are satisfied.</div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">6. Subscription &amp; billing</div>
+            <div class="toc-body">Subscriptions auto-renew every 30 days. Cancellation stops renewal at cycle end. Full content to be completed before launch.</div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">7. Data &amp; privacy</div>
+            <div class="toc-body">We store your job sessions, reports and documents securely. You may delete your account and all data at any time. Full privacy policy available separately.</div>
+          </div>
+          <div class="toc-section">
+            <div class="toc-section-title">8. Limitation of liability</div>
+            <div class="toc-body">TradesBrain is a decision-support tool. We are not liable for professional outcomes, code compliance failures or on-site decisions made using Rex.</div>
+          </div>
+          <div class="toc-section" style="margin-bottom:0;">
+            <div class="toc-section-title">9. Governing law</div>
+            <div class="toc-body">These terms are governed by the laws of [jurisdiction to be confirmed]. Disputes shall be resolved by [arbitration / courts — to be confirmed pre-launch].</div>
+          </div>
+
+        </div>
+        <!-- sticky accept -->
+        <div style="padding:14px 0 16px;border-top:0.5px solid #E8E8E8;background:#fff;">
+          <button class="btn-primary">I agree — return to sign up</button>
+          <div style="font-size:11px;color:#AAAAAA;text-align:center;margin-top:8px;">Acceptance date and version stored permanently</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Sticky I agree button · scroll to read all 9 sections · closes on tap</div>
+  </div>
+
+  <!-- STEP 3 AFTER AGREEMENT -->
+  <div class="screen-wrap">
+    <div class="screen-label">STEP 3 — TERMS ACCEPTED (BUTTON ACTIVE)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;">
+        <div class="step-header">
+          <div class="step-back">←</div>
+          <div><div class="step-title">Create account</div><div class="step-sub">Review &amp; confirm</div></div>
+          <div class="step-num">3 of 3</div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:100%;"></div></div>
+        <div style="flex:1;overflow-y:auto;padding-bottom:16px;">
+          <div style="margin:4px 20px 14px;border:1.5px solid #E8E8E8;border-radius:12px;overflow:hidden;">
+            <div style="background:#F5F5F5;padding:8px 14px;font-size:10px;font-weight:700;color:#909090;letter-spacing:1.5px;">SUMMARY</div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Name</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">Marco Visentin</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Trade</span><span style="font-size:13px;font-weight:700;color:#1E3A5F;">Plumber</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">License proof</span><span style="font-size:13px;color:#0A7A3A;font-weight:700;">✓ Uploaded</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 14px;"><span style="font-size:12px;color:#909090;">National ID</span><span style="font-size:13px;color:#0A7A3A;font-weight:700;">✓ Uploaded</span></div>
+          </div>
+          <div style="margin:0 20px 14px;padding:12px 14px;background:#FFF8E8;border:1.5px solid #F59E0B;border-radius:10px;">
+            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:3px;">⏳ Identity verification</div>
+            <div style="font-size:11px;color:#92400E;line-height:1.5;">KYC runs automatically after account creation. 10 free trial queries available immediately.</div>
+          </div>
+          <div style="margin:0 20px 14px;padding:12px 16px;background:#F0FFF4;border:1.5px solid #0A7A3A;border-radius:12px;display:flex;align-items:flex-start;gap:12px;">
+            <div style="width:22px;height:22px;border-radius:6px;background:#0A7A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+              <span style="color:#fff;font-size:13px;font-weight:700;">✓</span>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#0A7A3A;margin-bottom:2px;">Terms agreed</div>
+              <div style="font-size:11px;color:#555;line-height:1.5;">Terms of Use &amp; Privacy Policy · April 2026 · v1.0</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:0 0 20px;">
+          <button class="btn-primary">Create account</button>
+          <div style="font-size:11px;color:#AAAAAA;text-align:center;margin-top:8px;">Triggers email + SMS OTP simultaneously</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Checkbox ticked → Create account button active · tapping triggers OTP</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 4 — OTP VERIFICATION
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">SCREEN 3A–3C · OTP VERIFICATION — 3 STATES</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="screens-row">
+
+  <!-- OTP STATE 1 — WAITING -->
+  <div class="screen-wrap">
+    <div class="screen-label">STATE 1 — ENTER BOTH CODES</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;padding-bottom:24px;">
+        <div style="padding:16px 20px 10px;border-bottom:0.5px solid #E8E8E8;">
+          <div style="font-size:18px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Verify your account</div>
+          <div style="font-size:13px;color:#555;line-height:1.5;">We sent codes to your email and phone. Enter both to continue.</div>
+        </div>
+        <div style="flex:1;padding:22px 0 0;">
+
+          <!-- EMAIL OTP -->
+          <div style="padding:0 20px 20px;border-bottom:0.5px solid #E8E8E8;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:32px;height:32px;background:#1E3A5F;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="#fff" stroke-width="1.4"/><path d="M1 5l7 5 7-5" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Email code</div>
+                <div style="font-size:11px;color:#909090;">marco@vplumbing.it</div>
+              </div>
+              <div style="margin-left:auto;width:20px;height:20px;border-radius:50%;border:2px solid #D0D5DD;background:#E8E8E8;"></div>
+            </div>
+            <div style="display:flex;gap:7px;justify-content:center;margin-bottom:10px;">
+              <div class="otp-box filled">4</div><div class="otp-box filled">7</div><div class="otp-box filled">2</div>
+              <div class="otp-box" style="border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,0.15);"></div>
+              <div class="otp-box"></div><div class="otp-box"></div>
+            </div>
+            <div style="text-align:center;font-size:12px;color:#909090;">Didn't receive it? <span style="color:#2E75B6;font-weight:700;">Resend</span> <span style="color:#AAAAAA;">(in 45s)</span></div>
+          </div>
+
+          <!-- SMS OTP -->
+          <div style="padding:20px 20px 0;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:32px;height:32px;background:#1E3A5F;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="4" y="1" width="8" height="14" rx="2" stroke="#fff" stroke-width="1.4"/><circle cx="8" cy="12.5" r="1" fill="#fff"/></svg>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1E3A5F;">SMS code</div>
+                <div style="font-size:11px;color:#909090;">+39 347 812 4490</div>
+              </div>
+              <div style="margin-left:auto;width:20px;height:20px;border-radius:50%;border:2px solid #D0D5DD;background:#E8E8E8;"></div>
+            </div>
+            <div style="display:flex;gap:7px;justify-content:center;margin-bottom:10px;">
+              <div class="otp-box"></div><div class="otp-box"></div><div class="otp-box"></div>
+              <div class="otp-box"></div><div class="otp-box"></div><div class="otp-box"></div>
+            </div>
+            <div style="text-align:center;font-size:12px;color:#909090;">Didn't receive it? <span style="color:#2E75B6;font-weight:700;">Resend</span> <span style="color:#AAAAAA;">(in 60s)</span></div>
+          </div>
+
+        </div>
+        <div style="padding:20px 0 0;">
+          <div class="btn-disabled">Verify account</div>
+          <div style="font-size:11px;color:#AAAAAA;text-align:center;margin-top:8px;">Both codes required</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Email half-filled · SMS empty · button disabled</div>
+  </div>
+
+  <!-- OTP STATE 2 — BOTH VERIFIED -->
+  <div class="screen-wrap">
+    <div class="screen-label">STATE 2 — BOTH CODES VERIFIED</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;padding-bottom:24px;">
+        <div style="padding:16px 20px 10px;border-bottom:0.5px solid #E8E8E8;">
+          <div style="font-size:18px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Verify your account</div>
+          <div style="font-size:13px;color:#555;line-height:1.5;">We sent codes to your email and phone. Enter both to continue.</div>
+        </div>
+        <div style="flex:1;padding:22px 0 0;">
+
+          <!-- EMAIL VERIFIED -->
+          <div style="padding:0 20px 20px;border-bottom:0.5px solid #E8E8E8;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:32px;height:32px;background:#0A7A3A;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="#fff" stroke-width="1.4"/><path d="M1 5l7 5 7-5" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Email code</div>
+                <div style="font-size:11px;color:#0A7A3A;font-weight:700;">✓ Verified</div>
+              </div>
+              <div style="margin-left:auto;width:20px;height:20px;border-radius:50%;background:#0A7A3A;display:flex;align-items:center;justify-content:center;">
+                <span style="color:#fff;font-size:11px;font-weight:700;">✓</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;justify-content:center;">
+              <div class="otp-box verified">8</div><div class="otp-box verified">3</div><div class="otp-box verified">1</div>
+              <div class="otp-box verified">9</div><div class="otp-box verified">4</div><div class="otp-box verified">7</div>
+            </div>
+          </div>
+
+          <!-- SMS VERIFIED -->
+          <div style="padding:20px 20px 0;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:32px;height:32px;background:#0A7A3A;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="4" y="1" width="8" height="14" rx="2" stroke="#fff" stroke-width="1.4"/><circle cx="8" cy="12.5" r="1" fill="#fff"/></svg>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1E3A5F;">SMS code</div>
+                <div style="font-size:11px;color:#0A7A3A;font-weight:700;">✓ Verified</div>
+              </div>
+              <div style="margin-left:auto;width:20px;height:20px;border-radius:50%;background:#0A7A3A;display:flex;align-items:center;justify-content:center;">
+                <span style="color:#fff;font-size:11px;font-weight:700;">✓</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;justify-content:center;">
+              <div class="otp-box verified">5</div><div class="otp-box verified">2</div><div class="otp-box verified">7</div>
+              <div class="otp-box verified">0</div><div class="otp-box verified">4</div><div class="otp-box verified">1</div>
+            </div>
+          </div>
+
+        </div>
+        <div style="padding:20px 0 0;">
+          <button class="btn-primary">Verify account →</button>
+          <div style="font-size:11px;color:#0A7A3A;font-weight:700;text-align:center;margin-top:8px;">Both channels verified ✓</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Both green → button active → creates account</div>
+  </div>
+
+  <!-- OTP STATE 3 — ERROR -->
+  <div class="screen-wrap">
+    <div class="screen-label">STATE 3 — WRONG CODE ERROR</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div class="status-icons"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#fff;min-height:580px;display:flex;flex-direction:column;padding-bottom:24px;">
+        <div style="padding:16px 20px 10px;border-bottom:0.5px solid #E8E8E8;">
+          <div style="font-size:18px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Verify your account</div>
+          <div style="font-size:13px;color:#555;line-height:1.5;">We sent codes to your email and phone. Enter both to continue.</div>
+        </div>
+        <div style="flex:1;padding:22px 0 0;">
+
+          <!-- EMAIL — wrong code -->
+          <div style="padding:0 20px 20px;border-bottom:0.5px solid #E8E8E8;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:32px;height:32px;background:#E53935;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="#fff" stroke-width="1.4"/><path d="M1 5l7 5 7-5" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Email code</div>
+                <div style="font-size:11px;color:#E53935;font-weight:700;">✕ Incorrect code</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;justify-content:center;margin-bottom:10px;">
+              <div class="otp-box error">9</div><div class="otp-box error">9</div><div class="otp-box error">9</div>
+              <div class="otp-box error">9</div><div class="otp-box error">9</div><div class="otp-box error">9</div>
+            </div>
+            <div style="background:#FFF0F0;border:1.5px solid #E53935;border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+              <div style="font-size:12px;color:#E53935;font-weight:700;">Incorrect code — 2 attempts remaining</div>
+              <div style="font-size:11px;color:#E53935;margin-top:2px;">3 wrong attempts = 5 minute lockout</div>
+            </div>
+            <div style="text-align:center;font-size:12px;color:#909090;"><span style="color:#2E75B6;font-weight:700;">Resend code</span></div>
+          </div>
+
+          <!-- SMS — still empty -->
+          <div style="padding:20px 20px 0;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:32px;height:32px;background:#1E3A5F;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="4" y="1" width="8" height="14" rx="2" stroke="#fff" stroke-width="1.4"/><circle cx="8" cy="12.5" r="1" fill="#fff"/></svg>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#1E3A5F;">SMS code</div>
+                <div style="font-size:11px;color:#909090;">+39 347 812 4490</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;justify-content:center;">
+              <div class="otp-box"></div><div class="otp-box"></div><div class="otp-box"></div>
+              <div class="otp-box"></div><div class="otp-box"></div><div class="otp-box"></div>
+            </div>
+          </div>
+
+        </div>
+        <div style="padding:20px 0 0;">
+          <div class="btn-disabled">Verify account</div>
+          <div style="font-size:11px;color:#E53935;text-align:center;margin-top:8px;font-weight:700;">Fix email code to continue</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Wrong code → red · 2 attempts left · 3 wrong = 5 min lockout</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════════ -->
+<div style="text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid #D0D5DD;">
+  <div style="font-size:11px;color:#AAAAAA;font-weight:700;letter-spacing:1px;">TRADESBRAIN · FLOW 01 · APP ENTRY &amp; ONBOARDING · v1.0 · CONFIDENTIAL</div>
+  <div style="font-size:11px;color:#AAAAAA;margin-top:4px;">8 screens across 4 sections · Validated updates applied: national ID required · VAT required · license proof required · KYC auto-runs after creation</div>
+</div>
+
+</body>
+</html>

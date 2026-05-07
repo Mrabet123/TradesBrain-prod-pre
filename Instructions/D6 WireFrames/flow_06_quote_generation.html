@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TradesBrain — Flow 06: Quote Generation</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F0F2F5; font-family: Arial, Helvetica, sans-serif; padding: 32px 24px 48px; }
+
+  .flow-header { text-align: center; margin-bottom: 36px; }
+  .flow-tag { display: inline-block; background: #1E3A5F; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 2px; padding: 5px 14px; border-radius: 20px; margin-bottom: 10px; }
+  .flow-title { font-size: 26px; font-weight: 700; color: #1E3A5F; margin-bottom: 6px; }
+  .flow-desc { font-size: 13px; color: #909090; }
+
+  .section-divider { display: flex; align-items: center; gap: 16px; margin: 40px 0 28px; }
+  .section-divider-line { flex: 1; height: 1px; background: #D0D5DD; }
+  .section-divider-label { font-size: 10px; font-weight: 700; color: #2E75B6; letter-spacing: 2px; white-space: nowrap; }
+
+  /* ── EXACT ORIGINAL PHONE SHELL ── */
+  .phone { width: 320px; margin: 0 auto; background: #fff; border-radius: 40px; border: 2px solid #D0D5DD; overflow: hidden; font-family: Arial, Helvetica, sans-serif; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .status { background: #1E3A5F; padding: 12px 24px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .status-time { font-size: 13px; font-weight: 700; color: #fff; }
+  .sd { width: 14px; height: 8px; background: #fff; border-radius: 2px; opacity: 0.8; }
+  .sd.sm { width: 10px; } .sd.xs { width: 6px; }
+
+  /* ── EXACT ORIGINAL BUBBLES ── */
+  .bubble-rex { background: #F0F4F8; border-radius: 16px 16px 16px 4px; padding: 10px 14px; max-width: 88%; }
+  .bubble-rex p { margin: 0; font-size: 13px; color: #1E3A5F; line-height: 1.55; }
+  .bubble-w { background: #2E75B6; border-radius: 16px 16px 4px 16px; padding: 10px 14px; max-width: 88%; }
+  .bubble-w p { margin: 0; font-size: 13px; color: #fff; line-height: 1.55; }
+
+  /* ── HEADER ── */
+  .hdr { background: #1E3A5F; padding: 10px 16px 12px; display: flex; align-items: center; gap: 10px; }
+
+  /* ── SECTION CHIPS ── */
+  .chip { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 1.5px solid #E8E8E8; margin-bottom: 6px; cursor: pointer; background: #F5F5F5; }
+  .chip.on { background: #EEF5FC; border-color: #2E75B6; }
+  .dh { color: #CCCCCC; font-size: 14px; flex-shrink: 0; }
+  .chk { width: 16px; height: 16px; border-radius: 4px; background: #2E75B6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .chk-empty { width: 16px; height: 16px; border-radius: 4px; background: #E8E8E8; flex-shrink: 0; }
+
+  /* ── ADD SECTION BUTTONS ── */
+  .add-btns { display: flex; gap: 6px; margin-bottom: 8px; }
+  .vbtn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; background: #1E3A5F; border: none; border-radius: 9px; cursor: pointer; font-family: Arial, Helvetica, sans-serif; }
+  .mbtn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; background: #EEF5FC; border: 1.5px solid #2E75B6; border-radius: 9px; cursor: pointer; font-family: Arial, Helvetica, sans-serif; }
+
+  /* ── LINE ITEM ROWS ── */
+  .li-row { display: flex; align-items: center; gap: 4px; padding: 7px 0; border-bottom: 0.5px solid #F0F0F0; }
+  .li-row.editing { background: #F5F9FF; padding: 8px 6px; border-radius: 8px; border: 1.5px solid #2E75B6; margin-bottom: 4px; }
+  .li-edit-field { border: none; border-bottom: 1.5px solid #2E75B6; font-size: 12px; color: #1E3A5F; padding: 2px 4px; font-family: Arial, Helvetica, sans-serif; background: transparent; }
+
+  /* ── PAYMENT METHOD OPTIONS ── */
+  .pm-option { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 1.5px solid #E8E8E8; margin-bottom: 5px; cursor: pointer; background: #fff; }
+  .pm-option.sel { background: #EEF5FC; border-color: #2E75B6; }
+  .pm-check { width: 18px; height: 18px; border-radius: 5px; border: 2px solid #D0D5DD; flex-shrink: 0; background: #fff; }
+  .pm-check.on { background: #2E75B6; border-color: #2E75B6; display: flex; align-items: center; justify-content: center; }
+
+  /* ── BUTTONS ── */
+  .confirm-btn { display: block; width: calc(100% - 24px); margin: 0 12px; padding: 14px; background: #1E3A5F; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: Arial, Helvetica, sans-serif; }
+  .gen-btn { display: block; width: calc(100% - 24px); margin: 0 12px; padding: 14px; background: #2E75B6; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: Arial, Helvetica, sans-serif; }
+  .edit-lnk { font-size: 10px; color: #2E75B6; font-weight: 700; cursor: pointer; }
+
+  /* ── STAGE PILL ── */
+  .stage-pill { display: inline-flex; align-items: center; padding: 4px 10px; background: rgba(74,159,212,0.18); border-radius: 20px; font-size: 10px; font-weight: 700; color: #4A9FD4; border: 1px solid rgba(74,159,212,0.4); white-space: nowrap; }
+
+  /* ── INPUT BAR ── */
+  .input-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 0.5px solid #E8E8E8; background: #fff; }
+  .voice-btn { width: 44px; height: 44px; border-radius: 50%; background: #1E3A5F; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+  .photo-btn { width: 40px; height: 40px; border-radius: 12px; background: #F5F5F5; border: 1.5px solid #E8E8E8; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+  .text-input { flex: 1; padding: 10px 12px; border: 1.5px solid #E8E8E8; border-radius: 22px; font-size: 13px; color: #1E3A5F; font-family: Arial, Helvetica, sans-serif; background: #F9F9F9; }
+
+  .screen-label { font-size: 10px; font-weight: 700; color: #909090; letter-spacing: 2px; text-align: center; padding: 6px 0 2px; border-bottom: 0.5px solid #E8E8E8; }
+  .annotation { font-size: 11px; color: #909090; text-align: center; font-style: italic; margin: 6px 24px 0; }
+  .screens-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+  .screen-wrap { display: flex; flex-direction: column; align-items: center; }
+</style>
+
+<!-- REX COMPASS ICON — exact from originals — never the full logo on working screens -->
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <symbol id="rex-icon" viewBox="0 0 28 28">
+      <circle cx="14" cy="14" r="14" fill="#1E3A5F"/>
+      <polygon points="14,5 12,12 14,11 16,12" fill="#2E75B6"/>
+      <polygon points="14,23 12,16 14,17 16,16" fill="#4A9FD4" opacity="0.6"/>
+      <polygon points="23,14 16,12 17,14 16,16" fill="#4A9FD4" opacity="0.6"/>
+      <polygon points="5,14 12,12 11,14 12,16" fill="#4A9FD4" opacity="0.6"/>
+      <polygon points="21,7 15,13 16,12 17,13" fill="#4A9FD4" opacity="0.3"/>
+      <polygon points="7,7 13,13 12,12 11,13" fill="#4A9FD4" opacity="0.3"/>
+      <polygon points="21,21 15,15 16,16 17,15" fill="#4A9FD4" opacity="0.3"/>
+      <polygon points="7,21 13,15 12,16 11,15" fill="#4A9FD4" opacity="0.3"/>
+      <circle cx="14" cy="14" r="3.5" fill="#2E75B6"/>
+      <circle cx="14" cy="14" r="1.8" fill="#1E3A5F"/>
+      <circle cx="14" cy="14" r="0.8" fill="#2E75B6"/>
+    </symbol>
+    <symbol id="chk-icon" viewBox="0 0 10 10">
+      <path d="M2 5l2.5 2.5 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="mic-icon" viewBox="0 0 16 16">
+      <rect x="5" y="1" width="6" height="9" rx="3" stroke="#4A9FD4" stroke-width="1.4"/>
+      <path d="M2 8a6 6 0 0012 0" stroke="#4A9FD4" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="cam-icon" viewBox="0 0 18 18">
+      <rect x="1" y="4" width="16" height="12" rx="3" stroke="#909090" stroke-width="1.4"/>
+      <circle cx="9" cy="10" r="3" stroke="#909090" stroke-width="1.4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="flow-header">
+  <div class="flow-tag">FLOW 06</div>
+  <div class="flow-title">Quote Generation</div>
+  <div class="flow-desc">Path A (data reuse from report) · Path A section picker · Draft + line items inline edit · Swipe to delete · Payment method multi-select (6 options) · Confirm lock · PDF ready · Path B standalone · Discard modal</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 1 — PATH A: DATA REUSE + SECTION PICKER
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">SCREENS 1–2 · PATH A — DATA REUSE &amp; SECTION PICKER</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="screens-row">
+
+  <!-- SCREEN 1 — PATH A: REPORT DATA REUSE NOTICE -->
+  <div class="screen-wrap">
+    <div class="screen-label">PATH A — REPORT DATA REUSE (FROM REX SESSION)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:11</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote</span></div><div style="font-size:11px;color:#4A9FD4;">Kitchen sink leak — Via Roma 14</div></div>
+        <div class="stage-pill">Quote 1</div>
+      </div>
+      <div style="min-height:476px;display:flex;flex-direction:column;">
+        <div style="flex:1;padding:12px 0 8px;overflow-y:auto;">
+
+          <!-- Data reuse notice — green -->
+          <div style="margin:0 12px 10px;padding:10px 12px;background:#E8F5E9;border-radius:10px;border:1px solid #C8E6C9;display:flex;align-items:flex-start;gap:8px;">
+            <span style="color:#0A7A3A;font-size:16px;flex-shrink:0;margin-top:1px;">✓</span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#1B5E20;margin-bottom:2px;">Report data loaded — no re-entry needed</div>
+              <div style="font-size:11px;color:#555;line-height:1.5;">Job description, materials used, and time on site are already imported from the report. Rex will ask only for quote-specific details.</div>
+            </div>
+          </div>
+
+          <!-- Rex message -->
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;margin-bottom:10px;">
+            <svg width="28" height="28" style="flex-shrink:0;margin-top:2px;"><use href="#rex-icon"/></svg>
+            <div>
+              <div style="font-size:10px;color:#4A9FD4;font-weight:700;margin-bottom:3px;">REX · Path A — quote from report</div>
+              <div class="bubble-rex"><p>I have the job data. Quote sections are saved <b>separately from your report sections.</b> Choose what to include — I'll save these as your quote default.</p></div>
+            </div>
+          </div>
+
+          <!-- What data is pre-loaded -->
+          <div style="margin:0 12px 12px;background:#F5F5F5;border-radius:10px;padding:10px 14px;">
+            <div style="font-size:10px;font-weight:700;color:#909090;letter-spacing:1px;margin-bottom:8px;">PRE-LOADED FROM REPORT</div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Client / jobsite</span><span style="font-size:12px;font-weight:700;color:#1E3A5F;">Via Roma 14</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Time on site</span><span style="font-size:12px;font-weight:700;color:#1E3A5F;">25 min</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid #E8E8E8;"><span style="font-size:12px;color:#909090;">Materials (3 items)</span><span style="font-size:12px;font-weight:700;color:#1E3A5F;">$6.90</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="font-size:12px;color:#909090;">Labour estimate</span><span style="font-size:12px;font-weight:700;color:#1E3A5F;">0.42 hrs × $95</span></div>
+          </div>
+
+          <!-- Markup guidance -->
+          <div style="margin:0 12px 12px;padding:10px 12px;background:#FFF8E8;border-left:3px solid #F59E0B;border-radius:0 8px 8px 0;">
+            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:2px;">Markup guidance</div>
+            <div style="font-size:11px;color:#92400E;">15–30% on materials is standard. Rex shows a suggested total range — you set the final amount.</div>
+          </div>
+
+          <button class="gen-btn">Choose quote sections →</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Path A — report data pre-loaded · Rex identifies and reuses all validated data · no re-entry · markup guidance shown · 1 query consumed</div>
+  </div>
+
+  <!-- SCREEN 2 — SECTION PICKER (FIRST TIME — QUOTE INDEPENDENT) -->
+  <div class="screen-wrap">
+    <div class="screen-label">PATH A — SECTION PICKER (FIRST TIME · QUOTE INDEPENDENT)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:12</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote</span></div><div style="font-size:11px;color:#4A9FD4;">Kitchen sink leak — Via Roma 14</div></div>
+        <div class="stage-pill">Quote 1</div>
+      </div>
+      <div style="min-height:476px;display:flex;flex-direction:column;">
+        <div style="flex:1;padding:12px 0 8px;overflow-y:auto;">
+
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;margin-bottom:10px;">
+            <svg width="28" height="28" style="flex-shrink:0;margin-top:2px;"><use href="#rex-icon"/></svg>
+            <div>
+              <div style="font-size:10px;color:#4A9FD4;font-weight:700;margin-bottom:3px;">REX · First quote — set your sections</div>
+              <div class="bubble-rex"><p>Quote sections are saved <b>separately from your report sections.</b> Choose what to include — I'll save these as your quote default.</p></div>
+            </div>
+          </div>
+
+          <!-- Section picker — quote specific defaults -->
+          <div style="margin:0 12px 12px;background:#F5F9FF;border:1.5px solid #2E75B6;border-radius:14px;padding:14px;">
+            <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-bottom:2px;">Quote sections</div>
+            <div style="font-size:11px;color:#909090;margin-bottom:10px;">Tick to include · drag ⠿ to reorder · saved separately from reports</div>
+
+            <div class="chip on"><span class="dh">⠿</span><div class="chk"><svg width="10" height="10"><use href="#chk-icon"/></svg></div><span style="font-size:12px;font-weight:700;color:#1E3A5F;">Line items</span></div>
+            <div class="chip on"><span class="dh">⠿</span><div class="chk"><svg width="10" height="10"><use href="#chk-icon"/></svg></div><span style="font-size:12px;font-weight:700;color:#1E3A5F;">Labour</span></div>
+            <div class="chip on"><span class="dh">⠿</span><div class="chk"><svg width="10" height="10"><use href="#chk-icon"/></svg></div><span style="font-size:12px;font-weight:700;color:#1E3A5F;">Payment terms</span></div>
+            <div class="chip on"><span class="dh">⠿</span><div class="chk"><svg width="10" height="10"><use href="#chk-icon"/></svg></div>
+              <span style="font-size:12px;font-weight:700;color:#1E3A5F;">Payment method</span>
+              <span style="margin-left:auto;font-size:9px;padding:2px 6px;background:#1E3A5F;color:#4A9FD4;border-radius:6px;font-weight:700;">multi-select</span>
+            </div>
+            <div class="chip on"><span class="dh">⠿</span><div class="chk"><svg width="10" height="10"><use href="#chk-icon"/></svg></div><span style="font-size:12px;font-weight:700;color:#1E3A5F;">Validity period</span></div>
+            <div class="chip"><span class="dh" style="opacity:0.3;">⠿</span><div class="chk-empty"></div><span style="font-size:12px;color:#909090;">Notes</span></div>
+            <div class="chip"><span class="dh" style="opacity:0.3;">⠿</span><div class="chk-empty"></div><span style="font-size:12px;color:#909090;">Exclusions</span></div>
+
+            <!-- Add custom section -->
+            <div style="height:0.5px;background:#D0D5DD;margin:8px 0;"></div>
+            <div style="font-size:10px;color:#909090;font-weight:700;letter-spacing:1px;margin-bottom:6px;">ADD CUSTOM SECTION</div>
+            <div class="add-btns">
+              <button class="vbtn"><svg width="13" height="13"><use href="#mic-icon"/></svg><span style="font-size:11px;font-weight:700;color:#4A9FD4;">Hold to name</span></button>
+              <button class="mbtn"><span style="font-size:14px;color:#2E75B6;">+</span><span style="font-size:11px;font-weight:700;color:#2E75B6;">Type name</span></button>
+            </div>
+            <div style="font-size:10px;color:#909090;text-align:center;">Rex auto-populates custom section content from job context</div>
+          </div>
+
+          <button class="gen-btn">Generate quote →</button>
+          <div style="font-size:11px;color:#909090;text-align:center;margin-top:8px;">Saved as your default for all future quotes</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Quote sections are INDEPENDENT from report sections · 7 defaults · Payment method tagged "multi-select" · Add custom: voice OR manual · saved separately</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 2 — DRAFT: LINE ITEMS + PAYMENT METHOD
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">SCREENS 3–4 · DRAFT — LINE ITEMS EDIT &amp; PAYMENT METHOD</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="screens-row">
+
+  <!-- SCREEN 3 — DRAFT: LINE ITEMS INLINE EDIT -->
+  <div class="screen-wrap">
+    <div class="screen-label">DRAFT — LINE ITEMS INLINE EDIT</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:14</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote</span></div><div style="font-size:11px;color:#4A9FD4;">Draft · review before confirming</div></div>
+        <div style="padding:4px 10px;background:#FFF8E1;border-radius:20px;font-size:10px;font-weight:700;color:#E65100;border:1px solid #FFB74D;">Draft</div>
+      </div>
+      <div style="min-height:476px;display:flex;flex-direction:column;">
+        <div style="flex:1;overflow-y:auto;padding:12px 12px 0;">
+
+          <!-- Draft warning -->
+          <div style="background:#FFF8E8;border-left:3px solid #E65100;padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:10px;">
+            <div style="font-size:11px;color:#E65100;font-weight:700;">Draft — not yet confirmed · exits without confirming = discarded</div>
+          </div>
+
+          <div style="background:#fff;border:1.5px solid #E8E8E8;border-radius:14px;overflow:hidden;margin-bottom:10px;">
+            <div style="background:#1E3A5F;padding:10px 14px;display:flex;justify-content:space-between;">
+              <div><div style="font-size:12px;font-weight:700;color:#fff;">Quote</div><div style="font-size:10px;color:#4A9FD4;">Marco Visentin · Plumber</div></div>
+              <div style="font-size:10px;color:#909090;">Valid 30 days</div>
+            </div>
+
+            <!-- LINE ITEMS -->
+            <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="font-size:10px;font-weight:700;color:#2E75B6;">LINE ITEMS</div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10px;color:#CCCCCC;">⠿</span><span class="edit-lnk">✏ Edit section</span></div>
+              </div>
+              <!-- column headers -->
+              <div style="display:flex;gap:4px;padding:3px 0;border-bottom:0.5px solid #E8E8E8;margin-bottom:4px;">
+                <span style="flex:2.5;font-size:10px;color:#909090;font-weight:700;">Item</span>
+                <span style="flex:0.8;font-size:10px;color:#909090;font-weight:700;text-align:center;">Qty</span>
+                <span style="flex:1;font-size:10px;color:#909090;font-weight:700;text-align:right;">Unit</span>
+                <span style="flex:1;font-size:10px;color:#909090;font-weight:700;text-align:right;">Total</span>
+                <span style="width:18px;"></span>
+              </div>
+              <!-- normal row -->
+              <div class="li-row">
+                <span style="flex:2.5;font-size:12px;color:#1E3A5F;">15mm comp. elbow</span>
+                <span style="flex:0.8;font-size:12px;color:#555;text-align:center;">1</span>
+                <span style="flex:1;font-size:12px;color:#555;text-align:right;">$8</span>
+                <span style="flex:1;font-size:12px;font-weight:700;color:#1E3A5F;text-align:right;">$8</span>
+                <span style="width:18px;font-size:11px;color:#2E75B6;cursor:pointer;text-align:right;">✏</span>
+              </div>
+              <!-- INLINE EDITING ROW — active -->
+              <div class="li-row editing">
+                <div style="flex:2.5;display:flex;flex-direction:column;gap:2px;">
+                  <div style="font-size:9px;color:#2E75B6;font-weight:700;">ITEM NAME</div>
+                  <input class="li-edit-field" style="width:100%;" value="Compression olive" readonly/>
+                </div>
+                <div style="flex:0.8;display:flex;flex-direction:column;gap:2px;align-items:center;">
+                  <div style="font-size:9px;color:#2E75B6;font-weight:700;">QTY</div>
+                  <input class="li-edit-field" style="width:28px;text-align:center;" value="2" readonly/>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:flex-end;">
+                  <div style="font-size:9px;color:#2E75B6;font-weight:700;">UNIT $</div>
+                  <input class="li-edit-field" style="width:28px;" value="2" readonly/>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:flex-end;">
+                  <div style="font-size:9px;color:#2E75B6;font-weight:700;">TOTAL</div>
+                  <span style="font-size:12px;font-weight:700;color:#0A7A3A;">$4</span>
+                </div>
+              </div>
+              <div style="font-size:10px;color:#2E75B6;text-align:right;margin-bottom:4px;">Total auto-calculates · tap ✓ to save row</div>
+              <!-- swipe to delete row -->
+              <div style="position:relative;overflow:hidden;border-radius:6px;margin-bottom:4px;">
+                <div style="display:flex;align-items:center;gap:4px;background:#FFEBEE;padding:8px 8px;">
+                  <span style="flex:2.5;font-size:12px;color:#555;text-decoration:line-through;">PTFE tape</span>
+                  <span style="flex:0.8;font-size:12px;color:#555;text-align:center;">1</span>
+                  <span style="flex:1;font-size:12px;color:#555;text-align:right;">$1</span>
+                  <span style="flex:1;font-size:12px;text-align:right;"></span>
+                  <button style="padding:4px 10px;background:#E53935;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;flex-shrink:0;">Delete</button>
+                </div>
+              </div>
+              <div style="font-size:10px;color:#909090;margin-bottom:8px;">← swipe any row left to reveal delete</div>
+              <button style="width:100%;padding:7px;background:#F5F5F5;border:1.5px dashed #D0D5DD;border-radius:8px;font-size:12px;color:#2E75B6;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">+ Add line item</button>
+            </div>
+
+            <!-- LABOUR -->
+            <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <div style="font-size:10px;font-weight:700;color:#2E75B6;">LABOUR</div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10px;color:#CCCCCC;">⠿</span><span class="edit-lnk">✏ Edit</span></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;">
+                <span style="font-size:12px;color:#1E3A5F;">0.42 hrs × $95/hr</span>
+                <span style="font-size:13px;font-weight:700;color:#1E3A5F;">$40</span>
+              </div>
+              <div style="font-size:10px;color:#909090;margin-top:2px;">From 25 min session · tap Edit to adjust hours or rate</div>
+            </div>
+
+            <!-- TOTALS -->
+            <div style="padding:10px 14px;background:#F9F9F9;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-size:12px;color:#909090;">Materials subtotal</span><span style="font-size:12px;color:#555;">$12</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="font-size:12px;color:#909090;">Labour subtotal</span><span style="font-size:12px;color:#555;">$40</span></div>
+              <div style="height:0.5px;background:#D0D5DD;margin-bottom:8px;"></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:11px;color:#AAAAAA;">Rex suggested range</span><span style="font-size:11px;color:#AAAAAA;">$85 – $120</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:13px;font-weight:700;color:#1E3A5F;">Your confirmed total</span>
+                <div style="display:flex;align-items:center;border:1.5px solid #2E75B6;border-radius:8px;background:#fff;overflow:hidden;">
+                  <span style="padding:6px 8px;font-size:13px;color:#909090;">$</span>
+                  <input style="border:none;font-size:14px;font-weight:700;color:#1E3A5F;padding:6px 4px;width:50px;font-family:Arial,Helvetica,sans-serif;" value="95" readonly/>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Add section in draft -->
+          <div class="add-btns" style="margin-bottom:10px;">
+            <button class="vbtn"><svg width="13" height="13"><use href="#mic-icon"/></svg><span style="font-size:11px;font-weight:700;color:#4A9FD4;">Hold to add section</span></button>
+            <button class="mbtn"><span style="font-size:14px;color:#2E75B6;">+</span><span style="font-size:11px;font-weight:700;color:#2E75B6;">Type section name</span></button>
+          </div>
+
+        </div>
+        <div style="padding:10px 0 16px;border-top:0.5px solid #E8E8E8;">
+          <div style="font-size:11px;color:#E65100;text-align:center;margin-bottom:8px;">⚠ Confirming permanently locks all sections</div>
+          <button class="confirm-btn">Confirm and generate PDF ↗</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Tap any row to edit inline (name · qty · unit price · total auto-calculates) · swipe left to delete row · Add line item · labour editable · confirmed total set by worker</div>
+  </div>
+
+  <!-- SCREEN 4 — PAYMENT METHOD MULTI-SELECT -->
+  <div class="screen-wrap">
+    <div class="screen-label">DRAFT — PAYMENT METHOD MULTI-SELECT (6 OPTIONS)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:15</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote</span></div><div style="font-size:11px;color:#4A9FD4;">Draft · review before confirming</div></div>
+        <div style="padding:4px 10px;background:#FFF8E1;border-radius:20px;font-size:10px;font-weight:700;color:#E65100;border:1px solid #FFB74D;">Draft</div>
+      </div>
+      <div style="min-height:476px;display:flex;flex-direction:column;">
+        <div style="flex:1;overflow-y:auto;padding:12px 12px 0;">
+
+          <div style="background:#fff;border:1.5px solid #E8E8E8;border-radius:14px;overflow:hidden;margin-bottom:10px;">
+            <div style="background:#1E3A5F;padding:10px 14px;"><div style="font-size:12px;font-weight:700;color:#fff;">Quote · Kitchen sink leak</div></div>
+
+            <!-- PAYMENT TERMS -->
+            <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <div style="font-size:10px;font-weight:700;color:#2E75B6;">PAYMENT TERMS</div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10px;color:#CCCCCC;">⠿</span><span class="edit-lnk">✏ Edit</span></div>
+              </div>
+              <input style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #E8E8E8;border-radius:8px;font-size:12px;color:#1E3A5F;font-family:Arial,Helvetica,sans-serif;background:#F9F9F9;" value="Due within 14 days of invoice date." readonly/>
+            </div>
+
+            <!-- PAYMENT METHOD — full 6-option multi-select -->
+            <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;background:#F5F9FF;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <div style="font-size:10px;font-weight:700;color:#2E75B6;">PAYMENT METHOD</div>
+                  <div style="padding:2px 6px;background:#2E75B6;border-radius:5px;font-size:9px;font-weight:700;color:#fff;">multi-select</div>
+                </div>
+                <span style="font-size:10px;color:#CCCCCC;">⠿</span>
+              </div>
+              <div style="font-size:11px;color:#909090;margin-bottom:10px;">Select one or more. Appears on PDF. Preference saved after first confirm.</div>
+
+              <!-- All 6 options — exact from D1 -->
+              <div class="pm-option sel">
+                <div class="pm-check on"><svg width="10" height="10"><use href="#chk-icon"/></svg></div>
+                <span style="font-size:13px;color:#1E3A5F;font-weight:700;">Cash</span>
+              </div>
+              <div class="pm-option sel">
+                <div class="pm-check on"><svg width="10" height="10"><use href="#chk-icon"/></svg></div>
+                <span style="font-size:13px;color:#1E3A5F;font-weight:700;">Bank transfer</span>
+              </div>
+              <div class="pm-option">
+                <div class="pm-check"></div>
+                <span style="font-size:13px;color:#555;">Bank direct debit</span>
+              </div>
+              <div class="pm-option">
+                <div class="pm-check"></div>
+                <span style="font-size:13px;color:#555;">Cheque</span>
+              </div>
+              <div class="pm-option">
+                <div class="pm-check"></div>
+                <span style="font-size:13px;color:#555;">Online payment link</span>
+                <span style="margin-left:auto;font-size:10px;color:#909090;">Stripe, PayPal…</span>
+              </div>
+              <div class="pm-option">
+                <div class="pm-check"></div>
+                <span style="font-size:13px;color:#555;">To be agreed</span>
+              </div>
+
+              <div style="font-size:10px;color:#2E75B6;margin-top:8px;font-weight:700;">2 selected · preference saved after first confirm</div>
+            </div>
+
+            <!-- VALIDITY -->
+            <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <div style="font-size:10px;font-weight:700;color:#2E75B6;">VALIDITY PERIOD</div>
+                <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10px;color:#CCCCCC;">⠿</span><span class="edit-lnk">✏ Edit</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="font-size:12px;color:#1E3A5F;flex:1;">Valid for</div>
+                <input style="width:40px;padding:6px;border:1.5px solid #2E75B6;border-radius:8px;font-size:13px;font-weight:700;color:#1E3A5F;text-align:center;font-family:Arial,Helvetica,sans-serif;" value="30" readonly/>
+                <div style="font-size:12px;color:#1E3A5F;">days from date of issue</div>
+              </div>
+            </div>
+
+            <!-- CONFIRMED TOTAL -->
+            <div style="padding:10px 14px;background:#F9F9F9;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:13px;font-weight:700;color:#1E3A5F;">Confirmed total</span>
+                <div style="display:flex;align-items:center;border:1.5px solid #2E75B6;border-radius:8px;background:#fff;overflow:hidden;">
+                  <span style="padding:6px 8px;font-size:13px;color:#909090;">$</span>
+                  <input style="border:none;font-size:14px;font-weight:700;color:#1E3A5F;padding:6px 4px;width:50px;font-family:Arial,Helvetica,sans-serif;" value="95" readonly/>
+                </div>
+              </div>
+              <div style="font-size:11px;color:#AAAAAA;margin-top:4px;">Rex suggested: $85–$120 · you set the final price</div>
+            </div>
+          </div>
+
+          <div class="add-btns" style="margin-bottom:10px;">
+            <button class="vbtn"><svg width="13" height="13"><use href="#mic-icon"/></svg><span style="font-size:11px;font-weight:700;color:#4A9FD4;">Hold to add section</span></button>
+            <button class="mbtn"><span style="font-size:14px;color:#2E75B6;">+</span><span style="font-size:11px;font-weight:700;color:#2E75B6;">Type section name</span></button>
+          </div>
+
+        </div>
+        <div style="padding:10px 0 16px;border-top:0.5px solid #E8E8E8;">
+          <div style="font-size:11px;color:#E65100;text-align:center;margin-bottom:8px;">⚠ Confirming permanently locks this quote</div>
+          <button class="confirm-btn">Confirm and generate PDF ↗</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">All 6 payment methods: Cash · Bank transfer · Bank direct debit · Cheque · Online payment link · To be agreed · Multiple selectable · preference saved · validity period editable</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 3 — CONFIRMED PDF + PATH B + DISCARD
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">SCREENS 5–8 · PDF READY · PATH B STANDALONE · ERROR STATES · DISCARD</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="screens-row">
+
+  <!-- SCREEN 5 — QUOTE CONFIRMED PDF READY -->
+  <div class="screen-wrap">
+    <div class="screen-label">QUOTE CONFIRMED — PDF READY</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:17</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div style="background:#0A7A3A;padding:10px 16px 12px;display:flex;align-items:center;gap:10px;">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote</span></div><div style="font-size:11px;color:#A5D6A7;">Confirmed · PDF ready</div></div>
+        <div style="padding:4px 10px;background:rgba(255,255,255,0.2);border-radius:20px;font-size:10px;font-weight:700;color:#fff;">Quote 1 ✓</div>
+      </div>
+      <div style="min-height:476px;display:flex;flex-direction:column;padding:16px 12px;">
+
+        <!-- Success -->
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="width:64px;height:64px;border-radius:50%;background:#E8F5E9;border:3px solid #0A7A3A;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M6 16l7 7 13-13" stroke="#0A7A3A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:16px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Quote confirmed</div>
+          <div style="font-size:12px;color:#909090;line-height:1.5;">Kitchen sink leak — Via Roma 14<br>Quote 1 · $95 · Cash + Bank transfer · 25 Apr 2026</div>
+        </div>
+
+        <!-- PDF card -->
+        <div style="background:#F5F5F5;border-radius:14px;padding:14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;">
+          <div style="width:44px;height:56px;background:#1E3A5F;border-radius:6px;display:flex;align-items:center;justify-content:center;">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="2" width="14" height="18" rx="3" stroke="#2E75B6" stroke-width="1.4"/><line x1="7" y1="7" x2="13" y2="7" stroke="#4A9FD4" stroke-width="1.2" stroke-linecap="round"/><line x1="7" y1="10" x2="13" y2="10" stroke="#4A9FD4" stroke-width="1" stroke-linecap="round" opacity="0.6"/><line x1="7" y1="13" x2="10" y2="13" stroke="#4A9FD4" stroke-width="1" stroke-linecap="round" opacity="0.4"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:#1E3A5F;">Quote_001.pdf</div>
+            <div style="font-size:11px;color:#909090;">2 pages · 132 KB</div>
+            <div style="font-size:11px;color:#E65100;margin-top:2px;">🔒 Locked — cannot be edited</div>
+          </div>
+        </div>
+
+        <!-- Actions: Download / Share / View -->
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button style="flex:1;padding:12px 8px;background:#1E3A5F;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">⬇ Download</button>
+          <button style="flex:1;padding:12px 8px;background:#1E3A5F;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">↗ Share</button>
+          <button style="flex:1;padding:12px 8px;background:#EEF5FC;color:#2E75B6;border:1.5px solid #2E75B6;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">👁 View</button>
+        </div>
+
+        <!-- Share destinations note -->
+        <div style="margin-bottom:14px;padding:8px 12px;background:#F5F5F5;border-radius:8px;">
+          <div style="font-size:11px;color:#555;text-align:center;">Share via WhatsApp · Email · AirDrop · Download to device</div>
+          <div style="font-size:10px;color:#AAAAAA;text-align:center;margin-top:2px;">No direct sending to customer inside the app</div>
+        </div>
+
+        <!-- Quote 2 CTA for revisions -->
+        <div style="background:#F5F9FF;border-radius:12px;padding:12px 14px;border:1px solid #D0E4F5;">
+          <div style="font-size:12px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">Need to revise this quote?</div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px;">This quote is permanently locked. Generate Quote 2 as a new version from the Job Detail screen.</div>
+          <button style="width:100%;padding:10px;background:#2E75B6;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Generate Quote 2 →</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Header green · 🔒 Quote 1 badge · Download + Share + View · no direct client send in-app · Quote 2 CTA for revisions · archived in Job History read-only</div>
+  </div>
+
+  <!-- SCREEN 6 — PATH B: STANDALONE QUOTE TAB -->
+  <div class="screen-wrap">
+    <div class="screen-label">PATH B — STANDALONE (QUOTE TAB · NO REX SESSION)</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">9:41</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote</span></div><div style="font-size:11px;color:#4A9FD4;">Standalone · No Rex session</div></div>
+        <div class="stage-pill">New quote</div>
+      </div>
+      <div style="min-height:476px;display:flex;flex-direction:column;">
+        <div style="flex:1;padding:12px 0 8px;">
+
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;margin-bottom:10px;">
+            <svg width="28" height="28" style="flex-shrink:0;margin-top:2px;"><use href="#rex-icon"/></svg>
+            <div>
+              <div style="font-size:10px;color:#4A9FD4;font-weight:700;margin-bottom:3px;">REX · Quote — standalone</div>
+              <div class="bubble-rex"><p><b>Describe the job scope.</b> Tell me what work is needed, the materials involved, and roughly how long it will take. I'll build the line items from your description.</p></div>
+            </div>
+          </div>
+
+          <!-- Voice input -->
+          <div style="margin:0 12px 12px;background:#1E3A5F;border-radius:16px;padding:16px;text-align:center;">
+            <div style="font-size:12px;font-weight:700;color:#4A9FD4;margin-bottom:8px;">Hold to describe the job scope</div>
+            <div style="width:52px;height:52px;border-radius:50%;background:#2E75B6;border:3px solid #4A9FD4;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+              <svg width="22" height="22"><use href="#mic-icon"/></svg>
+            </div>
+            <div style="font-size:11px;color:#909090;">Include: scope of work · materials · estimated time · location</div>
+          </div>
+
+          <!-- Rex follow-up -->
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;margin-bottom:10px;">
+            <svg width="28" height="28" style="flex-shrink:0;margin-top:2px;"><use href="#rex-icon"/></svg>
+            <div>
+              <div style="font-size:10px;color:#4A9FD4;font-weight:700;margin-bottom:3px;">REX · Follow-up</div>
+              <div class="bubble-rex"><p>You mentioned replacing the boiler — what size and brand is the unit? And will you also need to drain the system and refill, or just the unit replacement?</p></div>
+            </div>
+          </div>
+
+          <!-- Job name prompt -->
+          <div style="margin:0 12px 12px;background:#F5F9FF;border:1.5px solid #2E75B6;border-radius:12px;padding:12px 14px;">
+            <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-bottom:6px;">Name this job</div>
+            <input style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #2E75B6;border-radius:10px;font-size:13px;color:#1E3A5F;font-family:Arial,Helvetica,sans-serif;background:#fff;" placeholder="e.g. Boiler replacement — Tremenico" readonly/>
+            <div style="font-size:11px;color:#909090;margin-top:4px;">Required before generating · used for archiving</div>
+          </div>
+
+        </div>
+        <div class="input-bar">
+          <button class="photo-btn"><svg width="18" height="18"><use href="#cam-icon"/></svg></button>
+          <input class="text-input" placeholder="Or type job description…" readonly/>
+          <button class="voice-btn"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="6" y="1" width="6" height="9" rx="3" stroke="#2E75B6" stroke-width="1.4"/><path d="M3 9a6 6 0 0012 0" stroke="#4A9FD4" stroke-width="1.4" stroke-linecap="round"/><line x1="9" y1="15" x2="9" y2="17" stroke="#4A9FD4" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">No Rex session needed · worker describes job scope by voice from scratch · Rex asks follow-up questions for missing details · job must be named before generating · same section picker + draft + confirm follows</div>
+  </div>
+
+  <!-- SCREEN 7 — ERROR: HOURLY RATE NOT SET -->
+  <div class="screen-wrap">
+    <div class="screen-label">ERROR — HOURLY RATE NOT SET IN PROFILE</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:14</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote</span></div><div style="font-size:11px;color:#4A9FD4;">Draft · review before confirming</div></div>
+        <div style="padding:4px 10px;background:#FFF8E1;border-radius:20px;font-size:10px;font-weight:700;color:#E65100;border:1px solid #FFB74D;">Draft</div>
+      </div>
+      <div style="min-height:476px;display:flex;flex-direction:column;padding:12px 12px 0;">
+
+        <div style="background:#fff;border:1.5px solid #E8E8E8;border-radius:14px;overflow:hidden;margin-bottom:10px;">
+          <div style="background:#1E3A5F;padding:10px 14px;"><div style="font-size:12px;font-weight:700;color:#fff;">Quote · Standalone job</div></div>
+
+          <!-- LINE ITEMS OK -->
+          <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:6px;">LINE ITEMS</div>
+            <div class="li-row"><span style="flex:2.5;font-size:12px;color:#1E3A5F;">Boiler unit (24kW)</span><span style="flex:0.8;font-size:12px;color:#555;text-align:center;">1</span><span style="flex:1;font-size:12px;color:#555;text-align:right;">$820</span><span style="flex:1;font-size:12px;font-weight:700;color:#1E3A5F;text-align:right;">$820</span></div>
+            <div class="li-row" style="border-bottom:none;"><span style="flex:2.5;font-size:12px;color:#1E3A5F;">Flue kit</span><span style="flex:0.8;font-size:12px;color:#555;text-align:center;">1</span><span style="flex:1;font-size:12px;color:#555;text-align:right;">$65</span><span style="flex:1;font-size:12px;font-weight:700;color:#1E3A5F;text-align:right;">$65</span></div>
+          </div>
+
+          <!-- LABOUR — error state -->
+          <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;background:#FFF3E0;">
+            <div style="font-size:10px;font-weight:700;color:#E65100;margin-bottom:6px;">⚠ LABOUR — hourly rate not set</div>
+            <div style="font-size:12px;color:#E65100;margin-bottom:8px;">Your hourly rate is not set in your profile. Labour line skipped — set your rate to include it.</div>
+            <button style="padding:8px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Set hourly rate in Settings →</button>
+          </div>
+
+          <!-- UNCERTAIN LINE ITEMS -->
+          <div style="padding:10px 14px;border-bottom:0.5px solid #F0F0F0;">
+            <div style="font-size:10px;font-weight:700;color:#2E75B6;margin-bottom:6px;">UNCERTAIN ITEMS</div>
+            <div style="display:flex;align-items:center;gap:6px;padding:7px 0;">
+              <span style="flex:2.5;font-size:12px;color:#909090;font-style:italic;">System flush (estimate)*</span>
+              <span style="flex:0.8;font-size:12px;color:#909090;text-align:center;">—</span>
+              <span style="flex:1;font-size:12px;color:#909090;text-align:right;">TBC</span>
+              <span style="flex:1;font-size:12px;color:#909090;text-align:right;">TBC</span>
+            </div>
+            <div style="font-size:10px;color:#909090;">* Rex uncertain — flagged for your review. Tap ✏ to set price or remove.</div>
+          </div>
+
+          <!-- Total -->
+          <div style="padding:10px 14px;background:#F9F9F9;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:13px;font-weight:700;color:#1E3A5F;">Your confirmed total</span>
+              <div style="display:flex;align-items:center;border:1.5px solid #2E75B6;border-radius:8px;background:#fff;overflow:hidden;">
+                <span style="padding:6px 8px;font-size:13px;color:#909090;">$</span>
+                <input style="border:none;font-size:14px;font-weight:700;color:#1E3A5F;padding:6px 4px;width:60px;font-family:Arial,Helvetica,sans-serif;" placeholder="0.00" readonly/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:0 0 16px;border-top:0.5px solid #E8E8E8;padding-top:10px;">
+          <div style="font-size:11px;color:#E65100;text-align:center;margin-bottom:8px;">⚠ Confirming permanently locks this quote</div>
+          <button class="confirm-btn">Confirm and generate PDF ↗</button>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Hourly rate not set → labour line skipped with orange warning + Settings link · uncertain items flagged with * asterisk + TBC · worker reviews before confirming</div>
+  </div>
+
+  <!-- SCREEN 8 — DISCARD MODAL -->
+  <div class="screen-wrap">
+    <div class="screen-label">EXIT WITHOUT CONFIRMING — DISCARD MODAL</div>
+    <div class="phone">
+      <div class="status"><span class="status-time">10:15</span><div style="display:flex;gap:5px;"><div class="sd xs"></div><div class="sd sm"></div><div class="sd"></div></div></div>
+      <div class="hdr">
+        <div style="font-size:18px;color:#fff;">←</div>
+        <div style="flex:1;"><div style="display:flex;align-items:center;gap:7px;"><svg width="18" height="18"><use href="#rex-icon"/></svg><span style="font-size:15px;font-weight:700;color:#fff;">Quote — Draft</span></div></div>
+        <div style="padding:4px 10px;background:#FFF8E1;border-radius:20px;font-size:10px;font-weight:700;color:#E65100;border:1px solid #FFB74D;">Draft</div>
+      </div>
+
+      <!-- Dimmed draft behind modal -->
+      <div style="position:relative;min-height:476px;">
+        <div style="opacity:0.2;padding:12px;pointer-events:none;">
+          <div style="height:40px;background:#F5F5F5;border-radius:8px;margin-bottom:8px;"></div>
+          <div style="height:120px;background:#F5F5F5;border-radius:8px;margin-bottom:8px;"></div>
+          <div style="height:60px;background:#F5F5F5;border-radius:8px;"></div>
+        </div>
+
+        <!-- Discard modal -->
+        <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;border-top:2px solid #E8E8E8;padding:20px;box-shadow:0 -8px 32px rgba(0,0,0,0.18);">
+          <div style="width:36px;height:4px;background:#D0D5DD;border-radius:2px;margin:0 auto 16px;"></div>
+          <div style="text-align:center;margin-bottom:16px;">
+            <div style="width:48px;height:48px;border-radius:50%;background:#FFF3E0;border:2px solid #E65100;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 8v5M11 15.5v.5" stroke="#E65100" stroke-width="2" stroke-linecap="round"/><path d="M9.5 3.67L2.5 16.5A1.5 1.5 0 003.75 18.5h14.5a1.5 1.5 0 001.25-2L12.5 3.67a1.5 1.5 0 00-3 0z" stroke="#E65100" stroke-width="1.6"/></svg>
+            </div>
+            <div style="font-size:15px;font-weight:700;color:#1E3A5F;margin-bottom:6px;">Unsaved quote</div>
+            <div style="font-size:12px;color:#555;line-height:1.6;">This draft will be permanently discarded. Unconfirmed quotes are never saved to your archive.</div>
+          </div>
+          <button class="confirm-btn" style="margin-bottom:8px;">Confirm now and generate PDF</button>
+          <button style="display:block;width:100%;padding:13px;background:#FFEBEE;color:#C62828;border:1.5px solid #E53935;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif;">Discard draft permanently</button>
+          <div style="font-size:11px;color:#909090;text-align:center;margin-top:8px;">No "save draft" — confirm or discard only</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotation">Triggered on back · tab switch · home · two options only: Confirm now or Discard permanently · no save draft ever · unconfirmed quotes never archived</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     LOCKED RULES REFERENCE
+════════════════════════════════════════════════════ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label">QUOTE GENERATION — LOCKED RULES</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div style="max-width:960px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #D0D5DD;overflow:hidden;">
+  <div style="background:#1E3A5F;padding:12px 20px;">
+    <div style="font-size:12px;font-weight:700;color:#fff;letter-spacing:1px;">ALL LOCKED RULES — QUOTE GENERATION</div>
+  </div>
+  <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:12px;font-family:Arial,Helvetica,sans-serif;">
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;">TWO PATHS</div>
+      <div style="color:#555;line-height:1.7;">
+        ✓ Path A: from closed Rex session — data pre-loaded<br>
+        ✓ Path A: if report generated first → Rex reuses all validated report data, asks only quote-specific details<br>
+        ✓ Path A: if quote generated first (no report) → Rex asks from scratch<br>
+        ✓ Path B: standalone via Quote tab — no Rex session needed<br>
+        ✓ Path B: requires job name before generating<br>
+        ✓ Both paths produce identical locked PDF
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;">SECTIONS — INDEPENDENT FROM REPORT</div>
+      <div style="color:#555;line-height:1.7;">
+        ✓ Quote sections saved independently from report sections<br>
+        ✓ Section picker shown first time only — saved as quote default<br>
+        ✓ 7 default sections: line items, labour, payment terms, payment method (multi-select), validity period, notes, exclusions<br>
+        ✓ Add custom: voice OR manual · Rex populates content<br>
+        ✓ All sections drag-reorderable before confirming
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;">LINE ITEMS</div>
+      <div style="color:#555;line-height:1.7;">
+        ✓ Tap any row to edit inline: name · qty · unit price<br>
+        ✓ Total auto-calculates on edit — no manual sum<br>
+        ✓ Swipe left on any row to reveal Delete<br>
+        ✓ + Add line item button always visible<br>
+        ✓ Labour: hours × hourly rate from profile (editable this quote)<br>
+        ✓ Hourly rate not set → labour line skipped + orange warning + Settings link<br>
+        ✓ Uncertain items flagged with * and TBC — worker reviews
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;">PAYMENT METHOD</div>
+      <div style="color:#555;line-height:1.7;">
+        ✓ 6 options: Cash · Bank transfer · Bank direct debit · Cheque · Online payment link · To be agreed<br>
+        ✓ Multiple selection allowed<br>
+        ✓ Worker's preference saved after first confirm and reused<br>
+        ✓ Selection appears on PDF for client visibility<br>
+        ✓ Validity period: default 30 days · worker editable
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;">TOTAL + CONFIRM + LOCK</div>
+      <div style="color:#555;line-height:1.7;">
+        ✓ Rex suggested range = guidance only (shown as $X–$Y)<br>
+        ✓ Worker sets final confirmed total — their judgement<br>
+        ✓ Confirmed total appears on PDF — not Rex's suggested range<br>
+        ✓ Confirm = permanent lock — database trigger enforces<br>
+        ✓ Versioning: Quote 1, Quote 2 · each independently locked<br>
+        ✓ Revision → Generate Quote 2 (from Job Detail screen)
+      </div>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;font-size:11px;letter-spacing:1px;">DISCARD + SHARE</div>
+      <div style="color:#555;line-height:1.7;">
+        ✓ Unconfirmed quote = discarded on exit — never saved<br>
+        ✓ Two options only: Confirm now OR Discard permanently<br>
+        ✗ No "save draft" — never<br>
+        ✓ Share: WhatsApp · email · AirDrop · download to device<br>
+        ✗ No direct sending to customer inside the app<br>
+        ✓ Archived in Job History · read-only · PDF always downloadable
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid #D0D5DD;">
+  <div style="font-size:11px;color:#AAAAAA;font-weight:700;letter-spacing:1px;">TRADESBRAIN · FLOW 06 · QUOTE GENERATION · v1.0 · CONFIDENTIAL</div>
+  <div style="font-size:11px;color:#AAAAAA;margin-top:4px;">8 screens · Path A data reuse · Section picker (independent) · Draft + line items · Swipe delete · Payment method 6 options · Confirmed total · PDF ready · Path B standalone · Error states · Discard modal</div>
+</div>
+
+</body>
+</html>
