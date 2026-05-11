@@ -1,27 +1,44 @@
-// Rex message bubble — M2 will build full implementation
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+// D6 Flow04 — message bubble for Rex session.
+// User messages: right-aligned, brand colour. Assistant: left-aligned, gray.
+// Photos render inline above the text. Transcript shown for voice messages.
 
-interface MessageBubbleProps {
+import React from 'react';
+import { View, Text, Image } from 'react-native';
+
+interface Props {
   role: 'user' | 'assistant';
   content: string;
   photoUrl?: string | null;
+  transcript?: string | null;
 }
 
-export default function MessageBubble({ role, content }: MessageBubbleProps) {
+export default function MessageBubble({ role, content, photoUrl, transcript }: Props) {
   const isUser = role === 'user';
   return (
-    <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-      <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>{content}</Text>
+    <View
+      className={`max-w-[82%] my-1 mx-3 rounded-2xl ${
+        isUser ? 'self-end bg-brand' : 'self-start bg-gray-100'
+      }`}
+    >
+      {photoUrl && (
+        <Image
+          source={{ uri: photoUrl }}
+          className="w-full h-48 rounded-t-2xl"
+          resizeMode="cover"
+        />
+      )}
+      <View className="px-3 py-2">
+        {transcript && (
+          <Text
+            className={`text-xs mb-1 italic ${isUser ? 'text-white/70' : 'text-gray-500'}`}
+          >
+            🎙 {transcript}
+          </Text>
+        )}
+        <Text className={`text-[15px] leading-5 ${isUser ? 'text-white' : 'text-gray-800'}`}>
+          {content}
+        </Text>
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  bubble: { maxWidth: '80%', padding: 12, borderRadius: 16, marginVertical: 4, marginHorizontal: 12 },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: '#2E75B6' },
-  assistantBubble: { alignSelf: 'flex-start', backgroundColor: '#F0F0F0' },
-  text: { fontSize: 15, lineHeight: 20 },
-  userText: { color: '#fff' },
-  assistantText: { color: '#333' },
-});

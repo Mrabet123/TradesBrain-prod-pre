@@ -1,27 +1,36 @@
-// Voice recording button — M2 will build full implementation with expo-av
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+// D6 Flow04 — Hold-to-record voice button with visible recording state.
 
-interface VoiceRecordButtonProps {
+import React from 'react';
+import { Pressable, Text, View } from 'react-native';
+
+interface Props {
   isRecording: boolean;
+  disabled?: boolean;
   onPressIn: () => void;
   onPressOut: () => void;
 }
 
-export default function VoiceRecordButton({ isRecording, onPressIn, onPressOut }: VoiceRecordButtonProps) {
+export default function VoiceRecordButton({
+  isRecording,
+  disabled,
+  onPressIn,
+  onPressOut,
+}: Props) {
   return (
-    <TouchableOpacity
-      style={[styles.button, isRecording && styles.recording]}
+    <Pressable
       onPressIn={onPressIn}
       onPressOut={onPressOut}
+      disabled={disabled}
+      className={`flex-row items-center justify-center px-4 py-3 rounded-full ${
+        disabled ? 'bg-gray-300' : isRecording ? 'bg-red-600' : 'bg-brand'
+      }`}
     >
-      <Text style={styles.text}>{isRecording ? 'Recording...' : 'Hold to Record'}</Text>
-    </TouchableOpacity>
+      <View
+        className={`w-3 h-3 rounded-full mr-2 ${isRecording ? 'bg-white' : 'bg-white/80'}`}
+      />
+      <Text className="text-white font-semibold">
+        {isRecording ? 'Recording — release to send' : 'Hold to record'}
+      </Text>
+    </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  button: { padding: 12, borderRadius: 24, backgroundColor: '#2E75B6', alignItems: 'center' },
-  recording: { backgroundColor: '#DC2626' },
-  text: { color: '#fff', fontWeight: '600' },
-});
