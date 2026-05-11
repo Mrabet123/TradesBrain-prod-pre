@@ -1,26 +1,25 @@
-Instructions
+# Environment files
 .env
-venv
-.venv
-ENV
+.env.*
 
-# Byte-compiled / optimized / DLL files
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
-# C extensions
+
+# Python extensions
 *.so
-# Distribution / packaging
+
+# Distribution
 .Python
 
-.ENV
+# Claude
+.claude/
 
-env
-
-ENV
-
-.claude
-
-.env
-
-env
+Instructions
