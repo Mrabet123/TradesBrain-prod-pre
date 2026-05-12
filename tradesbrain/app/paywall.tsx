@@ -161,20 +161,43 @@ export default function PaywallScreen() {
         <View className="w-12" />
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-10">
-        {/* Billing cycle toggle */}
-        <View className="flex-row bg-gray-100 rounded-xl p-1 mb-4 self-center">
-          {(['monthly', 'annual'] as BillingCycle[]).map((c) => (
-            <Pressable
-              key={c}
-              onPress={() => setCycle(c)}
-              className={`px-4 py-2 rounded-lg ${cycle === c ? 'bg-white shadow-sm' : ''}`}
-            >
-              <Text className={`text-sm ${cycle === c ? 'text-brand font-semibold' : 'text-gray-600'}`}>
-                {c === 'monthly' ? 'Monthly' : 'Annual · 20% off'}
-              </Text>
-            </Pressable>
-          ))}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}>
+        {/* Billing cycle toggle — inline styles to avoid NativeWind shadow-sm crash on new arch */}
+        <View
+          style={{
+            flexDirection: 'row',
+            backgroundColor: '#F3F4F6',
+            borderRadius: 12,
+            padding: 4,
+            marginBottom: 16,
+            alignSelf: 'center',
+          }}
+        >
+          {(['monthly', 'annual'] as BillingCycle[]).map((c) => {
+            const active = cycle === c;
+            return (
+              <Pressable
+                key={c}
+                onPress={() => setCycle(c)}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  backgroundColor: active ? '#FFFFFF' : 'transparent',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: active ? '#2E75B6' : '#4B5563',
+                    fontWeight: active ? '600' : '400',
+                  }}
+                >
+                  {c === 'monthly' ? 'Monthly' : 'Annual · 20% off'}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* KYC gate banner */}

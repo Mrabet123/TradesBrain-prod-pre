@@ -1384,7 +1384,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuthContext } from '../context/AuthContext';
@@ -1455,15 +1455,27 @@ export type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
+function tabIcon(glyph: string) {
+  return ({ color, focused }: { color: string; focused: boolean }) => (
+    <Text style={{ fontSize: focused ? 24 : 22, color, lineHeight: 28 }}>{glyph}</Text>
+  );
+}
+
 function TabsNavigator() {
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Rex" component={RexScreen} />
-      <Tab.Screen name="Report" component={ReportScreen} />
-      <Tab.Screen name="Quote" component={QuoteScreen} />
-      <Tab.Screen name="Codes" component={CodesScreen} />
-      <Tab.Screen name="History" component={HistoryScreen} />
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#1F2937',
+        tabBarInactiveTintColor: '#9CA3AF',
+      }}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: tabIcon('🏠') }} />
+      <Tab.Screen name="Rex" component={RexScreen} options={{ tabBarIcon: tabIcon('🔧') }} />
+      <Tab.Screen name="Report" component={ReportScreen} options={{ tabBarIcon: tabIcon('📄') }} />
+      <Tab.Screen name="Quote" component={QuoteScreen} options={{ tabBarIcon: tabIcon('💲') }} />
+      <Tab.Screen name="Codes" component={CodesScreen} options={{ tabBarIcon: tabIcon('📚') }} />
+      <Tab.Screen name="History" component={HistoryScreen} options={{ tabBarIcon: tabIcon('🕐') }} />
     </Tab.Navigator>
   );
 }
@@ -1527,11 +1539,7 @@ export default function RootLayout() {
           <Stack.Screen name="SettingsTeam" component={TeamSettingsScreen} />
           <Stack.Screen name="TeamAdd" component={TeamAddScreen} />
           <Stack.Screen name="TeamMemberDetail" component={TeamMemberDetail} />
-          <Stack.Screen
-            name="Paywall"
-            component={PaywallScreen}
-            options={{ presentation: 'modal' }}
-          />
+          <Stack.Screen name="Paywall" component={PaywallScreen} />
         </>
       ) : (
         <>

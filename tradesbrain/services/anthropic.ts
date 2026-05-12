@@ -50,6 +50,10 @@ export async function streamRexResponse(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+  // React Native fetch on iOS does not reliably expose response.body as a
+  // ReadableStream, so SSE getReader() silently drops chunks. Use a buffered
+  // request and emit the full text in one onChunk call. The UI still shows a
+  // streaming bubble; it just fills in at once instead of typewriter-style.
   let fullText = '';
   try {
     const response = await fetch(url, {
@@ -67,7 +71,6 @@ export async function streamRexResponse(
             : ''),
         messages: payload.messages,
         max_tokens: payload.maxTokens ?? 2000,
-        stream: true,
       }),
       signal: controller.signal,
     });
@@ -77,39 +80,17 @@ export async function streamRexResponse(
       return { ok: false, fullText, modelUsed: model, error: `HTTP ${response.status}: ${errText}` };
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) return { ok: false, fullText, modelUsed: model, error: 'No response body' };
+    const body = await response.json();
+    const blocks = Array.isArray(body?.content) ? body.content : [];
+    fullText = blocks
+      .filter((b: any) => b?.type === 'text' && typeof b.text === 'string')
+      .map((b: any) => b.text as string)
+      .join('');
 
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      // SSE event blocks are separated by \n\n
-      let idx;
-      while ((idx = buffer.indexOf('\n\n')) >= 0) {
-        const block = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-        const dataLine = block.split('\n').find((l) => l.startsWith('data: '));
-        if (!dataLine) continue;
-        const raw = dataLine.slice(6);
-        if (raw === '[DONE]') continue;
-        try {
-          const evt = JSON.parse(raw);
-          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
-            const text = evt.delta.text as string;
-            fullText += text;
-            onChunk(text);
-          }
-        } catch {
-          // Ignore malformed event
-        }
-      }
+    if (!fullText) {
+      return { ok: false, fullText, modelUsed: model, error: 'Empty response from Claude' };
     }
-
+    onChunk(fullText);
     return { ok: true, fullText, modelUsed: model };
   } catch (e: any) {
     return { ok: false, fullText, modelUsed: model, error: e?.message ?? String(e) };
