@@ -62,7 +62,12 @@ export default function PaywallScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteProp<RootStackParamList, 'Paywall'>>();
   const { user } = useAuthContext();
-  const { optimisticActivate, refreshSubscription } = useSubscriptionContext();
+  const {
+    optimisticActivate,
+    refreshSubscription,
+    subscriptionStatus,
+    planType,
+  } = useSubscriptionContext();
 
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [busyPlan, setBusyPlan] = useState<PlanType | null>(null);
@@ -114,9 +119,11 @@ export default function PaywallScreen() {
     setBusyPlan(null);
 
     if (result.ok) {
-      // RULE 6 — optimistic activation, webhook reconciles
+      // RULE 6 — optimistic activation. optimisticActivate() now polls the DB
+      // internally until the Stripe webhook lands, so we no longer call
+      // refreshSubscription() here (which used to race the webhook and
+      // regress 'active' back to 'trial').
       optimisticActivate(plan);
-      refreshSubscription();
       Alert.alert('Welcome aboard', 'Your subscription is active. Rex is unlocked.', [
         { text: 'OK', onPress: () => nav.goBack() },
       ]);
@@ -149,6 +156,39 @@ export default function PaywallScreen() {
           Alert.alert('Could not start checkout', result.message);
         }
     }
+  }
+
+  // Defense in depth: if the user is already subscribed (or the webhook just
+  // confirmed it while this screen was mounting), short-circuit with an
+  // "already active" message instead of showing Subscribe buttons.
+  if (subscriptionStatus === 'active') {
+    return (
+      <View className="flex-1 bg-white pt-12">
+        <View className="px-5 pb-3 flex-row items-center justify-between">
+          <Pressable onPress={() => nav.goBack()}>
+            <Text className="text-gray-500 text-base">Close</Text>
+          </Pressable>
+          <Text className="text-base font-semibold">Subscription</Text>
+          <View className="w-12" />
+        </View>
+        <View className="flex-1 items-center justify-center px-8">
+          <Text className="text-xl font-bold text-gray-900 mb-2">
+            You're already subscribed
+          </Text>
+          <Text className="text-sm text-gray-600 text-center mb-6">
+            {planType
+              ? `Your ${planType[0].toUpperCase() + planType.slice(1)} plan is active. Manage it from Settings → Subscription.`
+              : 'Your plan is active. Manage it from Settings → Subscription.'}
+          </Text>
+          <Pressable
+            onPress={() => nav.goBack()}
+            className="bg-brand px-6 py-3 rounded-xl"
+          >
+            <Text className="text-white font-semibold">Back</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   return (

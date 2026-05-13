@@ -21,9 +21,18 @@ const PRICE_TO_PLAN: Record<string, string> = {
   [Deno.env.get("STRIPE_PRICE_SEAT_ANNUAL")!]: "team",
 };
 
-async function getUserIdByCustomer(customerId: string): Promise<string | null> {
+async function getUserIdByCustomer(customerId: string, metadata?: Record<string, string>): Promise<string | null> {
   const { data } = await supabase.from("users").select("id").eq("stripe_customer_id", customerId).single();
-  return data?.id ?? null;
+  if (data?.id) return data.id;
+  const metaUid = metadata?.supabase_user_id;
+  if (metaUid) {
+    const { data: u } = await supabase.from("users").select("id").eq("id", metaUid).single();
+    if (u?.id) {
+      await supabase.from("users").update({ stripe_customer_id: customerId }).eq("id", u.id);
+      return u.id;
+    }
+  }
+  return null;
 }
 
 function resolvePlanType(sub: Stripe.Subscription): string {
@@ -40,12 +49,26 @@ function countSeats(sub: Stripe.Subscription): number {
   return seats;
 }
 
+function periodDates(sub: Stripe.Subscription): { start: number; end: number } {
+  const item0 = sub.items.data[0] as unknown as { current_period_start?: number; current_period_end?: number };
+  const start = sub.current_period_start ?? item0?.current_period_start ?? 0;
+  const end = sub.current_period_end ?? item0?.current_period_end ?? 0;
+  return { start, end };
+}
+
+function invoiceSubscriptionId(inv: Stripe.Invoice): string | null {
+  if (inv.subscription) return inv.subscription as string;
+  const parent = (inv as unknown as { parent?: { subscription_details?: { subscription?: string } } }).parent;
+  return parent?.subscription_details?.subscription ?? null;
+}
+
 async function handleSubscriptionCreated(sub: Stripe.Subscription) {
-  const userId = await getUserIdByCustomer(sub.customer as string);
-  if (!userId) return;
+  const userId = await getUserIdByCustomer(sub.customer as string, sub.metadata as Record<string, string>);
+  if (!userId) { console.error("subscription.created: user not found for", sub.customer); return; }
   const plan = resolvePlanType(sub);
-  const end = new Date(sub.current_period_end * 1000).toISOString();
-  const start = new Date(sub.current_period_start * 1000).toISOString();
+  const { start: startTs, end: endTs } = periodDates(sub);
+  const end = new Date(endTs * 1000).toISOString();
+  const start = new Date(startTs * 1000).toISOString();
   const cycle = sub.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly";
   const amount = sub.items.data.reduce((s, i) => s + ((i.price.unit_amount ?? 0) * (i.quantity ?? 1)) / 100, 0);
   await supabase.from("users").update({ subscription_status: "active", plan_type: plan, subscription_end_date: end }).eq("id", userId);
@@ -53,11 +76,12 @@ async function handleSubscriptionCreated(sub: Stripe.Subscription) {
 }
 
 async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
-  const userId = await getUserIdByCustomer(sub.customer as string);
-  if (!userId) return;
+  const userId = await getUserIdByCustomer(sub.customer as string, sub.metadata as Record<string, string>);
+  if (!userId) { console.error("subscription.updated: user not found for", sub.customer); return; }
   const plan = resolvePlanType(sub);
-  const end = new Date(sub.current_period_end * 1000).toISOString();
-  const start = new Date(sub.current_period_start * 1000).toISOString();
+  const { start: startTs, end: endTs } = periodDates(sub);
+  const end = new Date(endTs * 1000).toISOString();
+  const start = new Date(startTs * 1000).toISOString();
   const cycle = sub.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly";
   const amount = sub.items.data.reduce((s, i) => s + ((i.price.unit_amount ?? 0) * (i.quantity ?? 1)) / 100, 0);
   const statusMap: Record<string, string> = { active: "active", past_due: "active", canceled: "cancelled", unpaid: "expired", incomplete: "trial", incomplete_expired: "expired" };
@@ -67,17 +91,19 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
-  const userId = await getUserIdByCustomer(sub.customer as string);
-  if (!userId) return;
-  await supabase.from("users").update({ subscription_status: "cancelled", subscription_end_date: new Date(sub.current_period_end * 1000).toISOString() }).eq("id", userId);
+  const userId = await getUserIdByCustomer(sub.customer as string, sub.metadata as Record<string, string>);
+  if (!userId) { console.error("subscription.deleted: user not found for", sub.customer); return; }
+  const { end: endTs } = periodDates(sub);
+  await supabase.from("users").update({ subscription_status: "cancelled", subscription_end_date: new Date(endTs * 1000).toISOString() }).eq("id", userId);
   await supabase.from("subscriptions").update({ status: "cancelled", cancelled_at: new Date().toISOString() }).eq("stripe_subscription_id", sub.id);
 }
 
 async function handleInvoiceSucceeded(inv: Stripe.Invoice) {
   const userId = await getUserIdByCustomer(inv.customer as string);
-  if (!userId || !inv.subscription) return;
-  const { data: sub } = await supabase.from("subscriptions").select("id, plan_type, seat_count").eq("stripe_subscription_id", inv.subscription).single();
-  if (!sub) return;
+  const subId = invoiceSubscriptionId(inv);
+  if (!userId || !subId) { console.error("invoice.payment_succeeded: missing user or subscription id", { userId, subId, customer: inv.customer }); return; }
+  const { data: sub } = await supabase.from("subscriptions").select("id, plan_type, seat_count").eq("stripe_subscription_id", subId).single();
+  if (!sub) { console.error("invoice.payment_succeeded: subscription row not found for", subId); return; }
   await supabase.from("billing_history").insert({ user_id: userId, subscription_id: sub.id, stripe_invoice_id: inv.id, amount_paid: inv.amount_paid / 100, plan_type: sub.plan_type, seat_count: sub.seat_count, billing_period_start: new Date(inv.period_start * 1000).toISOString(), billing_period_end: new Date(inv.period_end * 1000).toISOString(), invoice_pdf_url: inv.invoice_pdf, paid_at: new Date((inv.status_transitions?.paid_at ?? Date.now() / 1000) * 1000).toISOString() });
 }
 
