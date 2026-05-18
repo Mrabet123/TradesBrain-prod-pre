@@ -3,7 +3,7 @@
 // Two buttons: Create Account, Sign In.
 
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
@@ -16,8 +16,13 @@ export default function WelcomeScreen() {
   return (
     <View className="flex-1 bg-white px-6 justify-center">
       <View className="items-center mb-12">
-        <Text className="text-4xl font-bold text-brand">TradesBrain</Text>
-        <Text className="text-base text-gray-600 mt-2 text-center">
+        <Image
+          source={require('../../assets/logo.png')}
+          style={{ width: 240, height: 83 }}
+          resizeMode="contain"
+          accessibilityLabel="TradesBrain"
+        />
+        <Text className="text-base text-gray-600 mt-4 text-center">
           Your AI co-pilot on every job site.
         </Text>
       </View>

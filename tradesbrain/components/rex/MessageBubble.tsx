@@ -1,5 +1,5 @@
 // D6 Flow04 — message bubble for Rex session.
-// User messages: right-aligned, brand colour. Assistant: left-aligned, gray.
+// User messages: right-aligned, brand colour. Assistant: left-aligned, gray with Rex compass avatar.
 // Photos render inline above the text. Transcript shown for voice messages.
 
 import React from 'react';
@@ -14,10 +14,11 @@ interface Props {
 
 export default function MessageBubble({ role, content, photoUrl, transcript }: Props) {
   const isUser = role === 'user';
-  return (
+
+  const bubble = (
     <View
-      className={`max-w-[82%] my-1 mx-3 rounded-2xl ${
-        isUser ? 'self-end bg-brand' : 'self-start bg-gray-100'
+      className={`max-w-[82%] rounded-2xl ${
+        isUser ? 'self-end bg-brand' : 'bg-gray-100'
       }`}
     >
       {photoUrl && (
@@ -39,6 +40,21 @@ export default function MessageBubble({ role, content, photoUrl, transcript }: P
           {content}
         </Text>
       </View>
+    </View>
+  );
+
+  if (isUser) {
+    return <View className="my-1 mx-3">{bubble}</View>;
+  }
+
+  return (
+    <View className="my-1 mx-3 flex-row items-end">
+      <Image
+        source={require('../../assets/rex-compass.png')}
+        style={{ width: 28, height: 28, marginRight: 6, marginBottom: 4 }}
+        accessibilityLabel="Rex"
+      />
+      {bubble}
     </View>
   );
 }

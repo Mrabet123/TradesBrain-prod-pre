@@ -3,7 +3,7 @@
 // Otherwise: "Start a new job" button. SubscriptionGate wraps the New Job CTA.
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
@@ -58,7 +58,14 @@ export default function RexScreen() {
 
   return (
     <View className="flex-1 bg-white pt-12 px-5">
-      <Text className="text-2xl font-bold text-gray-900 mb-1">Rex</Text>
+      <View className="flex-row items-center mb-1">
+        <Image
+          source={require('../../assets/rex-compass.png')}
+          style={{ width: 40, height: 40, marginRight: 10 }}
+          accessibilityLabel="Rex"
+        />
+        <Text className="text-2xl font-bold text-gray-900">Rex</Text>
+      </View>
       <Text className="text-sm text-gray-600 mb-6">Your AI co-pilot on this job.</Text>
 
       {activeSessionId && (
