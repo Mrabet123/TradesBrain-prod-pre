@@ -144,7 +144,8 @@ export default function ReportBuilderScreen() {
       );
       return;
     }
-    setSummary((prev) => (prev ? `${prev}\n\n${res.text}` : res.text));
+    const text = res.text;
+    setSummary((prev) => (prev ? `${prev}\n\n${text}` : text));
   }
 
   async function onGenerate() {
@@ -226,7 +227,7 @@ export default function ReportBuilderScreen() {
   }
 
   async function doConfirm() {
-    if (!draft || !profile) return;
+    if (!draft || !profile || !user) return;
     Alert.alert(
       'Confirm and lock?',
       'This action permanently locks all sections. The report cannot be edited after confirming.',
@@ -239,6 +240,11 @@ export default function ReportBuilderScreen() {
             try {
               const { pdfUri } = await confirmReport(draft, profile);
               setPdfUri(pdfUri);
+              // Remember the VAT/license choices as the worker's report defaults
+              savePrefs(user.id, 'report', {
+                defaultIncludeVat: draft.includesVat,
+                defaultIncludeLicense: draft.includesLicense,
+              }).catch(() => {});
               Alert.alert('Report confirmed', 'PDF generated and locked.');
             } catch (e: any) {
               Alert.alert('Confirm failed', e?.message ?? 'Unknown error');

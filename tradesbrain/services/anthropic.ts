@@ -1,7 +1,12 @@
 // services/anthropic.ts — Claude API client (via Edge Function proxy).
-// D4 Rule 4: ANTHROPIC_API_KEY never appears in the mobile bundle. All calls
-// go through supabase functions/claude-proxy. Streaming SSE response is parsed
-// for text_delta chunks and forwarded to onChunk.
+// D4 Rule: ANTHROPIC_API_KEY never appears in the mobile bundle — all calls go
+// through supabase functions/claude-proxy. RULE 10: the system prompt is never
+// in the bundle either — the app sends trade_type + mode and claude-proxy
+// assembles the prompt server-side.
+//
+// React Native fetch does not reliably expose response.body as a ReadableStream,
+// so true SSE streaming silently drops chunks. We use a buffered request and
+// then reveal the text to the UI word-by-word for a typewriter feel.
 
 import { supabase } from './supabase';
 import { routeModel } from './router';
@@ -17,7 +22,7 @@ export interface ClaudeMessage {
 }
 
 export interface RexPayload {
-  systemPrompt: string;
+  tradeType: string;
   messages: ClaudeMessage[];
   sessionStage: 1 | 2 | 3 | 4 | 5;
   messageType: 'diagnosis' | 'confirmation' | 'formatting' | 'summary' | 'lookup';
@@ -29,10 +34,25 @@ export interface StreamResult {
   ok: boolean;
   fullText: string;
   modelUsed: string;
+  stage?: 1 | 2 | 3 | 4 | 5;
   error?: string;
 }
 
 const TIMEOUT_MS = 30000;
+// Rex emits [[STAGE:n]] markers (server STAGE_PROTOCOL_ADDENDUM) — parsed for
+// stage tracking, then stripped before the text is shown or persisted.
+const STAGE_TAG = /\[\[STAGE:([1-5])\]\]/g;
+
+// Reveal buffered text progressively (~1.1s total regardless of length) so the
+// response appears word-by-word instead of all at once.
+async function revealWordByWord(text: string, onChunk: (t: string) => void): Promise<void> {
+  const tokens = text.split(/(\s+)/); // keeps whitespace tokens so output rejoins exactly
+  const perTick = Math.max(1, Math.ceil(tokens.length / 70));
+  for (let i = 0; i < tokens.length; i += perTick) {
+    onChunk(tokens.slice(i, i + perTick).join(''));
+    await new Promise((r) => setTimeout(r, 16));
+  }
+}
 
 export async function streamRexResponse(
   payload: RexPayload,
@@ -50,11 +70,6 @@ export async function streamRexResponse(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  // React Native fetch on iOS does not reliably expose response.body as a
-  // ReadableStream, so SSE getReader() silently drops chunks. Use a buffered
-  // request and emit the full text in one onChunk call. The UI still shows a
-  // streaming bubble; it just fills in at once instead of typewriter-style.
-  let fullText = '';
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -64,11 +79,9 @@ export async function streamRexResponse(
       },
       body: JSON.stringify({
         model,
-        system:
-          payload.systemPrompt +
-          (payload.ragContext
-            ? `\n\nRELEVANT CODE REFERENCES:\n${payload.ragContext}`
-            : ''),
+        trade_type: payload.tradeType,
+        mode: payload.messageType,
+        rag_context: payload.ragContext,
         messages: payload.messages,
         max_tokens: payload.maxTokens ?? 2000,
       }),
@@ -77,23 +90,34 @@ export async function streamRexResponse(
 
     if (!response.ok) {
       const errText = await response.text();
-      return { ok: false, fullText, modelUsed: model, error: `HTTP ${response.status}: ${errText}` };
+      return { ok: false, fullText: '', modelUsed: model, error: `HTTP ${response.status}: ${errText}` };
     }
 
     const body = await response.json();
     const blocks = Array.isArray(body?.content) ? body.content : [];
-    fullText = blocks
+    const rawText: string = blocks
       .filter((b: any) => b?.type === 'text' && typeof b.text === 'string')
       .map((b: any) => b.text as string)
       .join('');
 
-    if (!fullText) {
-      return { ok: false, fullText, modelUsed: model, error: 'Empty response from Claude' };
+    if (!rawText) {
+      return { ok: false, fullText: '', modelUsed: model, error: 'Empty response from Claude' };
     }
-    onChunk(fullText);
-    return { ok: true, fullText, modelUsed: model };
+
+    // Pull the explicit stage marker (last [[STAGE:n]] wins), then strip all of
+    // them so the worker never sees the marker.
+    let stage: 1 | 2 | 3 | 4 | 5 | undefined;
+    STAGE_TAG.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = STAGE_TAG.exec(rawText)) !== null) {
+      stage = Number(match[1]) as 1 | 2 | 3 | 4 | 5;
+    }
+    const cleanText = rawText.replace(STAGE_TAG, '').trim();
+
+    await revealWordByWord(cleanText, onChunk);
+    return { ok: true, fullText: cleanText, modelUsed: model, stage };
   } catch (e: any) {
-    return { ok: false, fullText, modelUsed: model, error: e?.message ?? String(e) };
+    return { ok: false, fullText: '', modelUsed: model, error: e?.message ?? String(e) };
   } finally {
     clearTimeout(timer);
   }

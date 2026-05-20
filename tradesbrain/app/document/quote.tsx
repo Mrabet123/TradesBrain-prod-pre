@@ -194,7 +194,7 @@ export default function QuoteBuilderScreen() {
   }
 
   async function doConfirm() {
-    if (!draft || !profile) return;
+    if (!draft || !profile || !user) return;
     Alert.alert(
       'Confirm and lock?',
       'This action permanently locks the quote. It cannot be edited after confirming.',
@@ -210,6 +210,13 @@ export default function QuoteBuilderScreen() {
               const { pdfUri } = await confirmQuote(next, profile);
               setDraft(next);
               setPdfUri(pdfUri);
+              // Remember these choices as the worker's quote defaults (D3 RULE 6)
+              savePrefs(user.id, 'quote', {
+                defaultIncludeVat: next.includesVat,
+                defaultIncludeLicense: next.includesLicense,
+                defaultPaymentTerms: next.paymentTerms,
+                paymentMethods: next.paymentMethods,
+              }).catch(() => {});
               Alert.alert('Quote confirmed', 'PDF generated and locked.');
             } catch (e: any) {
               Alert.alert('Confirm failed', e?.message ?? 'Unknown error');

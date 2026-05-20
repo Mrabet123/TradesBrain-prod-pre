@@ -71,7 +71,7 @@ export default function HomeScreen() {
               {new Date(active.updated_at).toLocaleString()}
             </Text>
             <Pressable
-              onPress={() => nav.navigate('Job', { sessionId: active.id })}
+              onPress={() => nav.navigate('Job', { sessionId: active.id, recap: true })}
               className="bg-amber-500 py-3 rounded-lg"
             >
               <Text className="text-center text-white font-semibold">Continue session</Text>

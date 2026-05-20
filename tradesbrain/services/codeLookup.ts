@@ -13,8 +13,7 @@
 import { streamRexResponse, type ClaudeMessage } from './anthropic';
 import { generateEmbedding } from './openai';
 import { supabase } from './supabase';
-import { getSystemPrompt } from '../constants/systemPrompts';
-import { AHJ_NOTE, CODE_LOOKUP_MODE_ADDENDUM } from '../constants/codeLookup';
+import { AHJ_NOTE } from '../constants/codeLookup';
 
 export interface CodeCitation {
   id: string;
@@ -80,14 +79,13 @@ export async function lookupCode(
     )
     .join('\n\n');
 
-  const systemPrompt = getSystemPrompt(tradeType) + CODE_LOOKUP_MODE_ADDENDUM;
-
   let buffer = '';
   const messages: ClaudeMessage[] = [{ role: 'user', content: query }];
 
+  // claude-proxy appends the code-lookup addendum server-side for mode 'lookup'.
   const result = await streamRexResponse(
     {
-      systemPrompt,
+      tradeType,
       messages,
       sessionStage: 1,
       messageType: 'lookup', // routes to Sonnet (D4 §3.1)

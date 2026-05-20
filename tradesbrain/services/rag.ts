@@ -1,10 +1,10 @@
 // services/rag.ts — RAG retrieval via Supabase pgvector match_documents RPC.
-// Top-N chunk count is picked by utils/ragInjector.ts (5 stage 1-2, 2 stage 3-5,
-// 0 for reports/quotes — D4 §3.4).
+// Top-N chunk count is picked by services/ragInjector.ts (5 stage 1-2, 2 stage
+// 3-5, 0 for reports/quotes — D4 §3.4).
 
 import { supabase } from './supabase';
 import { generateEmbedding } from './openai';
-import { getRAGChunkCount } from '../utils/ragInjector';
+import { getRAGChunkCount } from './ragInjector';
 
 interface MatchRow {
   id: string;

@@ -86,7 +86,7 @@ export async function loadPrefs(
     defaultIncludeVat: data.default_include_vat,
     defaultIncludeLicense: data.default_include_license,
     defaultPaymentTerms: data.default_payment_terms,
-    paymentMethods: (data.sections as any)?.paymentMethods,
+    paymentMethods: (data.default_payment_methods as PaymentMethod[]) ?? undefined,
   };
 }
 
@@ -95,17 +95,21 @@ export async function savePrefs(
   documentType: 'report' | 'quote',
   prefs: UserPrefs,
 ): Promise<void> {
-  await supabase.from('worker_preferences').upsert(
-    {
-      user_id: userId,
-      document_type: documentType,
-      sections: prefs.sections ?? [],
-      default_include_vat: prefs.defaultIncludeVat ?? false,
-      default_include_license: prefs.defaultIncludeLicense ?? false,
-      default_payment_terms: prefs.defaultPaymentTerms ?? null,
-    },
-    { onConflict: 'user_id,document_type' },
-  );
+  // Partial upsert — only columns whose pref keys are provided get written, so
+  // saving section choices never clobbers saved VAT/license/payment defaults
+  // (and vice-versa). Missing columns keep their existing value on conflict.
+  const payload: Record<string, unknown> = {
+    user_id: userId,
+    document_type: documentType,
+  };
+  if (prefs.sections !== undefined) payload.sections = prefs.sections;
+  if (prefs.defaultIncludeVat !== undefined) payload.default_include_vat = prefs.defaultIncludeVat;
+  if (prefs.defaultIncludeLicense !== undefined) payload.default_include_license = prefs.defaultIncludeLicense;
+  if (prefs.defaultPaymentTerms !== undefined) payload.default_payment_terms = prefs.defaultPaymentTerms;
+  if (prefs.paymentMethods !== undefined) payload.default_payment_methods = prefs.paymentMethods;
+  await supabase
+    .from('worker_preferences')
+    .upsert(payload, { onConflict: 'user_id,document_type' });
 }
 
 // ─── Versioning ─────────────────────────────────────────────────────────────

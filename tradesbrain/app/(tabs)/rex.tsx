@@ -77,7 +77,7 @@ export default function RexScreen() {
             Rex will recap before continuing.
           </Text>
           <Pressable
-            onPress={() => nav.navigate('Job', { sessionId: activeSessionId })}
+            onPress={() => nav.navigate('Job', { sessionId: activeSessionId, recap: true })}
             className="bg-amber-500 py-3 rounded-lg"
           >
             <Text className="text-center text-white font-semibold">Continue session</Text>

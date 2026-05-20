@@ -9,7 +9,7 @@
 import { useCallback, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { getCompressionSettings } from '../utils/imageCompression';
+import { getCompressionSettings } from '../services/imageCompression';
 
 export interface CapturedPhoto {
   uri: string;

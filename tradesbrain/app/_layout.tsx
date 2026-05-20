@@ -1313,9 +1313,9 @@
  *               | useVoiceRecording | usePhotoCapture
  *   context/AuthContext | SubscriptionContext | TradeProfileContext (all 3
  *                       wired in App.tsx provider tree)
- *   utils/imageCompression.ts        D4 §3.3 — tiered settings 1/2/3+
- *   utils/ragInjector.ts             D4 §3.4 — 5 / 2 / 0 chunk policy
- *   utils/tokenEstimator.ts          token & cost estimation
+ *   services/imageCompression.ts     D4 §3.3 — tiered settings 1/2/3+
+ *   services/ragInjector.ts          D4 §3.4 — 5 / 2 / 0 chunk policy
+ *   services/tokenEstimator.ts       token & cost estimation
  *   utils/formatters.ts
  *   types/session | user | documents | subscription
  *   constants/limits.ts              SESSION_SOFT_CAP=30, SESSION_WARNING_AT=28

@@ -2,6 +2,7 @@
 // Triggered when message count exceeds 10
 
 import { Message } from '../types/session';
+import { supabase } from './supabase';
 
 interface CompressedHistory {
   summary: string;
@@ -12,11 +13,16 @@ export async function compressHistory(messages: Message[]): Promise<CompressedHi
   const toCompress = messages.slice(0, -3);
   const recent = messages.slice(-3);
 
+  // claude-proxy enforces JWT — forward the caller's access token.
+  const { data: { session } } = await supabase.auth.getSession();
   const response = await fetch(
     `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/claude-proxy`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token ?? ''}`,
+      },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         system: 'Summarise this job site conversation in 3-5 sentences. Preserve all technical details, measurements, and decisions.',

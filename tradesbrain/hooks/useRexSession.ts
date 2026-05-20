@@ -1,19 +1,21 @@
 // useRexSession — Full Rex session lifecycle (D4 §4.1, D6 Flow04).
 // Owns: session creation, message persistence, streaming, summariser, RAG,
-// stage tracking, soft-cap warnings, trial decrement, close-job.
-// All Claude API calls go through services/anthropic.streamRexResponse,
-// which proxies via supabase functions/claude-proxy.
+// stage tracking, soft-cap warnings + linked sessions, apprentice mode, trial
+// decrement, close-job. All Claude calls go through services/anthropic; the
+// system prompt is assembled server-side in claude-proxy (RULE 10).
 
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { streamRexResponse, type ClaudeMessage } from '../services/anthropic';
 import { compressHistory, shouldCompress } from '../services/summariser';
 import { retrieveCodeContext } from '../services/rag';
-import { getSystemPrompt } from '../constants/systemPrompts';
 import { SESSION_SOFT_CAP, SESSION_WARNING_AT } from '../constants/limits';
 import type { Message, JobSession } from '../types/session';
 
 export type Stage = 1 | 2 | 3 | 4 | 5;
+
+// Rex asks this once when it detects an apprentice (D7 APPRENTICE DETECTION).
+const APPRENTICE_QUESTION = /walk through each step/i;
 
 interface State {
   session: JobSession | null;
@@ -24,6 +26,7 @@ interface State {
   softCapWarning: boolean;
   softCapReached: boolean;
   apprenticeAsked: boolean;
+  apprenticeAnswered: boolean;
   apprenticeMode: boolean;
   pushbackCount: number;
   closed: boolean;
@@ -41,7 +44,7 @@ type Action =
   | { type: 'PUSHBACK_INC' }
   | { type: 'APPRENTICE_ASK' }
   | { type: 'APPRENTICE_SET'; on: boolean }
-  | { type: 'CLOSE' }
+  | { type: 'CLOSE'; jobName?: string }
   | { type: 'ERROR'; error: string | null };
 
 const initial: State = {
@@ -53,6 +56,7 @@ const initial: State = {
   softCapWarning: false,
   softCapReached: false,
   apprenticeAsked: false,
+  apprenticeAnswered: false,
   apprenticeMode: false,
   pushbackCount: 0,
   closed: false,
@@ -80,9 +84,13 @@ function reducer(s: State, a: Action): State {
     case 'APPRENTICE_ASK':
       return { ...s, apprenticeAsked: true };
     case 'APPRENTICE_SET':
-      return { ...s, apprenticeMode: a.on };
+      return { ...s, apprenticeMode: a.on, apprenticeAnswered: true };
     case 'CLOSE':
-      return { ...s, closed: true };
+      return {
+        ...s,
+        closed: true,
+        session: a.jobName && s.session ? { ...s.session, jobName: a.jobName } : s.session,
+      };
     case 'ERROR':
       return { ...s, error: a.error };
     default:
@@ -120,15 +128,17 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
             .order('created_at', { ascending: true });
           if (cancelled) return;
           if (ses && msgs) {
-            dispatch({
-              type: 'INIT',
-              session: rowToSession(ses),
-              messages: msgs.map(rowToMessage),
-            });
+            const session = rowToSession(ses);
+            dispatch({ type: 'INIT', session, messages: msgs.map(rowToMessage) });
+            // A linked session (created at the soft cap) is seeded with a
+            // carry-over message but has not been opened — leave it; the seed
+            // message is its opener. Only a brand-new empty session needs S0.
+            if (msgs.length === 0 && session.status === 'active') {
+              await openSession(session);
+            }
           }
           return;
         }
-
 
         // Create new session
         const { data: ses, error } = await supabase
@@ -159,9 +169,6 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
   }, [sessionId, userId]);
 
   // ── Recap on reopen (D6 Flow12 / M5 RULE 3) ───────────────────────────────
-  // When a session is opened with recapOnLoad=true, send a single recap-
-  // trigger user message after messages have loaded. Defends against
-  // double-trigger via recapTriggeredRef.
   useEffect(() => {
     if (!recapOnLoad) return;
     if (recapTriggeredRef.current) return;
@@ -199,7 +206,7 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
 
     const result = await streamRexResponse(
       {
-        systemPrompt: getSystemPrompt(s.tradeType),
+        tradeType: s.tradeType,
         messages: opening,
         sessionStage: 1,
         messageType: 'diagnosis',
@@ -234,7 +241,7 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
       if (state.softCapReached) {
         dispatch({
           type: 'ERROR',
-          error: 'Session reached the 30-message soft cap — start a linked session.',
+          error: 'Session reached the 30-message soft cap — start a linked session to continue.',
         });
         return;
       }
@@ -252,12 +259,7 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
       if (!userMsg) return;
       dispatch({ type: 'APPEND', message: userMsg });
 
-      // 2) Trial decrement (graceful — function may be undeployed)
-      supabase.functions
-        .invoke('decrement-trial-query', { body: { user_id: userId } })
-        .catch(() => {});
-
-      // 3) Compress history if > 10 messages
+      // 2) Compress history if > 10 messages
       let claudeMessages: ClaudeMessage[];
       if (shouldCompress(state.messages.length + 1)) {
         const { summary, recentMessages } = await compressHistory([
@@ -284,7 +286,7 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
         };
       }
 
-      // 4) RAG retrieval (5 chunks @ stage ≤ 2; 2 chunks @ stage 3-5)
+      // 3) RAG retrieval (5 chunks @ stage ≤ 2; 2 chunks @ stage 3-5)
       const { ragContext } = await retrieveCodeContext(
         opts.text,
         s.tradeType,
@@ -292,12 +294,12 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
         'diagnosis',
       );
 
-      // 5) Stream the response
+      // 4) Stream the response
       dispatch({ type: 'STREAM_START' });
       streamingRef.current = '';
       const result = await streamRexResponse(
         {
-          systemPrompt: getSystemPrompt(s.tradeType),
+          tradeType: s.tradeType,
           messages: claudeMessages,
           sessionStage: state.stage,
           messageType: state.stage === 3 || state.stage === 5 ? 'confirmation' : 'diagnosis',
@@ -322,17 +324,25 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
         return;
       }
 
-      // 6) Persist assistant + auto-advance stage on heuristics
+      // 5) Trial decrement — only AFTER a successful Claude response (RULE 7),
+      // so a failed/timed-out reply never burns a query.
+      supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() => {});
+
+      // 6) Persist assistant + advance stage on the explicit marker / heuristic
       await persistAssistant(s.id, result.fullText, state.stage, result.modelUsed);
-      maybeAdvanceStage(result.fullText);
+      applyStageSignal(result.stage, result.fullText);
     },
-    [state.session, state.messages, state.stage, state.streaming, state.closed, state.softCapReached, userId],
+    [state.session, state.messages, state.stage, state.streaming, state.closed, state.softCapReached, state.apprenticeAsked, userId],
   );
 
-  // ── Stage progression heuristic — Rex authors content like "Stage 2…" or
-  // "Step 1:" so we nudge forward when those signals appear. Worker override
-  // happens via ContextualButtons → advanceStage().
-  function maybeAdvanceStage(text: string) {
+  // ── Stage progression — prefer Rex's explicit [[STAGE:n]] marker; fall back
+  // to a content heuristic if the marker is absent. Only ever moves forward.
+  function applyStageSignal(explicit: Stage | undefined, text: string) {
+    if (explicit && explicit > state.stage) {
+      dispatch({ type: 'STAGE', stage: explicit });
+      return;
+    }
+    if (explicit) return; // marker present but not ahead — respect it, no nudge
     const t = text.toLowerCase();
     let next: Stage | null = null;
     if (state.stage === 1 && /(diagnosis|root cause|the issue is|component:)/.test(t)) next = 2;
@@ -345,6 +355,20 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
   const advanceStage = useCallback((next: Stage) => {
     dispatch({ type: 'STAGE', stage: next });
   }, []);
+
+  // ── Apprentice mode — the worker answers Rex's "walk through each step?"
+  // question; we record the choice and tell Rex how to calibrate depth.
+  const onApprenticeAnswer = useCallback(
+    (yes: boolean) => {
+      dispatch({ type: 'APPRENTICE_SET', on: yes });
+      sendMessage({
+        text: yes
+          ? 'Yes — walk me through each step in detail as we go.'
+          : 'No — standard clinical detail is fine.',
+      });
+    },
+    [sendMessage],
+  );
 
   // ── Worker pushback (D6 Flow04 Pushback A/B): two-step. Rex holds once,
   // then adopts. Increments pushbackCount; on second pushback, send a directive.
@@ -378,26 +402,68 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
         case 'found_issue':
           sendMessage({ text: 'Found a new issue during final check — please assess.' });
           break;
-        case 'close_job':
-          closeJob();
-          break;
+        // 'close_job' is handled by the screen (it collects a job name first).
       }
     },
-    [state.pushbackCount, state.stage, sendMessage],
+    [state.pushbackCount, state.stage, sendMessage, advanceStage],
   );
 
-  const closeJob = useCallback(async () => {
-    if (!state.session) return;
-    const { error } = await supabase
-      .from('job_sessions')
-      .update({ status: 'completed', closed_at: new Date().toISOString() })
-      .eq('id', state.session.id);
-    if (error) {
-      dispatch({ type: 'ERROR', error: error.message });
-      return;
+  // ── Close job (D6 Flow04 Stage 5) — persists the worker-supplied job name. ─
+  const closeJob = useCallback(
+    async (jobName?: string) => {
+      if (!state.session) return;
+      const update: Record<string, unknown> = {
+        status: 'completed',
+        closed_at: new Date().toISOString(),
+      };
+      if (jobName && jobName.trim()) update.job_name = jobName.trim();
+      const { error } = await supabase
+        .from('job_sessions')
+        .update(update)
+        .eq('id', state.session.id);
+      if (error) {
+        dispatch({ type: 'ERROR', error: error.message });
+        return;
+      }
+      dispatch({ type: 'CLOSE', jobName: jobName?.trim() });
+    },
+    [state.session],
+  );
+
+  // ── Soft-cap linked session (D4 §3.5) — compress this session's history and
+  // open a fresh child session seeded with that summary. Returns the new id.
+  const startLinkedSession = useCallback(async (): Promise<string | null> => {
+    const s = state.session;
+    if (!s) return null;
+    try {
+      const { summary } = await compressHistory(state.messages);
+      const { data: ses, error } = await supabase
+        .from('job_sessions')
+        .insert({
+          user_id: userId,
+          trade_type: s.tradeType,
+          session_source: 'rex',
+          parent_session_id: s.id,
+          job_name: s.jobName,
+        })
+        .select()
+        .single();
+      if (error || !ses) throw error;
+      await supabase.from('messages').insert({
+        session_id: ses.id,
+        role: 'assistant',
+        content_text:
+          `Continuing from the previous session — it reached the ${SESSION_SOFT_CAP}-message limit.\n\n` +
+          `Here's where we left off:\n${summary}\n\nWhat do you need next?`,
+        session_stage: state.stage,
+        model_used: 'carry-over',
+      });
+      return ses.id as string;
+    } catch (e: any) {
+      dispatch({ type: 'ERROR', error: e?.message ?? 'Could not start a linked session.' });
+      return null;
     }
-    dispatch({ type: 'CLOSE' });
-  }, [state.session]);
+  }, [state.session, state.messages, state.stage, userId]);
 
   // ── Persistence helpers ───────────────────────────────────────────────────
   async function persistUser(
@@ -450,6 +516,11 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
       .select()
       .single();
     if (data) dispatch({ type: 'APPEND', message: rowToMessage(data) });
+    // D7 APPRENTICE DETECTION — Rex asks the apprentice question once; surface
+    // the Yes/No choice to the worker.
+    if (!state.apprenticeAsked && APPRENTICE_QUESTION.test(text)) {
+      dispatch({ type: 'APPRENTICE_ASK' });
+    }
   }
 
   return {
@@ -457,7 +528,9 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
     sendMessage,
     advanceStage,
     onContextualAction,
+    onApprenticeAnswer,
     closeJob,
+    startLinkedSession,
     canShowReportQuote: state.closed,
   };
 }
