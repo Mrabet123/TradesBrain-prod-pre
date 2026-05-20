@@ -42,8 +42,11 @@ export async function updateSubscription(action: string, params?: Record<string,
   return callEdgeFunction('stripe-update-subscription', { action, ...params });
 }
 
-export async function checkKycStatus() {
-  return callEdgeFunction('kyc-status-check', {});
+// Reports KYC status. Pass a document type to (re)start Stripe Identity
+// verification for it — the response's `verification_url` is the Stripe-hosted
+// page the app opens so the user can capture their documents.
+export async function checkKycStatus(verifyDocument?: 'national_id' | 'license') {
+  return callEdgeFunction('kyc-status-check', verifyDocument ? { verify_document: verifyDocument } : {});
 }
 
 export async function calculateDaysRemaining() {

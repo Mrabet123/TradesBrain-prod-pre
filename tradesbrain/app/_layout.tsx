@@ -1224,13 +1224,14 @@
  * ── KYC INTEGRATION STATUS ──────────────────────────────────────────────────
  *   • License proof + national ID uploaded to "kyc-documents" bucket at
  *     <user_id>/<kind>-<ts>.<ext>.
- *   • users.national_id_kyc_status and users.license_kyc_status default to
- *     'pending' (D5 column default) — set on row insert.
- *   • Stripe Identity Session creation is the responsibility of Edge Function
- *     kyc-status-check (D10). It is NOT invoked from the mobile app yet because
- *     Edge Functions are still undeployed (founder deferred during M0). When
- *     deployed, add a supabase.functions.invoke('kyc-status-check', …) call at
- *     the end of createUserProfile().
+ *   • users.national_id_kyc_status and users.license_kyc_status are set to
+ *     'not_uploaded' on row insert — the document image is stored but no Stripe
+ *     Identity verification has run yet.
+ *   • Stripe Identity verification is user-initiated from Settings → Profile:
+ *     the KYC row calls kyc-status-check with { verify_document }, which mints a
+ *     Stripe Identity session and returns its hosted verification URL. The app
+ *     opens that URL (expo-web-browser) for document capture; kyc-webhook flips
+ *     the status fields to 'pending' / 'verified' / 'rejected' as Stripe runs.
  *
  * ── ERROR STATES IMPLEMENTED (D6 Flow02 S10 / D2 edge cases) ────────────────
  *   1. Wrong password — "Incorrect password — try again or reset."           ✓
@@ -1250,13 +1251,9 @@
  *      no new deps added for M1.
  *
  * ── WHAT IS NOT BUILT YET (deferred / next milestone) ───────────────────────
- *   • supabase.functions.invoke('kyc-status-check') — needs Edge Function deploy.
- *     Once deployed, wire it at the tail of createUserProfile().
  *   • Settings → Profile screen surface of the VAT lock badge — that's a
  *     Settings-area build (Settings UI lives outside the auth flow and will be
  *     completed when M7-ish settings work begins).
- *   • Stripe Identity push of the uploaded documents — handled inside the KYC
- *     Edge Function per D9 §6, so it gates on the same deploy.
  *   • M2 will build the Rex diagnostic session UI (Plumber first).
  * ══════════════════════════════════════════════════════════════════════════════
  */

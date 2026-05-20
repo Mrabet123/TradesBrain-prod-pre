@@ -1,7 +1,7 @@
 // M1 — Authentication service helpers
-// Wraps Supabase Auth + users table + KYC photo upload.
-// Edge Function kyc-status-check is deferred (founder defer M0 deploy step) —
-// KYC status fields default to 'pending' from the column default in D5.
+// Wraps Supabase Auth + users table + KYC photo upload. KYC status fields are
+// seeded as 'not_uploaded'; the user runs Stripe Identity verification later
+// from Settings (kyc-status-check mints the session, kyc-webhook flips status).
 
 import {
   GoogleSignin,
@@ -111,8 +111,8 @@ export async function createUserProfile(input: SignUpInput): Promise<void> {
     license_number: input.licenseNumber,
     license_proof_url: licensePath,
     national_id_url: nationalIdPath,
-    national_id_kyc_status: 'pending',
-    license_kyc_status: 'pending',
+    national_id_kyc_status: 'not_uploaded',
+    license_kyc_status: 'not_uploaded',
     terms_accepted_at: new Date().toISOString(),
     terms_version: TERMS_VERSION,
   });

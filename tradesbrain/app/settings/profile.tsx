@@ -1,8 +1,8 @@
 // D2 F8 / D6 Flow10 — Profile settings.
 // Editable: full_name · company_name · hourly_rate · phone_number · company_logo.
 // Locked (RULE 1): vat_number · license_number · license_proof_url · national_id_url.
-// KYC status badge per document with re-upload CTA when rejected (RULE 5 —
-// triggers a fresh Stripe Identity session via kyc-status-check).
+// KYC status badge per document with a "Verify identity" CTA that opens the
+// Stripe Identity hosted flow (kyc-status-check mints the session + hosted URL).
 // beforeRemove navigation listener fires the unsaved-changes prompt
 // (Save · Discard · Keep editing).
 
@@ -20,6 +20,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
+import * as WebBrowser from 'expo-web-browser';
 import type { RootStackParamList } from '../_layout';
 import { useAuthContext } from '../../context/AuthContext';
 import { supabase } from '../../services/supabase';
@@ -53,6 +54,7 @@ export default function ProfileSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [verifying, setVerifying] = useState<'license' | 'national_id' | null>(null);
 
   const reload = useCallback(async () => {
     if (!user) return;
@@ -161,23 +163,25 @@ export default function ProfileSettingsScreen() {
     }
   }
 
-  async function reupload(kind: 'license' | 'national_id') {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-    });
-    if (result.canceled || !result.assets[0] || !user) return;
-
+  // RULE 5 — kyc-status-check mints a fresh Stripe Identity session for the
+  // document and returns its hosted verification URL. The user completes the
+  // document capture on Stripe's page; kyc-webhook updates the status fields.
+  async function verifyIdentity(kind: 'license' | 'national_id') {
+    if (!user || verifying) return;
+    setVerifying(kind);
     try {
-      await uploadKycPhoto(user.id, kind, result.assets[0].uri);
-      // RULE 5 — re-upload triggers a fresh Stripe Identity session
-      await checkKycStatus();
-      Alert.alert('Submitted', 'A new verification session has been started.');
-      reload();
+      const res = await checkKycStatus(kind);
+      if (!res.success) throw new Error(res.error ?? 'Could not start verification.');
+      const url: string | undefined = res.data?.verification_url ?? undefined;
+      if (!url) throw new Error('No verification link was returned. Please try again.');
+      // In-app browser — resolves when the user closes it; status is updated
+      // server-side by kyc-webhook, so re-read the profile afterwards.
+      await WebBrowser.openBrowserAsync(url);
+      await reload();
     } catch (e: any) {
-      Alert.alert('Re-upload failed', e?.message ?? 'Unknown error');
+      Alert.alert('Verification failed', e?.message ?? 'Unknown error');
+    } finally {
+      setVerifying(null);
     }
   }
 
@@ -270,12 +274,14 @@ export default function ProfileSettingsScreen() {
         <KycRow
           label="National ID"
           status={locked.nationalIdKycStatus}
-          onReupload={() => reupload('national_id')}
+          busy={verifying === 'national_id'}
+          onVerify={() => verifyIdentity('national_id')}
         />
         <KycRow
           label="License proof"
           status={locked.licenseKycStatus}
-          onReupload={() => reupload('license')}
+          busy={verifying === 'license'}
+          onVerify={() => verifyIdentity('license')}
         />
       </View>
     </ScrollView>
@@ -301,39 +307,41 @@ function LockedRow({ label, value }: { label: string; value: string }) {
 function KycRow({
   label,
   status,
-  onReupload,
+  busy,
+  onVerify,
 }: {
   label: string;
   status: string;
-  onReupload: () => void;
+  busy: boolean;
+  onVerify: () => void;
 }) {
   const map: Record<
     string,
-    { tone: string; color: string; copy: string; allowReupload: boolean }
+    { tone: string; color: string; copy: string; cta: string | null }
   > = {
     verified: {
       tone: 'bg-green-50 border-green-200',
       color: 'text-green-700',
       copy: 'Verified · permanently locked',
-      allowReupload: false,
+      cta: null,
     },
     pending: {
       tone: 'bg-amber-50 border-amber-200',
       color: 'text-amber-700',
-      copy: 'Under review · usually within 24 hours',
-      allowReupload: false,
+      copy: "Under review · we'll update this once Stripe finishes",
+      cta: 'Continue verification',
     },
     rejected: {
       tone: 'bg-red-50 border-red-200',
       color: 'text-red-700',
-      copy: 'Rejected · re-upload to verify',
-      allowReupload: true,
+      copy: 'Rejected · re-verify to continue',
+      cta: 'Re-verify identity',
     },
     not_uploaded: {
       tone: 'bg-gray-50 border-gray-200',
       color: 'text-gray-700',
-      copy: 'Not uploaded',
-      allowReupload: true,
+      copy: 'Not verified yet',
+      cta: 'Verify identity',
     },
   };
   const m = map[status] ?? map.not_uploaded;
@@ -344,13 +352,14 @@ function KycRow({
         {status === 'verified' && <Text className="text-base">🔒</Text>}
       </View>
       <Text className={`text-xs ${m.color}`}>{m.copy}</Text>
-      {m.allowReupload && (
+      {m.cta && (
         <Pressable
-          onPress={onReupload}
-          className="mt-2 py-2 rounded-lg border border-brand"
+          onPress={onVerify}
+          disabled={busy}
+          className={`mt-2 py-2 rounded-lg border border-brand ${busy ? 'opacity-50' : ''}`}
         >
           <Text className="text-center text-brand font-semibold text-sm">
-            Re-upload document
+            {busy ? 'Opening…' : m.cta}
           </Text>
         </Pressable>
       )}
