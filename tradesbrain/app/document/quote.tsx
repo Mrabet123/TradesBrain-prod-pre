@@ -34,6 +34,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
 import QuotePreview from '../../components/documents/QuotePreview';
 import SectionPicker from '../../components/documents/SectionPicker';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { DEFAULT_QUOTE_SECTIONS } from '../../constants/paymentMethods';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -57,6 +58,10 @@ export default function QuoteBuilderScreen() {
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileBlock | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // CC-5 Fix A — in-app styled prompts (replace OS Alert dialogs).
+  const [pendingNav, setPendingNav] = useState<any>(null);
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -88,32 +93,25 @@ export default function QuoteBuilderScreen() {
   }, [user]);
 
   // Discard prompt on back nav
+  // CC-5 Fix A — intercept the navigation and show the in-app discard prompt
+  // instead of an OS Alert.
   useEffect(() => {
     const unsub = nav.addListener('beforeRemove', (e) => {
       if (!draft || pdfUri || confirming) return;
       e.preventDefault();
-      Alert.alert(
-        'Discard quote?',
-        'This document has not been confirmed. It will be discarded if you leave.',
-        [
-          { text: 'Stay' },
-          {
-            text: 'Confirm and generate PDF',
-            onPress: () => doConfirm().then(() => nav.dispatch(e.data.action)),
-          },
-          {
-            text: 'Discard',
-            style: 'destructive',
-            onPress: async () => {
-              await discardQuoteDraft(draft.id);
-              nav.dispatch(e.data.action);
-            },
-          },
-        ],
-      );
+      setPendingNav(e.data.action);
     });
     return unsub;
   }, [nav, draft, pdfUri, confirming]);
+
+  // Worker confirmed the discard — delete the draft, then replay the
+  // intercepted navigation. The draft never reaches Job History.
+  async function onConfirmDiscard() {
+    const action = pendingNav;
+    setPendingNav(null);
+    if (draft) await discardQuoteDraft(draft.id);
+    if (action) nav.dispatch(action);
+  }
 
   async function onGenerate() {
     if (!user || !profile) return;
@@ -193,40 +191,40 @@ export default function QuoteBuilderScreen() {
     saveQuoteDraft(next);
   }
 
-  async function doConfirm() {
+  // CC-5 Fix A — open the in-app confirm-and-lock prompt (no OS Alert).
+  function doConfirm() {
     if (!draft || !profile || !user) return;
-    Alert.alert(
-      'Confirm and lock?',
-      'This action permanently locks the quote. It cannot be edited after confirming.',
-      [
-        { text: 'Cancel' },
-        {
-          text: 'Confirm and generate PDF',
-          onPress: async () => {
-            setConfirming(true);
-            try {
-              const total = draft.confirmedTotal ?? quoteSubtotal(draft);
-              const next: QuoteDraft = { ...draft, confirmedTotal: total };
-              const { pdfUri } = await confirmQuote(next, profile);
-              setDraft(next);
-              setPdfUri(pdfUri);
-              // Remember these choices as the worker's quote defaults (D3 RULE 6)
-              savePrefs(user.id, 'quote', {
-                defaultIncludeVat: next.includesVat,
-                defaultIncludeLicense: next.includesLicense,
-                defaultPaymentTerms: next.paymentTerms,
-                paymentMethods: next.paymentMethods,
-              }).catch(() => {});
-              Alert.alert('Quote confirmed', 'PDF generated and locked.');
-            } catch (e: any) {
-              Alert.alert('Confirm failed', e?.message ?? 'Unknown error');
-            } finally {
-              setConfirming(false);
-            }
-          },
-        },
-      ],
-    );
+    setConfirmVisible(true);
+  }
+
+  // Runs the permanent lock after the worker confirms via the in-app prompt.
+  async function runConfirm() {
+    if (!draft || !profile || !user) return;
+    setConfirmVisible(false);
+    setConfirming(true);
+    try {
+      const total = draft.confirmedTotal ?? quoteSubtotal(draft);
+      const next: QuoteDraft = { ...draft, confirmedTotal: total };
+      const { pdfUri } = await confirmQuote(next, profile);
+      setDraft(next);
+      setPdfUri(pdfUri);
+      // Remember these choices as the worker's quote defaults (D3 RULE 6)
+      savePrefs(user.id, 'quote', {
+        defaultIncludeVat: next.includesVat,
+        defaultIncludeLicense: next.includesLicense,
+        defaultPaymentTerms: next.paymentTerms,
+        paymentMethods: next.paymentMethods,
+      }).catch(() => {});
+      Alert.alert('Quote confirmed', 'PDF generated and locked.');
+    } catch {
+      // CC-4 (D6 Flow12 S18) — exact PDF-failure copy + a Retry action.
+      Alert.alert('Could not generate PDF', 'Could not generate PDF — try again.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Retry', onPress: () => runConfirm() },
+      ]);
+    } finally {
+      setConfirming(false);
+    }
   }
 
   async function onSavePrefs(sections: string[]) {
@@ -341,6 +339,30 @@ export default function QuoteBuilderScreen() {
           )}
         </View>
       )}
+
+      {/* CC-5 Fix A — in-app confirm-and-lock prompt (D6 Flow06) */}
+      <ConfirmDialog
+        visible={confirmVisible}
+        title="This action permanently locks all sections."
+        message="The quote cannot be edited after confirming."
+        primaryLabel="Confirm and generate PDF"
+        secondaryLabel="Cancel"
+        onPrimary={runConfirm}
+        onSecondary={() => setConfirmVisible(false)}
+        busy={confirming}
+      />
+
+      {/* CC-5 Fix A — in-app discard prompt (D6 Flow06) */}
+      <ConfirmDialog
+        visible={!!pendingNav}
+        title="This document has not been confirmed. It will be discarded."
+        message="Your draft will be permanently removed and will not appear in Job History."
+        primaryLabel="Go back and confirm"
+        secondaryLabel="Discard — I am sure"
+        destructiveSecondary
+        onPrimary={() => setPendingNav(null)}
+        onSecondary={onConfirmDiscard}
+      />
     </ScrollView>
   );
 }

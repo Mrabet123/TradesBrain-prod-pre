@@ -37,6 +37,7 @@ import { useTradeProfileContext } from '../../context/TradeProfileContext';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import ReportPreview from '../../components/documents/ReportPreview';
 import SectionPicker from '../../components/documents/SectionPicker';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import VoiceRecordButton from '../../components/rex/VoiceRecordButton';
 import { DEFAULT_REPORT_SECTIONS } from '../../constants/paymentMethods';
 
@@ -69,6 +70,12 @@ export default function ReportBuilderScreen() {
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileBlock | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // CC-5 Fix A — in-app styled prompts (replace OS Alert dialogs).
+  // `pendingNav` holds the intercepted navigation action while the discard
+  // prompt is shown; `confirmVisible` drives the confirm-and-lock prompt.
+  const [pendingNav, setPendingNav] = useState<any>(null);
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   // ── Load profile + prefs on mount ─────────────────────────────────────────
   useEffect(() => {
@@ -103,32 +110,26 @@ export default function ReportBuilderScreen() {
   }, [user]);
 
   // ── Discard prompt on back navigation (D3 F2 DISCARD RULE) ────────────────
+  // CC-5 Fix A — intercept the navigation and show the in-app discard prompt
+  // instead of an OS Alert. The intercepted action is replayed only if the
+  // worker confirms the discard.
   useEffect(() => {
     const unsub = nav.addListener('beforeRemove', (e) => {
       if (!draft || pdfUri || confirming) return;
       e.preventDefault();
-      Alert.alert(
-        'Discard report?',
-        'This document has not been confirmed. It will be discarded if you leave.',
-        [
-          { text: 'Stay' },
-          {
-            text: 'Confirm and generate PDF',
-            onPress: () => doConfirm().then(() => nav.dispatch(e.data.action)),
-          },
-          {
-            text: 'Discard',
-            style: 'destructive',
-            onPress: async () => {
-              await discardReportDraft(draft.id);
-              nav.dispatch(e.data.action);
-            },
-          },
-        ],
-      );
+      setPendingNav(e.data.action);
     });
     return unsub;
   }, [nav, draft, pdfUri, confirming]);
+
+  // Worker confirmed the discard — delete the draft, then replay the
+  // intercepted navigation. The draft never reaches Job History.
+  async function onConfirmDiscard() {
+    const action = pendingNav;
+    setPendingNav(null);
+    if (draft) await discardReportDraft(draft.id);
+    if (action) nav.dispatch(action);
+  }
 
   // ── Voice → transcribe → summary ──────────────────────────────────────────
   async function onVoiceStop() {
@@ -226,35 +227,35 @@ export default function ReportBuilderScreen() {
     saveReportDraft(next);
   }
 
-  async function doConfirm() {
+  // CC-5 Fix A — open the in-app confirm-and-lock prompt (no OS Alert).
+  function doConfirm() {
     if (!draft || !profile || !user) return;
-    Alert.alert(
-      'Confirm and lock?',
-      'This action permanently locks all sections. The report cannot be edited after confirming.',
-      [
-        { text: 'Cancel' },
-        {
-          text: 'Confirm and generate PDF',
-          onPress: async () => {
-            setConfirming(true);
-            try {
-              const { pdfUri } = await confirmReport(draft, profile);
-              setPdfUri(pdfUri);
-              // Remember the VAT/license choices as the worker's report defaults
-              savePrefs(user.id, 'report', {
-                defaultIncludeVat: draft.includesVat,
-                defaultIncludeLicense: draft.includesLicense,
-              }).catch(() => {});
-              Alert.alert('Report confirmed', 'PDF generated and locked.');
-            } catch (e: any) {
-              Alert.alert('Confirm failed', e?.message ?? 'Unknown error');
-            } finally {
-              setConfirming(false);
-            }
-          },
-        },
-      ],
-    );
+    setConfirmVisible(true);
+  }
+
+  // Runs the permanent lock after the worker confirms via the in-app prompt.
+  async function runConfirm() {
+    if (!draft || !profile || !user) return;
+    setConfirmVisible(false);
+    setConfirming(true);
+    try {
+      const { pdfUri } = await confirmReport(draft, profile);
+      setPdfUri(pdfUri);
+      // Remember the VAT/license choices as the worker's report defaults
+      savePrefs(user.id, 'report', {
+        defaultIncludeVat: draft.includesVat,
+        defaultIncludeLicense: draft.includesLicense,
+      }).catch(() => {});
+      Alert.alert('Report confirmed', 'PDF generated and locked.');
+    } catch {
+      // CC-4 (D6 Flow12 S18) — exact PDF-failure copy + a Retry action.
+      Alert.alert('Could not generate PDF', 'Could not generate PDF — try again.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Retry', onPress: () => runConfirm() },
+      ]);
+    } finally {
+      setConfirming(false);
+    }
   }
 
   async function onSavePrefs(sections: string[]) {
@@ -426,6 +427,30 @@ export default function ReportBuilderScreen() {
           )}
         </View>
       )}
+
+      {/* CC-5 Fix A — in-app confirm-and-lock prompt (D6 Flow05) */}
+      <ConfirmDialog
+        visible={confirmVisible}
+        title="This action permanently locks all sections."
+        message="The report cannot be edited after confirming."
+        primaryLabel="Confirm and generate PDF"
+        secondaryLabel="Cancel"
+        onPrimary={runConfirm}
+        onSecondary={() => setConfirmVisible(false)}
+        busy={confirming}
+      />
+
+      {/* CC-5 Fix A — in-app discard prompt (D6 Flow05) */}
+      <ConfirmDialog
+        visible={!!pendingNav}
+        title="This document has not been confirmed. It will be discarded."
+        message="Your draft will be permanently removed and will not appear in Job History."
+        primaryLabel="Go back and confirm"
+        secondaryLabel="Discard — I am sure"
+        destructiveSecondary
+        onPrimary={() => setPendingNav(null)}
+        onSecondary={onConfirmDiscard}
+      />
     </ScrollView>
   );
 }

@@ -1,13 +1,16 @@
 // M1 — Authentication service helpers
 // Wraps Supabase Auth + users table + KYC photo upload. KYC status fields are
-// seeded as 'not_uploaded'; the user runs Stripe Identity verification later
-// from Settings (kyc-status-check mints the session, kyc-webhook flips status).
+// seeded as 'pending' when document photos were uploaded (CC-1 / D1 §6): the
+// two Stripe Identity sessions are minted automatically at sign-up completion
+// so verification processes during the free-trial window. Settings → Profile
+// re-upload remains the manual fallback (kyc-webhook flips status to verified).
 
 import {
   GoogleSignin,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import { supabase } from './supabase';
+import { checkKycStatus } from './stripe';
 
 // Configure once at module load. The webClientId is what Supabase verifies the
 // returned ID token against — it must also be added to the Supabase dashboard
@@ -111,13 +114,37 @@ export async function createUserProfile(input: SignUpInput): Promise<void> {
     license_number: input.licenseNumber,
     license_proof_url: licensePath,
     national_id_url: nationalIdPath,
-    national_id_kyc_status: 'not_uploaded',
-    license_kyc_status: 'not_uploaded',
+    // CC-1 (D1 §6) — seed 'pending' when a document photo was uploaded so the
+    // paywall KYC gate reflects in-progress verification immediately.
+    national_id_kyc_status: input.nationalIdUri ? 'pending' : 'not_uploaded',
+    license_kyc_status: input.licenseProofUri ? 'pending' : 'not_uploaded',
     terms_accepted_at: new Date().toISOString(),
     terms_version: TERMS_VERSION,
   });
 
   if (error) throw error;
+
+  // CC-1 (D1 §6) — kick off both Stripe Identity verification sessions now.
+  // Fire-and-forget: this must never block the worker reaching Home. If a call
+  // fails the status column stays 'pending' and the Settings → Profile
+  // re-upload flow recovers it.
+  void initiateKycVerification();
+}
+
+// Starts verification for both KYC documents in parallel. kyc-status-check
+// mints a Stripe Identity session per document and flips its status column to
+// 'pending'. Failures are logged only — never thrown — so sign-up always
+// completes and navigation is never delayed.
+export async function initiateKycVerification(): Promise<void> {
+  const docs: Array<'national_id' | 'license'> = ['national_id', 'license'];
+  const results = await Promise.allSettled(docs.map((d) => checkKycStatus(d)));
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.warn(`KYC initiation failed for ${docs[i]}:`, r.reason);
+    } else if (!r.value.success) {
+      console.warn(`KYC initiation failed for ${docs[i]}:`, r.value.error);
+    }
+  });
 }
 
 export async function signInWithPassword(email: string, password: string) {

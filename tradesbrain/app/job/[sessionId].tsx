@@ -42,6 +42,17 @@ import { useNetworkContext } from '../../context/NetworkContext';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RouteT = RouteProp<RootStackParamList, 'Job'>;
 
+// CC-5 Fix C — human-readable date for the Close Job auto-name fallback
+// (e.g. "20 May 2026"). Built manually so it does not depend on Intl, which
+// is not reliably bundled with Hermes on Android.
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+function formatJobDate(d: Date): string {
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 export default function ActiveSessionScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteT>();
@@ -121,7 +132,9 @@ export default function ActiveSessionScreen() {
     const result = await transcribeAudio(uri);
     setTranscribing(false);
     if (!result.ok || !result.text) {
-      Alert.alert('Voice failed', 'Could not transcribe — please try again or use text.');
+      // CC-4 (D6 Flow12 S17) — exact Whisper-failure copy. The text input below
+      // stays editable, so the worker can type their description instead.
+      Alert.alert('Voice transcription failed', 'Could not transcribe — type your description instead.');
       return;
     }
     setTranscript(result.text);
@@ -164,9 +177,18 @@ export default function ActiveSessionScreen() {
     setCloseModalVisible(true);
   }
 
+  // CC-5 Fix C (D2 §F2 Stage 5) — when the worker skips the name, auto-name the
+  // job as "Job — [date] — [jobsite]" (or just "Job — [date]" when there is no
+  // jobsite). Close Job is never blocked by an empty name.
+  function autoJobName(): string {
+    const date = formatJobDate(new Date());
+    const jobsite = rex.session?.jobsite?.trim();
+    return jobsite ? `Job — ${date} — ${jobsite}` : `Job — ${date}`;
+  }
+
   async function confirmClose() {
     setCloseModalVisible(false);
-    await rex.closeJob(closeName);
+    await rex.closeJob(closeName.trim() || autoJobName());
   }
 
   // Intercept the Stage-5 "Close job" button so it goes through the naming modal.
@@ -213,8 +235,9 @@ export default function ActiveSessionScreen() {
         {/* Offline indicator */}
         {!isConnected && (
           <View className="bg-gray-100 border-b border-gray-200 px-4 py-1.5">
+            {/* CC-4 (D6 Flow12 S4) — exact offline copy. */}
             <Text className="text-gray-600 text-xs">
-              Offline — messages will queue and send when you reconnect.
+              No connection — recording saved. Tap send when you have signal.
             </Text>
           </View>
         )}
@@ -459,13 +482,14 @@ export default function ActiveSessionScreen() {
           <View className="bg-white rounded-2xl p-5 w-full">
             <Text className="text-lg font-bold text-gray-900 mb-1">Close this job</Text>
             <Text className="text-sm text-gray-500 mb-3">
-              Name the job so you can find it in History. Report and Quote become
-              available after closing.
+              Name the job so you can find it in History — or leave it blank and
+              we'll name it by date. Report and Quote become available after
+              closing.
             </Text>
             <TextInput
               value={closeName}
               onChangeText={setCloseName}
-              placeholder="e.g. 122 Main St — water heater"
+              placeholder="e.g. 122 Main St — water heater (optional)"
               className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
             />
             <View className="flex-row gap-2">
@@ -475,12 +499,10 @@ export default function ActiveSessionScreen() {
               >
                 <Text className="text-center text-gray-700 font-semibold">Cancel</Text>
               </Pressable>
+              {/* CC-5 Fix C — always enabled; an empty name auto-names the job. */}
               <Pressable
                 onPress={confirmClose}
-                disabled={!closeName.trim()}
-                className={`flex-1 py-3 rounded-xl ${
-                  closeName.trim() ? 'bg-red-600' : 'bg-gray-300'
-                }`}
+                className="flex-1 py-3 rounded-xl bg-red-600"
               >
                 <Text className="text-center text-white font-semibold">Close job</Text>
               </Pressable>

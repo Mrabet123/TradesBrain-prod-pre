@@ -1,9 +1,12 @@
-// D6 Flow04 — Stage-aware contextual buttons that appear below Rex's response.
-// Stage 1: "Looks right" / "Disagree" / "Need more detail"
-// Stage 2: "Agree with diagnosis" / "Disagree" / "Ask follow-up"
-// Stage 3: "Step done — next" / "Pushback" / "Pause"
-// Stage 4: "Final check passed" / "Found an issue"
-// Stage 5: "Close job"
+// D6 Flow04 (flow_04_rex_session.html) — Stage-aware contextual buttons shown
+// below Rex's response. CC-2: labels carry the D6 canonical text + emoji.
+// The action keys and stage-keyed rendering are unchanged — only the displayed
+// label strings were updated (text-only fix).
+//   Stage 1: "✓ Looks right" / "Disagree" / "❓ Need more detail"
+//   Stage 2: "✓ Confirm diagnosis" / "Disagree" / "❓ Ask follow-up"
+//   Stage 3: "✓ Step done" / "Pushback" / "⏭ Pause"
+//   Stage 4: "✓ All clear — no issues" / "⚠ Found an issue"
+//   Stage 5: "Save and close ↗"
 
 import React from 'react';
 import { View, Pressable, Text } from 'react-native';
@@ -16,25 +19,25 @@ interface Props {
 
 const BUTTONS: Record<number, { action: string; label: string; tone?: 'primary' | 'warn' }[]> = {
   1: [
-    { action: 'looks_right', label: 'Looks right', tone: 'primary' },
+    { action: 'looks_right', label: '✓ Looks right', tone: 'primary' },
     { action: 'disagree', label: 'Disagree' },
-    { action: 'more_detail', label: 'Need more detail' },
+    { action: 'more_detail', label: '❓ Need more detail' },
   ],
   2: [
-    { action: 'agree_diagnosis', label: 'Agree with diagnosis', tone: 'primary' },
+    { action: 'agree_diagnosis', label: '✓ Confirm diagnosis', tone: 'primary' },
     { action: 'disagree', label: 'Disagree' },
-    { action: 'followup', label: 'Ask follow-up' },
+    { action: 'followup', label: '❓ Ask follow-up' },
   ],
   3: [
-    { action: 'step_done', label: 'Step done — next', tone: 'primary' },
+    { action: 'step_done', label: '✓ Step done', tone: 'primary' },
     { action: 'pushback', label: 'Pushback' },
-    { action: 'pause', label: 'Pause' },
+    { action: 'pause', label: '⏭ Pause' },
   ],
   4: [
-    { action: 'final_pass', label: 'Final check passed', tone: 'primary' },
-    { action: 'found_issue', label: 'Found an issue', tone: 'warn' },
+    { action: 'final_pass', label: '✓ All clear — no issues', tone: 'primary' },
+    { action: 'found_issue', label: '⚠ Found an issue', tone: 'warn' },
   ],
-  5: [{ action: 'close_job', label: 'Close job', tone: 'primary' }],
+  5: [{ action: 'close_job', label: 'Save and close ↗', tone: 'primary' }],
 };
 
 export default function ContextualButtons({ stage, disabled, onPress }: Props) {

@@ -31,18 +31,31 @@ const supabase = createClient(
 );
 // @ts-ignore Deno
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')!;
+// @ts-ignore Deno
+const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-async function embed(text: string): Promise<number[]> {
+// CC-3 — embeddings are generated in batches to cut a 600-page document from
+// 800+ sequential OpenAI calls down to ~40. Safe within OpenAI's input limits.
+const EMBED_BATCH_SIZE = 20;
+
+// Embed a batch of texts in a single OpenAI call. OpenAI returns one embedding
+// per input; results are sorted by `index` so they map back to the input order.
+async function embedBatch(texts: string[]): Promise<number[][]> {
   const r = await fetch('https://api.openai.com/v1/embeddings', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ input: text, model: 'text-embedding-3-small' }),
+    body: JSON.stringify({ input: texts, model: 'text-embedding-3-small' }),
   });
+  if (!r.ok) {
+    throw new Error(`OpenAI embeddings ${r.status}: ${await r.text()}`);
+  }
   const d = await r.json();
-  return d?.data?.[0]?.embedding ?? [];
+  const data: any[] = Array.isArray(d?.data) ? [...d.data] : [];
+  data.sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
+  return data.map((x) => (x?.embedding ?? []) as number[]);
 }
 
 function chunkText(text: string, size = 500, overlap = 50): string[] {
@@ -77,6 +90,17 @@ function cors() {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+
+  // CC-3 — service-role auth gate (D10). This runs before any JSON parsing,
+  // chunking, embedding, or DB write: a request without the service-role key
+  // is rejected with 401 and nothing is processed.
+  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '');
+  if (!token || token !== SERVICE_ROLE_KEY) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...cors(), 'Content-Type': 'application/json' },
+    });
+  }
 
   let body: any;
   try {
@@ -121,22 +145,39 @@ serve(async (req) => {
 
   const chunks = chunkText(body.content);
   let inserted = 0;
-  for (let i = 0; i < chunks.length; i++) {
-    const content = chunks[i];
-    const embedding = await embed(content);
-    if (embedding.length === 0) continue;
-    const sectionNumber = extractSection(content);
-    const { error: insErr } = await supabase.from('code_chunks').insert({
-      document_id: doc.id,
-      trade_type: body.trade_type,
-      document_name: body.document_name,
-      version: body.version ?? '1.0',
-      section_number: sectionNumber,
-      page_number: i + 1,
-      content,
-      embedding,
-    });
-    if (!insErr) inserted++;
+  // CC-3 — embed in batches of EMBED_BATCH_SIZE. A failed batch is retried once
+  // before being skipped; row count is unchanged versus the per-chunk approach.
+  for (let start = 0; start < chunks.length; start += EMBED_BATCH_SIZE) {
+    const group = chunks.slice(start, start + EMBED_BATCH_SIZE);
+    let embeddings: number[][];
+    try {
+      embeddings = await embedBatch(group);
+    } catch (err) {
+      console.error(`Embedding batch at ${start} failed — retrying once:`, err);
+      try {
+        embeddings = await embedBatch(group);
+      } catch (err2) {
+        console.error(`Embedding batch at ${start} failed again — skipping:`, err2);
+        continue;
+      }
+    }
+    for (let j = 0; j < group.length; j++) {
+      const content = group[j];
+      const embedding = embeddings[j];
+      if (!embedding || embedding.length === 0) continue;
+      const sectionNumber = extractSection(content);
+      const { error: insErr } = await supabase.from('code_chunks').insert({
+        document_id: doc.id,
+        trade_type: body.trade_type,
+        document_name: body.document_name,
+        version: body.version ?? '1.0',
+        section_number: sectionNumber,
+        page_number: start + j + 1,
+        content,
+        embedding,
+      });
+      if (!insErr) inserted++;
+    }
   }
 
   await supabase

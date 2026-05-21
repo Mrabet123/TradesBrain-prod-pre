@@ -1,0 +1,4 @@
+# Code documents (PDFs + extracted text) are large and usually copyrighted —
+# e.g. the ICC International Plumbing Code. They must never be committed.
+*
+!.gitignore

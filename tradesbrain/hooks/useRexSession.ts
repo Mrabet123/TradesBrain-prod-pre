@@ -116,6 +116,11 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
   // The latest photo's base64/mime — kept in a ref because it is not persisted
   // to the DB, so a retry can still re-attach the image.
   const lastPhotoRef = useRef<{ base64: string; mime: string } | null>(null);
+  // CC-5 Fix B — when set, the next assistant turn is a pushback response; it
+  // is tagged with [[PUSHBACK:n]] so MessageBubble applies amber/green styling.
+  // (1 = Pushback A — Rex holds; 2 = Pushback B — Rex adopts.) The pushbackCount
+  // logic itself is unchanged.
+  const pushbackTurnRef = useRef<1 | 2 | null>(null);
 
   // ── Session bootstrapping ─────────────────────────────────────────────────
   useEffect(() => {
@@ -290,18 +295,30 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
     dispatch({ type: 'STREAM_END' });
 
     if (!result.ok) {
+      // CC-4 (D6 Flow12 S16) — exact error copy. A 30s abort is the timeout
+      // state; anything else (5xx, empty, network) is the unavailable state.
+      // Both render with a Retry button in the session screen.
       dispatch({
         type: 'ERROR',
         error: result.error?.includes('aborted')
-          ? 'Rex timed out (30s) — tap Retry to try again.'
-          : (result.error ?? 'Rex hit an error — tap Retry to try again.'),
+          ? 'Taking longer than usual — tap to retry.'
+          : 'Rex is unavailable right now — try again in a moment.',
       });
       return;
     }
     dispatch({ type: 'ERROR', error: null });
     // Trial decrement — only AFTER a successful Claude response (RULE 7).
     supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() => {});
-    await persistAssistant(s.id, result.fullText, state.stage, result.modelUsed);
+    // CC-5 Fix B — tag a pushback response with [[PUSHBACK:n]] so MessageBubble
+    // can style the bubble. The marker is stripped from the displayed text
+    // (same pattern as [[STAGE:n]]). Consumed only on a successful turn, so a
+    // failed-then-retried pushback turn is still tagged.
+    let assistantText = result.fullText;
+    if (pushbackTurnRef.current) {
+      assistantText = `[[PUSHBACK:${pushbackTurnRef.current}]]${assistantText}`;
+      pushbackTurnRef.current = null;
+    }
+    await persistAssistant(s.id, assistantText, state.stage, result.modelUsed);
     applyStageSignal(result.stage, result.fullText);
   }
 
@@ -397,6 +414,10 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
       switch (action) {
         case 'disagree':
         case 'pushback':
+          // CC-5 Fix B — flag the upcoming assistant turn as a pushback so it
+          // gets the [[PUSHBACK:n]] marker. Level mirrors the two-step protocol:
+          // first pushback → A (Rex holds); second → B (Rex adopts).
+          pushbackTurnRef.current = state.pushbackCount === 0 ? 1 : 2;
           dispatch({ type: 'PUSHBACK_INC' });
           sendMessage({
             text:
