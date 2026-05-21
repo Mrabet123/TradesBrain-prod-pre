@@ -54,6 +54,8 @@ export default function ReportBuilderScreen() {
   // Path indicator
   const incomingSessionId = route.params?.sessionId ?? null;
   const [sessionId, setSessionId] = useState<string | null>(incomingSessionId);
+  // ISS-16: session time-on-jobsite in seconds (fetched when Path A sessionId is present)
+  const [jobsiteSeconds, setJobsiteSeconds] = useState<number | null>(null);
   const [jobName, setJobName] = useState('');
 
   // Section picker (first-time gate)
@@ -81,13 +83,23 @@ export default function ReportBuilderScreen() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [profileRes, prefs] = await Promise.all([
+      // ISS-16: also fetch session time if Path A
+      const sessionFetch = incomingSessionId
+        ? supabase
+            .from('job_sessions')
+            .select('time_on_jobsite_seconds')
+            .eq('id', incomingSessionId)
+            .maybeSingle()
+        : Promise.resolve({ data: null });
+
+      const [profileRes, prefs, sessionRes] = await Promise.all([
         supabase
           .from('users')
           .select('full_name, trade_type, hourly_rate, vat_number, license_number, company_name')
           .eq('id', user.id)
           .single(),
         loadPrefs(user.id, 'report'),
+        sessionFetch,
       ]);
       if (profileRes.data) {
         setProfile({
@@ -98,6 +110,10 @@ export default function ReportBuilderScreen() {
           licenseNumber: profileRes.data.license_number ?? '',
           companyName: profileRes.data.company_name ?? null,
         });
+      }
+      // ISS-16: store time-on-jobsite so suggestedAmount can be derived
+      if ((sessionRes as any)?.data?.time_on_jobsite_seconds) {
+        setJobsiteSeconds((sessionRes as any).data.time_on_jobsite_seconds);
       }
       if (prefs?.sections?.length) {
         setPrefsSections(prefs.sections);
@@ -149,10 +165,28 @@ export default function ReportBuilderScreen() {
     setSummary((prev) => (prev ? `${prev}\n\n${text}` : text));
   }
 
+  // ISS-21: track whether the worker has already seen the short-description warning.
+  // Reset whenever the summary changes so an extended description clears the flag.
+  const [shortDescWarningShown, setShortDescWarningShown] = useState(false);
+  useEffect(() => { setShortDescWarningShown(false); }, [summary]);
+
   async function onGenerate() {
     if (!user) return;
     if (!summary.trim()) {
       Alert.alert('Add a summary first', 'Record or type a brief summary of the work done.');
+      return;
+    }
+    // ISS-21: non-blocking short-description warning (TC-085).
+    // Warn once if the description is very short (< 15 words or < 60 chars).
+    // On a second tap the worker proceeds — it is never a hard block.
+    const trimmed = summary.trim();
+    const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+    if (!shortDescWarningShown && (wordCount < 15 || trimmed.length < 60)) {
+      setShortDescWarningShown(true);
+      Alert.alert(
+        'Short description',
+        'Your description is very short — the report may lack detail. Add more, or tap Generate again to continue.',
+      );
       return;
     }
     setConfirming(true);
@@ -225,6 +259,21 @@ export default function ReportBuilderScreen() {
     };
     setDraft(next);
     saveReportDraft(next);
+  }
+
+  // ISS-26: build summary lines shown in the confirm dialog before locking.
+  function buildConfirmSummary(): string[] {
+    if (!draft) return [];
+    const lines: string[] = [];
+    lines.push(`Sections: ${draft.sections.length}`);
+    if (draft.confirmedAmount != null && draft.confirmedAmount > 0) {
+      lines.push(`Confirmed amount: $${draft.confirmedAmount.toFixed(2)}`);
+    } else {
+      lines.push('Confirmed amount: not set');
+    }
+    lines.push(`VAT included: ${draft.includesVat ? 'Yes' : 'No'}`);
+    lines.push(`License included: ${draft.includesLicense ? 'Yes' : 'No'}`);
+    return lines;
   }
 
   // CC-5 Fix A — open the in-app confirm-and-lock prompt (no OS Alert).
@@ -367,6 +416,20 @@ export default function ReportBuilderScreen() {
             confirmedAmount={draft.confirmedAmount}
             includesVat={draft.includesVat}
             includesLicense={draft.includesLicense}
+            suggestedAmount={(() => {
+              // ISS-16: derive a suggested payment amount from available data.
+              // Priority 1: confirmed amount already set by the worker.
+              if (draft.confirmedAmount != null && draft.confirmedAmount > 0) return null; // already set, hint not needed
+              const rate = profile?.hourlyRate || hourlyRate || 0;
+              if (!rate) return null;
+              // Priority 2: time on jobsite seconds → hours × rate
+              if (jobsiteSeconds && jobsiteSeconds > 0) {
+                const hours = Math.round((jobsiteSeconds / 3600) * 10) / 10;
+                return Math.round(hours * rate * 100) / 100;
+              }
+              // Priority 3: fall back to 1 h × rate as a minimal hint
+              return Math.round(rate * 100) / 100;
+            })()}
             onSectionContentChange={onSectionContentChange}
             onAddCustomSection={onAddCustomSection}
             onRemoveSection={onRemoveSection}
@@ -429,10 +492,12 @@ export default function ReportBuilderScreen() {
       )}
 
       {/* CC-5 Fix A — in-app confirm-and-lock prompt (D6 Flow05) */}
+      {/* ISS-26: summaryLines provides a brief document summary before locking */}
       <ConfirmDialog
         visible={confirmVisible}
         title="This action permanently locks all sections."
         message="The report cannot be edited after confirming."
+        summaryLines={buildConfirmSummary()}
         primaryLabel="Confirm and generate PDF"
         secondaryLabel="Cancel"
         onPrimary={runConfirm}

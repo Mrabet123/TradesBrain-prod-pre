@@ -308,7 +308,12 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
     }
     dispatch({ type: 'ERROR', error: null });
     // Trial decrement — only AFTER a successful Claude response (RULE 7).
-    supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() => {});
+    // ISS-32: one silent retry on failure (~1 s delay); still non-blocking.
+    supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() =>
+      new Promise<void>((res) => setTimeout(res, 1000)).then(() =>
+        supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() => {}),
+      ),
+    );
     // CC-5 Fix B — tag a pushback response with [[PUSHBACK:n]] so MessageBubble
     // can style the bubble. The marker is stripped from the displayed text
     // (same pattern as [[STAGE:n]]). Consumed only on a successful turn, so a
@@ -334,13 +339,9 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
     }) => {
       const s = state.session;
       if (!s || state.streaming || state.closed) return;
-      if (state.softCapReached) {
-        dispatch({
-          type: 'ERROR',
-          error: 'Session reached the 30-message soft cap — start a linked session to continue.',
-        });
-        return;
-      }
+      // ISS-01: softCapReached must NOT hard-block sends (D6 says the worker can
+      // continue past 30). The banner + startLinkedSession in the screen remain
+      // as the UI affordance; we simply allow the send to proceed here.
 
       const userMsg = await persistUser(
         s.id,
@@ -359,7 +360,7 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
 
       await runAssistantTurn(s, [...state.messages, userMsg]);
     },
-    [state.session, state.messages, state.stage, state.streaming, state.closed, state.softCapReached, state.apprenticeAsked, userId],
+    [state.session, state.messages, state.stage, state.streaming, state.closed, state.apprenticeAsked, userId],
   );
 
   // ── Retry the Claude turn after a failed send (D8 TC-058-060). The user
@@ -442,6 +443,13 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
           break;
         case 'found_issue':
           sendMessage({ text: 'Found a new issue during final check — please assess.' });
+          break;
+        // ISS-06: pause was a silent no-op; now sends a hold message so Rex
+        // records where we are and can resume cleanly.
+        case 'pause':
+          sendMessage({
+            text: 'Pausing here for a moment — I will continue shortly. Note where we are so we can resume cleanly.',
+          });
           break;
         // 'close_job' is handled by the screen (it collects a job name first).
       }

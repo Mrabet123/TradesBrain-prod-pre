@@ -36,6 +36,7 @@ export default function SignInScreen() {
   const nav = useNavigation<Nav>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [savePassword, setSavePassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -185,14 +186,19 @@ export default function SignInScreen() {
         editable={!isLocked && !busy}
         className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
       />
-      <TextInput
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Password"
-        secureTextEntry
-        editable={!isLocked && !busy}
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
-      />
+      <View className="flex-row items-center border border-gray-300 rounded-lg mb-3">
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          secureTextEntry={!showPassword}
+          editable={!isLocked && !busy}
+          className="flex-1 px-3 py-3 text-base"
+        />
+        <Pressable onPress={() => setShowPassword((v) => !v)} className="px-3 py-3">
+          <Text className="text-gray-500 text-sm">{showPassword ? 'Hide' : 'Show'}</Text>
+        </Pressable>
+      </View>
       <View className="flex-row items-center justify-between mb-3">
         <View className="flex-row items-center">
           <Switch value={savePassword} onValueChange={setSavePassword} />

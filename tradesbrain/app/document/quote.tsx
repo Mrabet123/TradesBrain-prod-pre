@@ -191,6 +191,18 @@ export default function QuoteBuilderScreen() {
     saveQuoteDraft(next);
   }
 
+  // ISS-26: build summary lines shown in the confirm dialog before locking.
+  function buildConfirmSummary(): string[] {
+    if (!draft) return [];
+    const total = draft.confirmedTotal ?? quoteSubtotal(draft);
+    const lines: string[] = [];
+    lines.push(`Line items: ${draft.lineItems.length}`);
+    lines.push(`Total: $${total.toFixed(2)}`);
+    lines.push(`VAT included: ${draft.includesVat ? 'Yes' : 'No'}`);
+    lines.push(`License included: ${draft.includesLicense ? 'Yes' : 'No'}`);
+    return lines;
+  }
+
   // CC-5 Fix A — open the in-app confirm-and-lock prompt (no OS Alert).
   function doConfirm() {
     if (!draft || !profile || !user) return;
@@ -341,10 +353,12 @@ export default function QuoteBuilderScreen() {
       )}
 
       {/* CC-5 Fix A — in-app confirm-and-lock prompt (D6 Flow06) */}
+      {/* ISS-26: summaryLines provides a brief document summary before locking */}
       <ConfirmDialog
         visible={confirmVisible}
         title="This action permanently locks all sections."
         message="The quote cannot be edited after confirming."
+        summaryLines={buildConfirmSummary()}
         primaryLabel="Confirm and generate PDF"
         secondaryLabel="Cancel"
         onPrimary={runConfirm}

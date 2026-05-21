@@ -11,6 +11,8 @@ interface Props {
   visible: boolean;
   title: string;
   message?: string;
+  /** Optional list of short summary lines rendered below the message before the buttons (ISS-26). */
+  summaryLines?: string[];
   primaryLabel: string;
   secondaryLabel: string;
   onPrimary: () => void;
@@ -25,6 +27,7 @@ export default function ConfirmDialog({
   visible,
   title,
   message,
+  summaryLines,
   primaryLabel,
   secondaryLabel,
   onPrimary,
@@ -43,9 +46,20 @@ export default function ConfirmDialog({
         <View className="bg-white rounded-2xl p-5 w-full">
           <Text className="text-lg font-bold text-gray-900 mb-1">{title}</Text>
           {message ? (
-            <Text className="text-sm text-gray-500 mb-4">{message}</Text>
+            <Text className="text-sm text-gray-500 mb-2">{message}</Text>
           ) : (
-            <View className="mb-3" />
+            <View className="mb-1" />
+          )}
+          {summaryLines && summaryLines.length > 0 ? (
+            <View className="bg-gray-50 rounded-lg px-3 py-2 mb-3">
+              {summaryLines.map((line, idx) => (
+                <Text key={idx} className="text-xs text-gray-600 leading-5">
+                  {'•'} {line}
+                </Text>
+              ))}
+            </View>
+          ) : (
+            <View className="mb-2" />
           )}
 
           {/* Primary — full width, Navy background, White text (D6). */}

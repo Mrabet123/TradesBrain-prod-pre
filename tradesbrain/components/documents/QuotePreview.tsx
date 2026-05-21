@@ -50,17 +50,27 @@ export default function QuotePreview({ draft, onChange }: Props) {
         {draft.lineItems.length === 0 && (
           <Text className="px-3 py-3 text-gray-400 text-sm">No line items yet.</Text>
         )}
-        {draft.lineItems.map((li) => (
+        {draft.lineItems.map((li) => {
+          // ISS-22: flag items that need worker input — zero cost or empty name.
+          const needsInput = li.unitCost === 0 || !li.name.trim();
+          return (
           <View
             key={li.id}
             className="flex-row items-center px-2 py-2 border-b border-gray-100"
           >
+            <View className="flex-1 flex-row items-center">
             <TextInput
               value={li.name}
               onChangeText={(t) => updateLine(li.id, { name: t })}
               placeholder="Item name"
               className="flex-1 px-1 text-sm"
             />
+            {needsInput && (
+              <Text className="text-amber-500 text-sm font-bold ml-0.5" accessibilityLabel="needs input">
+                {'*'}
+              </Text>
+            )}
+            </View>
             <TextInput
               value={li.qty.toString()}
               onChangeText={(t) => updateLine(li.id, { qty: Number(t) || 0 })}
@@ -80,7 +90,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
               <Text className="text-red-600 text-base">✕</Text>
             </Pressable>
           </View>
-        ))}
+          );
+        })}
       </View>
       <Pressable
         onPress={addLine}

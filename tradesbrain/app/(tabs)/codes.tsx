@@ -55,6 +55,8 @@ export default function CodesScreen() {
     const unsubBlur = nav.addListener('blur', () => {
       // RULE 6 — revert temporary switch when leaving the tab
       setActiveTrade((profileTrade as Trade) || 'plumber');
+      // ISS-31: clear follow-up context when leaving the tab
+      prevLookupRef.current = null;
     });
     return unsubBlur;
   }, [nav, profileTrade]);
@@ -64,6 +66,8 @@ export default function CodesScreen() {
   const [busy, setBusy] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [latest, setLatest] = useState<CodeLookupResult | null>(null);
+  // ISS-31: retain the last lookup for single-turn follow-up context
+  const prevLookupRef = React.useRef<{ query: string; answerText: string } | null>(null);
 
   // Cache (last 10 — offline)
   const { recent, record } = useCodeLookupCache(user?.id ?? null);
@@ -112,9 +116,22 @@ export default function CodesScreen() {
     if (!query) return;
     setBusy(true);
     try {
-      const result = await lookupCode(query, activeTrade);
-      setLatest(result);
-      if (result.ok) await record(result);
+      // ISS-31: if a prior lookup exists in this session, prepend it as context
+      // so the model can handle follow-up questions ("what about X instead?").
+      const prev = prevLookupRef.current;
+      const contextualQuery =
+        prev
+          ? `Earlier you were asked: "${prev.query}"\nYou answered: "${prev.answerText.slice(0, 300)}"\n\nFollow-up question: ${query}`
+          : query;
+
+      const result = await lookupCode(contextualQuery, activeTrade);
+      // Store the raw (user-facing) query in the result so history is readable
+      const storedResult: CodeLookupResult = { ...result, query };
+      setLatest(storedResult);
+      if (result.ok) {
+        await record(storedResult);
+        prevLookupRef.current = { query, answerText: result.answerText };
+      }
     } catch (e: any) {
       Alert.alert('Lookup failed', e?.message ?? 'Unknown error');
     } finally {
@@ -161,7 +178,7 @@ export default function CodesScreen() {
               return (
                 <Pressable
                   key={t.value}
-                  onPress={() => setActiveTrade(t.value)}
+                  onPress={() => { setActiveTrade(t.value); prevLookupRef.current = null; }}
                   className={`px-3 py-2 rounded-full border ${
                     on ? 'border-brand bg-brand/10' : 'border-gray-300 bg-white'
                   }`}

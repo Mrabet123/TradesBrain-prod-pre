@@ -17,6 +17,7 @@ export default function ForgotPasswordScreen() {
   const [phase, setPhase] = useState<'request' | 'reset'>('request');
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
   React.useEffect(() => {
@@ -46,6 +47,11 @@ export default function ForgotPasswordScreen() {
       Alert.alert('Weak password', 'Use at least 8 characters.');
       return;
     }
+    if (newPassword !== confirmPassword) {
+      // Inline error is shown in the UI; Alert as an extra safety net.
+      Alert.alert('Passwords do not match', 'Both password fields must be identical.');
+      return;
+    }
     setBusy(true);
     const { error } = await updatePassword(newPassword);
     setBusy(false);
@@ -66,7 +72,7 @@ export default function ForgotPasswordScreen() {
       <Text className="text-sm text-gray-600 mb-6">
         {phase === 'request'
           ? 'We will email you a link to reset your password.'
-          : 'Enter a new password (min 8 chars).'}
+          : 'Enter and confirm your new password (min 8 chars).'}
       </Text>
 
       {phase === 'request' ? (
@@ -96,12 +102,29 @@ export default function ForgotPasswordScreen() {
             onChangeText={setNewPassword}
             placeholder="New password"
             secureTextEntry
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+            className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
           />
+          <TextInput
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Confirm new password"
+            secureTextEntry
+            className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-1"
+          />
+          {confirmPassword.length > 0 && newPassword !== confirmPassword && (
+            <Text className="text-xs text-red-600 mb-3">Passwords do not match.</Text>
+          )}
+          {(confirmPassword.length === 0 || newPassword === confirmPassword) && (
+            <View className="mb-3" />
+          )}
           <Pressable
             onPress={onReset}
-            disabled={busy}
-            className={`py-4 rounded-xl ${busy ? 'bg-gray-300' : 'bg-brand'}`}
+            disabled={busy || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+            className={`py-4 rounded-xl ${
+              busy || !newPassword || !confirmPassword || newPassword !== confirmPassword
+                ? 'bg-gray-300'
+                : 'bg-brand'
+            }`}
           >
             <Text className="text-center text-white font-semibold">
               {busy ? 'Saving…' : 'Update password'}

@@ -311,6 +311,12 @@ export default function ActiveSessionScreen() {
         </ScrollView>
 
         {/* Apprentice mode prompt (D7 APPRENTICE DETECTION) */}
+        {/* ISS-33: Rex's bubble message contains the "walk through each step"
+            question text, and this panel header repeats a shortened form.
+            The duplication is intentional and accepted: the bubble is Rex's
+            conversational message while this panel is the canonical action
+            control. Removing the bubble text would break the conversation
+            history; removing the panel header would lose clarity. */}
         {apprenticePending && (
           <View className="border-t border-gray-200 px-4 py-3 bg-indigo-50">
             <Text className="text-sm text-indigo-900 font-medium mb-2">
@@ -407,6 +413,22 @@ export default function ActiveSessionScreen() {
               <View className="flex-row items-center mb-2">
                 <ActivityIndicator size="small" />
                 <Text className="text-xs text-gray-500 ml-2">Transcribing…</Text>
+              </View>
+            )}
+            {/* ISS-13: transcript review row — shown after voice transcription so
+                the worker can discard before sending. Editing the text input above
+                implicitly becomes the "edited" version; Discard clears both. */}
+            {transcript && !transcribing && (
+              <View className="flex-row items-start bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 mb-2">
+                <Text className="flex-1 text-xs text-gray-600 leading-4" numberOfLines={3}>
+                  🎙 {transcript}
+                </Text>
+                <Pressable
+                  onPress={() => { setTranscript(null); setText(''); }}
+                  className="ml-2 mt-0.5"
+                >
+                  <Text className="text-xs text-red-600 font-semibold">Discard</Text>
+                </Pressable>
               </View>
             )}
             <View className="flex-row items-end gap-2">

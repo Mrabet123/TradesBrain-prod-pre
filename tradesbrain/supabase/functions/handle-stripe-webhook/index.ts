@@ -99,6 +99,12 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
 }
 
 async function handleInvoiceSucceeded(inv: Stripe.Invoice) {
+  // ISS-29: Skip billing_history insert for the initial subscription creation
+  // invoice — that event is already fully handled by handleSubscriptionCreated
+  // (customer.subscription.created). Recording it here would create a duplicate
+  // row for the first charge.
+  if (inv.billing_reason === "subscription_create") return;
+
   const userId = await getUserIdByCustomer(inv.customer as string);
   const subId = invoiceSubscriptionId(inv);
   if (!userId || !subId) { console.error("invoice.payment_succeeded: missing user or subscription id", { userId, subId, customer: inv.customer }); return; }

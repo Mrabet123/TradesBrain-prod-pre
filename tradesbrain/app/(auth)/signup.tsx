@@ -385,6 +385,27 @@ export default function SignUpScreen() {
 
       {step === 3 && (
         <View>
+          {/* ISS-14 — Pre-creation review summary card */}
+          <View className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5">
+            <Text className="text-sm font-semibold text-gray-800 mb-3">Review your details</Text>
+            <ReviewRow label="Full name" value={fullName} />
+            <ReviewRow label="Email" value={email} />
+            <ReviewRow label="Phone" value={fullPhone} />
+            <ReviewRow
+              label="Trade type"
+              value={TRADES.find((t) => t.value === tradeType)?.label ?? '—'}
+            />
+            <ReviewRow
+              label="Account type"
+              value={ACCOUNT_TYPES.find((t) => t.value === accountType)?.label ?? '—'}
+            />
+            <ReviewRow label="Hourly rate" value={hourlyRate ? `$${hourlyRate}/hr` : '—'} />
+            <ReviewRow label="VAT number" value={vatNumber || '—'} />
+            <ReviewRow label="License number" value={licenseNumber || '—'} />
+            <ReviewRow label="License photo" value={licenseProofUri ? 'Provided ✓' : 'Not yet'} />
+            <ReviewRow label="National ID photo" value={nationalIdUri ? 'Provided ✓' : 'Not yet'} last />
+          </View>
+
           <Text className="text-sm font-medium text-gray-700 mb-1">License proof (required)</Text>
           <PhotoPicker uri={licenseProofUri} onPick={() => pickImage(setLicenseProofUri)} />
           <Field
@@ -452,3 +473,15 @@ export default function SignUpScreen() {
 
 // Field / RadioRow / PhotoPicker / pickImage / TRADES / ACCOUNT_TYPES now live
 // in components/shared/ProfileFormFields.tsx — shared with complete-profile.tsx.
+
+// ISS-14 — Lightweight read-only summary row used in the Step 3 review card.
+function ReviewRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View className={`flex-row justify-between py-1.5 ${last ? '' : 'border-b border-gray-100'}`}>
+      <Text className="text-xs text-gray-500 flex-1">{label}</Text>
+      <Text className="text-xs text-gray-800 font-medium flex-1 text-right" numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  );
+}

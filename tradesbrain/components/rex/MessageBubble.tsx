@@ -9,6 +9,31 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
 
+// ISS-02: minimal inline bold parser — splits on **...**  segments so that
+// safety-critical text like "**STOP — POTENTIAL GAS PRESENCE**" renders bold.
+// Only handles **bold**; no nesting, no escaping needed for current content.
+function renderWithBold(text: string, baseClass: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/);
+  if (parts.length === 1) {
+    // Fast path — no bold markers present.
+    return <Text className={baseClass}>{text}</Text>;
+  }
+  return (
+    <Text className={baseClass}>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return (
+            <Text key={i} style={{ fontWeight: 'bold' }}>
+              {part.slice(2, -2)}
+            </Text>
+          );
+        }
+        return part ? <Text key={i}>{part}</Text> : null;
+      })}
+    </Text>
+  );
+}
+
 interface Props {
   role: 'user' | 'assistant';
   content: string;
@@ -54,9 +79,10 @@ export default function MessageBubble({ role, content, photoUrl, transcript }: P
             🎙 {transcript}
           </Text>
         )}
-        <Text className={`text-[15px] leading-5 ${isUser ? 'text-white' : 'text-gray-800'}`}>
-          {displayText}
-        </Text>
+        {renderWithBold(
+          displayText,
+          `text-[15px] leading-5 ${isUser ? 'text-white' : 'text-gray-800'}`,
+        )}
       </View>
     </View>
   );
