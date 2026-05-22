@@ -3,7 +3,9 @@
 // Step 2: trade type, account type, hourly rate, VAT number.
 // Step 3: license proof photo + number, national ID photo, optional company name + logo.
 // Create Account button disabled until all required fields valid.
-// On Create Account: Terms overlay → on agree → startSignUp() → OtpVerify.
+// On Create Account: startSignUp() → OtpVerify. The Terms overlay is shown on
+// the OtpVerify screen AFTER both OTPs are verified (D2 Step 5 OTP → Step 6
+// Terms), then createUserProfile() persists the acceptance.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -19,7 +21,6 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import TermsOverlay from '../../components/shared/TermsOverlay';
 import { startSignUp, signInWithGoogle } from '../../services/auth';
 import { useAuthContext } from '../../context/AuthContext';
 import {
@@ -52,7 +53,6 @@ export default function SignUpScreen() {
   const { setProfileSetupPending } = useAuthContext();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [showTerms, setShowTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
 
@@ -189,7 +189,6 @@ export default function SignUpScreen() {
   );
 
   async function onCreateAccount() {
-    setShowTerms(false);
     setSubmitting(true);
     try {
       const { error } = await startSignUp(email, password, fullPhone);
@@ -452,7 +451,7 @@ export default function SignUpScreen() {
         ) : (
           <Pressable
             disabled={!allValid || submitting}
-            onPress={() => setShowTerms(true)}
+            onPress={onCreateAccount}
             className={`flex-1 py-4 rounded-xl ${allValid && !submitting ? 'bg-brand' : 'bg-gray-300'}`}
           >
             <Text className="text-center text-white font-semibold">
@@ -461,12 +460,6 @@ export default function SignUpScreen() {
           </Pressable>
         )}
       </View>
-
-      <TermsOverlay
-        visible={showTerms}
-        onClose={() => setShowTerms(false)}
-        onAgree={onCreateAccount}
-      />
     </ScrollView>
   );
 }

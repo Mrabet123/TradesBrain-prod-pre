@@ -224,6 +224,20 @@ export default function PhoneSignInScreen() {
               {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
             </Text>
           </Pressable>
+
+          {/* D6 Flow02 S8 — go back to phone entry to use a different number. */}
+          <Pressable
+            onPress={() => {
+              setPhase('enter');
+              setCode('');
+              setWrongCount(0);
+              setResendCooldown(0);
+            }}
+            disabled={busy}
+            className="mt-3 self-center"
+          >
+            <Text className="text-sm text-gray-600">Use a different number</Text>
+          </Pressable>
         </>
       )}
 

@@ -3,7 +3,18 @@
 // Selection saved to worker_preferences on confirm so it never appears again.
 
 import React, { useState } from 'react';
-import { View, Text, Pressable, Modal, ScrollView, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  Modal,
+  ScrollView,
+  TextInput,
+  ActivityIndicator,
+} from 'react-native';
+import { useVoiceRecording } from '../../hooks/useVoiceRecording';
+import { transcribeAudio } from '../../services/openai';
+import VoiceRecordButton from '../rex/VoiceRecordButton';
 
 interface Props {
   visible: boolean;
@@ -23,6 +34,18 @@ export default function SectionPicker({
   const [selected, setSelected] = useState<Set<string>>(new Set(defaultSections));
   const [custom, setCustom] = useState('');
   const [customs, setCustoms] = useState<string[]>([]);
+  // D6 Flow05 S2 — voice-add a custom section name.
+  const voice = useVoiceRecording();
+  const [transcribing, setTranscribing] = useState(false);
+
+  async function onVoiceStop() {
+    const uri = await voice.stopRecording();
+    if (!uri) return;
+    setTranscribing(true);
+    const res = await transcribeAudio(uri);
+    setTranscribing(false);
+    if (res.ok && res.text) setCustom(res.text.trim());
+  }
 
   function toggle(name: string) {
     setSelected((prev) => {
@@ -76,12 +99,18 @@ export default function SectionPicker({
             );
           })}
 
-          <View className="mt-4 flex-row gap-2">
+          <View className="mt-4 flex-row gap-2 items-center">
             <TextInput
               value={custom}
               onChangeText={setCustom}
               placeholder="Add a custom section"
               className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base"
+            />
+            {/* D6 Flow05 S2 — voice-add a custom section */}
+            <VoiceRecordButton
+              isRecording={voice.isRecording}
+              onPressIn={voice.startRecording}
+              onPressOut={onVoiceStop}
             />
             <Pressable
               onPress={addCustom}
@@ -91,6 +120,12 @@ export default function SectionPicker({
               <Text className="text-white font-semibold">Add</Text>
             </Pressable>
           </View>
+          {transcribing && (
+            <View className="flex-row items-center mt-2">
+              <ActivityIndicator size="small" />
+              <Text className="text-xs text-gray-500 ml-2">Transcribing…</Text>
+            </View>
+          )}
         </ScrollView>
 
         <View className="flex-row gap-3 mt-4">

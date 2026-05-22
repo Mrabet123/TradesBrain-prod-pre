@@ -10,7 +10,10 @@ serve(async (req) => {
   const uc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: ah } } });
   const { data: { user: owner } } = await uc.auth.getUser();
   if (!owner) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
-  const b = await req.json();
+  // A malformed body should be a clean 400, not an unhandled 500.
+  let b: any;
+  try { b = await req.json(); }
+  catch { return new Response(JSON.stringify({ error: "invalid_body" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
   if (b.confirmation !== "DELETE") return new Response(JSON.stringify({ error: "Confirmation required" }), { status: 400, headers: { "Content-Type": "application/json" } });
   if (b.member_id === owner.id) return new Response(JSON.stringify({ error: "Cannot delete self" }), { status: 400, headers: { "Content-Type": "application/json" } });
   const { data: tl } = await supabase.from("team_members").select("id").eq("team_owner_id", owner.id).eq("member_id", b.member_id).single();

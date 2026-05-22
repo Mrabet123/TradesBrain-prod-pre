@@ -1587,7 +1587,14 @@ export default function RootLayout() {
           <Stack.Screen name="SettingsTeam" component={TeamSettingsScreen} />
           <Stack.Screen name="TeamAdd" component={TeamAddScreen} />
           <Stack.Screen name="TeamMemberDetail" component={TeamMemberDetail} />
-          <Stack.Screen name="Paywall" component={PaywallScreen} />
+          {/* TC-056 / D6 Flow12 S9 — Paywall is presented MODALLY so the screen
+              underneath (e.g. a trial-exhausted Rex session) stays mounted and
+              visible; dismissing the modal returns to that read-only session. */}
+          <Stack.Screen
+            name="Paywall"
+            component={PaywallScreen}
+            options={{ presentation: 'modal' }}
+          />
         </>
       ) : isAuthenticated && !profileComplete ? (
         <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />

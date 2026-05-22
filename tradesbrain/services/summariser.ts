@@ -13,7 +13,13 @@ export async function compressHistory(messages: Message[]): Promise<CompressedHi
   const toCompress = messages.slice(0, -3);
   const recent = messages.slice(-3);
 
-  // claude-proxy enforces JWT — forward the caller's access token.
+  // claude-proxy enforces JWT — forward the caller's access token. Validate the
+  // session against the auth server with getUser() first (getSession() alone
+  // only trusts local storage); bail out cleanly if it is not authentic.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { summary: 'Session summary unavailable.', recentMessages: recent };
+  }
   const { data: { session } } = await supabase.auth.getSession();
   const response = await fetch(
     `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/claude-proxy`,

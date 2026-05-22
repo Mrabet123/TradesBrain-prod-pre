@@ -29,6 +29,8 @@ export interface ReportDraft {
   userId: string;
   versionNumber: number;
   sections: ReportSection[];
+  // D5 §6.1 — Rex's suggested payment figure (midpoint of the suggested range).
+  suggestedAmount: number | null;
   confirmedAmount: number | null;
   includesVat: boolean;
   includesLicense: boolean;
@@ -291,6 +293,7 @@ export async function createReportDraft(
     userId,
     versionNumber,
     sections,
+    suggestedAmount: null,
     confirmedAmount: null,
     includesVat: data.includes_vat,
     includesLicense: data.includes_license,
@@ -305,6 +308,7 @@ export async function saveReportDraft(draft: ReportDraft): Promise<void> {
     .update({
       report_text: draft.sections.map((s) => `## ${s.name}\n${s.content}`).join('\n\n'),
       sections_config: { sections: draft.sections },
+      suggested_amount: draft.suggestedAmount,
       confirmed_amount: draft.confirmedAmount,
       includes_vat: draft.includesVat,
       includes_license: draft.includesLicense,
@@ -341,6 +345,8 @@ export async function confirmReport(
       pdf_url: storagePath,
       report_text: draft.sections.map((s) => `## ${s.name}\n${s.content}`).join('\n\n'),
       sections_config: { sections: draft.sections },
+      // D5 §6.1 — persist Rex's suggested amount alongside the confirmed one.
+      suggested_amount: draft.suggestedAmount,
       confirmed_amount: draft.confirmedAmount,
       includes_vat: draft.includesVat,
       includes_license: draft.includesLicense,
@@ -448,6 +454,13 @@ export async function confirmQuote(
 
   await saveQuoteDraft(draft);
 
+  // D5 §6.2 — Rex's suggested price band: the computed subtotal (line items +
+  // labour) as the low end, plus a ~30% materials/contingency band as the high
+  // end. Persisted alongside the worker's confirmed_total.
+  const sub = quoteSubtotal(draft);
+  const suggestedRangeMin = sub > 0 ? Math.round(sub * 100) / 100 : null;
+  const suggestedRangeMax = sub > 0 ? Math.round(sub * 1.3 * 100) / 100 : null;
+
   const { error: finalErr } = await supabase
     .from('quotes')
     .update({
@@ -457,6 +470,8 @@ export async function confirmQuote(
       labour_hours: draft.labourHours,
       hourly_rate_snapshot: draft.hourlyRateSnapshot,
       payment_terms: draft.paymentTerms,
+      suggested_range_min: suggestedRangeMin,
+      suggested_range_max: suggestedRangeMax,
       confirmed_total: draft.confirmedTotal,
       includes_vat: draft.includesVat,
       includes_license: draft.includesLicense,

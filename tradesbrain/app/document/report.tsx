@@ -255,6 +255,12 @@ export default function ReportBuilderScreen() {
         tradeType || 'plumber',
         sessionContext,
       );
+      // D5 §6.1 — capture Rex's suggested amount (range midpoint) on the draft
+      // so confirmReport() persists it to job_reports.suggested_amount.
+      const range = rawSuggestedRange();
+      d.suggestedAmount = range
+        ? Math.round(((range.min + range.max) / 2) * 100) / 100
+        : null;
       setDraft(d);
       // ISS-H5: surface Rex's follow-up questions (non-blocking — the worker can
       // still edit the draft directly).
@@ -319,6 +325,24 @@ export default function ReportBuilderScreen() {
     const next: ReportDraft = { ...draft, sections };
     setDraft(next);
     saveReportDraft(next);
+  }
+
+  // ISS-16 + ISS-M12 (RQ-4) — derive Rex's suggested payment range from the
+  // time on the jobsite and the worker's hourly rate. Low end = labour only;
+  // high end adds a ~30% materials/contingency band. Returns null when there
+  // is no rate to base it on.
+  function rawSuggestedRange(): { min: number; max: number } | null {
+    const rate = profile?.hourlyRate || hourlyRate || 0;
+    if (!rate) return null;
+    const hours =
+      jobsiteSeconds && jobsiteSeconds > 0
+        ? Math.round((jobsiteSeconds / 3600) * 10) / 10
+        : 1;
+    const base = hours * rate;
+    return {
+      min: Math.round(base * 100) / 100,
+      max: Math.round(base * 1.3 * 100) / 100,
+    };
   }
 
   // ISS-26: build summary lines shown in the confirm dialog before locking.
@@ -487,24 +511,12 @@ export default function ReportBuilderScreen() {
             confirmedAmount={draft.confirmedAmount}
             includesVat={draft.includesVat}
             includesLicense={draft.includesLicense}
-            suggestedRange={(() => {
-              // ISS-16 + ISS-M12 (RQ-4): derive a suggested payment RANGE.
+            suggestedRange={
               // Skip the hint once the worker has set a confirmed amount.
-              if (draft.confirmedAmount != null && draft.confirmedAmount > 0) return null;
-              const rate = profile?.hourlyRate || hourlyRate || 0;
-              if (!rate) return null;
-              // Hours from time-on-jobsite; fall back to 1 h as a minimal hint.
-              const hours =
-                jobsiteSeconds && jobsiteSeconds > 0
-                  ? Math.round((jobsiteSeconds / 3600) * 10) / 10
-                  : 1;
-              const base = hours * rate;
-              // Low end = labour only; high end adds a ~30% materials/contingency band.
-              return {
-                min: Math.round(base * 100) / 100,
-                max: Math.round(base * 1.3 * 100) / 100,
-              };
-            })()}
+              draft.confirmedAmount != null && draft.confirmedAmount > 0
+                ? null
+                : rawSuggestedRange()
+            }
             onSectionContentChange={onSectionContentChange}
             onAddCustomSection={onAddCustomSection}
             onRemoveSection={onRemoveSection}

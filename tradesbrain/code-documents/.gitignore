@@ -1,0 +1,4 @@
+# Source trade-code documents are not committed — only README.md is tracked.
+*
+!.gitignore
+!README.md

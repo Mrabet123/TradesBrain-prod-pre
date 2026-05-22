@@ -34,6 +34,10 @@ serve(async (req) => {
         await stripe.subscriptions.update(sub.id, { items: [{ id: ci.id, price: np }], proration_behavior: "create_prorations" }); break;
       }
       case "switch_annual": {
+        // D10: reject if the subscription is already on annual billing —
+        // without this guard a repeated call runs a no-op proration update.
+        if (sd.billing_cycle === "annual")
+          return new Response(JSON.stringify({ error: "already_annual" }), { status: 409, headers: { "Content-Type": "application/json" } });
         const ap = PPM[sd.plan_type]?.annual;
         if (!ap) return new Response(JSON.stringify({ error: "No annual price" }), { status: 400, headers: { "Content-Type": "application/json" } });
         await stripe.subscriptions.update(sub.id, { items: [{ id: ci.id, price: ap }], proration_behavior: "create_prorations", billing_cycle_anchor: "now" }); break;
