@@ -1,8 +1,8 @@
 // D3 F3 — Quote preview: line items editor, labour, payment terms/methods,
 // validity, notes, VAT/license toggles, confirmed total.
 
-import React from 'react';
-import { View, Text, TextInput, Pressable, Switch } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, TextInput, Pressable, Switch, Animated, PanResponder } from 'react-native';
 import PaymentMethodSelector from './PaymentMethodSelector';
 import type { QuoteDraft, QuoteLineItem } from '../../services/documents';
 import { quoteSubtotal, quoteSuggestedRange } from '../../services/documents';
@@ -10,6 +10,53 @@ import { quoteSubtotal, quoteSuggestedRange } from '../../services/documents';
 interface Props {
   draft: QuoteDraft;
   onChange: (next: QuoteDraft) => void;
+}
+
+// D3 F3 / D6 Flow06 S4 — swipe a line-item row left to reveal a Delete action.
+// PanResponder only claims clearly-horizontal drags, so tapping the inline
+// TextInputs and scrolling the list vertically both still work. The ✕ button
+// remains as an explicit, accessible fallback.
+function SwipeableLineItemRow({
+  children,
+  onDelete,
+}: {
+  children: React.ReactNode;
+  onDelete: () => void;
+}) {
+  const tx = useRef(new Animated.Value(0)).current;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) =>
+        Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 8,
+      onPanResponderMove: (_e, g) => {
+        if (g.dx < 0) tx.setValue(Math.max(g.dx, -96));
+      },
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx < -64) {
+          Animated.timing(tx, { toValue: -96, duration: 120, useNativeDriver: true }).start();
+        } else {
+          Animated.spring(tx, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    }),
+  ).current;
+  return (
+    <View>
+      <Pressable
+        onPress={onDelete}
+        className="absolute right-0 top-0 bottom-0 w-24 bg-red-600 items-center justify-center"
+      >
+        <Text className="text-white font-semibold text-sm">Delete</Text>
+      </Pressable>
+      <Animated.View
+        style={{ transform: [{ translateX: tx }] }}
+        className="bg-white"
+        {...pan.panHandlers}
+      >
+        {children}
+      </Animated.View>
+    </View>
+  );
 }
 
 export default function QuotePreview({ draft, onChange }: Props) {
@@ -56,10 +103,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
           // ISS-22: flag items that need worker input — zero cost or empty name.
           const needsInput = li.unitCost === 0 || !li.name.trim();
           return (
-          <View
-            key={li.id}
-            className="flex-row items-center px-2 py-2 border-b border-gray-100"
-          >
+          <SwipeableLineItemRow key={li.id} onDelete={() => removeLine(li.id)}>
+          <View className="flex-row items-center px-2 py-2 border-b border-gray-100">
             <View className="flex-1 flex-row items-center">
             <TextInput
               value={li.name}
@@ -92,6 +137,7 @@ export default function QuotePreview({ draft, onChange }: Props) {
               <Text className="text-red-600 text-base">✕</Text>
             </Pressable>
           </View>
+          </SwipeableLineItemRow>
           );
         })}
       </View>

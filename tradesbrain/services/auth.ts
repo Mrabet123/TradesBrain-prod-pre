@@ -114,10 +114,12 @@ export async function createUserProfile(input: SignUpInput): Promise<void> {
     license_number: input.licenseNumber,
     license_proof_url: licensePath,
     national_id_url: nationalIdPath,
-    // CC-1 (D1 §6) — seed 'pending' when a document photo was uploaded so the
-    // paywall KYC gate reflects in-progress verification immediately.
-    national_id_kyc_status: input.nationalIdUri ? 'pending' : 'not_uploaded',
-    license_kyc_status: input.licenseProofUri ? 'pending' : 'not_uploaded',
+    // CC-1 (D1 §6) — both KYC document photos are mandatory to reach this point
+    // (sign-up step 3 cannot complete without them), so both statuses are
+    // seeded 'pending' unconditionally; the paywall KYC gate reflects
+    // in-progress verification immediately.
+    national_id_kyc_status: 'pending',
+    license_kyc_status: 'pending',
     terms_accepted_at: new Date().toISOString(),
     terms_version: TERMS_VERSION,
   });

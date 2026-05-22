@@ -5,7 +5,7 @@
 // Error states (D6 Flow02 S10):
 //   wrong password / account not found / suspended / 5x lockout 15min / no internet / phone not registered
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Pressable,
   Switch,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -69,6 +70,19 @@ export default function SignInScreen() {
       }
     });
   }, []);
+
+  // ISS-20 (D6 Flow02 S10) — horizontal shake on a wrong-credential error.
+  const shakeX = useRef(new Animated.Value(0)).current;
+  function shake() {
+    shakeX.setValue(0);
+    Animated.sequence([
+      Animated.timing(shakeX, { toValue: 8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: -8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: 6, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: -6, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeX, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  }
 
   const [now, setNow] = useState(Date.now());
 
@@ -134,6 +148,8 @@ export default function SignInScreen() {
           action: 'reset',
         });
       }
+      // ISS-20 — shake the credentials block so the failure is unmissable.
+      shake();
       return;
     }
 
@@ -182,6 +198,15 @@ export default function SignInScreen() {
             Too many failed attempts — try again in {Math.floor(lockSecondsLeft / 60)}m{' '}
             {lockSecondsLeft % 60}s.
           </Text>
+          {/* ISS-20 (D6 Flow02 S10) — reset password is still available while locked. */}
+          <Pressable
+            onPress={() => (nav as any).navigate('ForgotPassword')}
+            className="mt-2 self-start"
+          >
+            <Text className="text-red-700 font-semibold text-sm underline">
+              Reset password
+            </Text>
+          </Pressable>
         </View>
       )}
 
@@ -208,35 +233,39 @@ export default function SignInScreen() {
       )}
 
       {/* METHOD 1 — Email + Password */}
-      <Text className="text-sm font-semibold text-gray-700 mb-2">Email & password</Text>
-      <TextInput
-        value={email}
-        onChangeText={(t) => { setEmail(t); setSignInError(null); }}
-        placeholder="you@example.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        editable={!isLocked && !busy}
-        className={`border rounded-lg px-3 py-3 text-base mb-3 ${
-          signInError ? 'border-red-300' : 'border-gray-300'
-        }`}
-      />
-      <View
-        className={`flex-row items-center border rounded-lg mb-3 ${
-          signInError ? 'border-red-300' : 'border-gray-300'
-        }`}
-      >
+      <Text className="text-sm font-semibold text-gray-700 mb-2">
+        Method 1 — Email & password
+      </Text>
+      <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
         <TextInput
-          value={password}
-          onChangeText={(t) => { setPassword(t); setSignInError(null); }}
-          placeholder="Password"
-          secureTextEntry={!showPassword}
+          value={email}
+          onChangeText={(t) => { setEmail(t); setSignInError(null); }}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
           editable={!isLocked && !busy}
-          className="flex-1 px-3 py-3 text-base"
+          className={`border rounded-lg px-3 py-3 text-base mb-3 ${
+            signInError ? 'border-red-300' : 'border-gray-300'
+          }`}
         />
-        <Pressable onPress={() => setShowPassword((v) => !v)} className="px-3 py-3">
-          <Text className="text-gray-500 text-sm">{showPassword ? 'Hide' : 'Show'}</Text>
-        </Pressable>
-      </View>
+        <View
+          className={`flex-row items-center border rounded-lg mb-3 ${
+            signInError ? 'border-red-300' : 'border-gray-300'
+          }`}
+        >
+          <TextInput
+            value={password}
+            onChangeText={(t) => { setPassword(t); setSignInError(null); }}
+            placeholder="Password"
+            secureTextEntry={!showPassword}
+            editable={!isLocked && !busy}
+            className="flex-1 px-3 py-3 text-base"
+          />
+          <Pressable onPress={() => setShowPassword((v) => !v)} className="px-3 py-3">
+            <Text className="text-gray-500 text-sm">{showPassword ? 'Hide' : 'Show'}</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
       <View className="flex-row items-center justify-between mb-3">
         <View className="flex-row items-center">
           <Switch value={savePassword} onValueChange={setSavePassword} />
@@ -263,21 +292,36 @@ export default function SignInScreen() {
       </View>
 
       {/* METHOD 2 — Google */}
+      <Text className="text-sm font-semibold text-gray-700 mb-2">Method 2 — Google</Text>
       <Pressable
         onPress={onGoogleSignIn}
         disabled={busy}
-        className="py-4 rounded-xl border border-gray-300 mb-3"
+        className="py-4 rounded-xl border border-gray-300 mb-4"
       >
         <Text className="text-center text-gray-800 font-semibold">Continue with Google</Text>
       </Pressable>
 
       {/* METHOD 3 — Phone OTP */}
+      <Text className="text-sm font-semibold text-gray-700 mb-2">
+        Method 3 — Phone OTP
+      </Text>
       <Pressable
         onPress={() => (nav as any).navigate('PhoneSignIn')}
         disabled={busy}
         className="py-4 rounded-xl border border-gray-300"
       >
         <Text className="text-center text-gray-800 font-semibold">Sign in with phone OTP</Text>
+      </Pressable>
+
+      {/* D6 Flow02 S3 — new users can reach Create Account from the Sign In screen. */}
+      <Pressable
+        onPress={() => nav.navigate('SignUp')}
+        disabled={busy}
+        className="mt-6 self-center"
+      >
+        <Text className="text-sm text-gray-600">
+          New to TradesBrain? <Text className="text-brand font-semibold">Create an account</Text>
+        </Text>
       </Pressable>
 
       {busy && (
