@@ -43,6 +43,35 @@ const TRADES = [
 ] as const;
 type Trade = (typeof TRADES)[number]['value'];
 
+// D6 Flow07 S1 — quick-query suggestion chips. Per-trade example lookups the
+// worker can tap to run immediately instead of typing.
+const QUICK_QUERIES: Record<Trade, string[]> = {
+  plumber: [
+    'Minimum slope for a 3-inch drain',
+    'Water heater T&P relief valve discharge',
+    'Maximum trap arm length',
+  ],
+  electrician: [
+    'GFCI receptacle requirements for kitchens',
+    'Working clearance in front of a panel',
+    'AFCI protection for bedroom circuits',
+  ],
+  hvac: [
+    'Combustion air for a gas furnace',
+    'Minimum clearances for a condensing unit',
+    'Condensate drain line sizing',
+  ],
+  roofer: [
+    'Minimum slope for asphalt shingles',
+    'Ice barrier requirements in cold climates',
+    'Drip edge installation requirements',
+  ],
+  other: [
+    'Permit requirements for this work',
+    'Inspections required before closing the job',
+  ],
+};
+
 export default function CodesScreen() {
   const nav = useNavigation<Nav>();
   const { user } = useAuthContext();
@@ -255,6 +284,29 @@ export default function CodesScreen() {
             </View>
           )}
         </View>
+
+        {/* D6 Flow07 S1 — quick-query suggestion chips */}
+        {!latest && !busy && isConnected && (
+          <View className="mb-4">
+            <Text className="text-xs font-semibold text-gray-600 mb-2">
+              Try a quick lookup
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {(QUICK_QUERIES[activeTrade] ?? []).map((q) => (
+                <Pressable
+                  key={q}
+                  onPress={() => {
+                    setText(q);
+                    runSearch(q);
+                  }}
+                  className="px-3 py-2 rounded-full border border-gray-300 bg-white"
+                >
+                  <Text className="text-sm text-gray-700">{q}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
 
         {busy && (
           <View className="my-6 items-center">

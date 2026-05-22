@@ -1,13 +1,15 @@
-// D2 Sign Up Step 5, D6 Flow01 S5 — Dual OTP verification.
+// D2 Sign Up Step 5 → Step 6, D6 Flow01 S5 — Dual OTP verification.
 // Single screen with two code inputs (email + SMS).
 // Both must be verified before proceeding. Resend per channel after 60s.
 // Wrong OTP × 3 → lock OTP input 5 min with countdown.
-// On both verified → createUserProfile() → Home tabs.
+// On both verified → Terms overlay (D2 Step 6) → on agree → createUserProfile()
+// → Home tabs. The Terms consent gesture follows OTP verification.
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import TermsOverlay from '../../components/shared/TermsOverlay';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   verifyEmailOtp,
@@ -51,6 +53,8 @@ export default function OtpVerifyScreen() {
   const [phoneCooldown, setPhoneCooldown] = useState(RESEND_COOLDOWN_S);
 
   const [busy, setBusy] = useState(false);
+  // D2 Step 6 — Terms overlay shown after both OTPs are verified.
+  const [showTerms, setShowTerms] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -140,26 +144,36 @@ export default function OtpVerifyScreen() {
     setPhoneVerified(true);
   }
 
+  // D2 Step 5 → Step 6: once both OTPs are verified, present the Terms overlay.
+  // The profile (and the terms acceptance timestamp) is created only after the
+  // worker agrees to the Terms — see onAgreeTerms.
   useEffect(() => {
     if (emailVerified && phoneVerified) {
-      (async () => {
-        setBusy(true);
-        AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
-        try {
-          await createUserProfile(data);
-          // users row created → flip the RootLayout gate into the app.
-          await refreshProfileStatus();
-        } catch (e: any) {
-          // Couldn't create the profile — release the gate so RootLayout shows
-          // the complete-profile screen, where the user can retry.
-          setProfileSetupPending(false);
-          Alert.alert('Sign up incomplete', e?.message ?? 'Could not create profile.');
-        } finally {
-          setBusy(false);
-        }
-      })();
+      AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
+      setShowTerms(true);
     }
   }, [emailVerified, phoneVerified]);
+
+  // D2 Step 6 — worker agreed to the Terms: now create the users row
+  // (createUserProfile stamps terms_accepted_at / terms_version).
+  async function onAgreeTerms() {
+    setShowTerms(false);
+    setBusy(true);
+    try {
+      await createUserProfile(data);
+      // users row created → flip the RootLayout gate into the app.
+      await refreshProfileStatus();
+    } catch (e: any) {
+      // Couldn't create the profile — release the gate so RootLayout shows
+      // the complete-profile screen, where the user can retry.
+      setProfileSetupPending(false);
+      Alert.alert('Sign up incomplete', e?.message ?? 'Could not create profile.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const bothVerified = emailVerified && phoneVerified;
 
   async function resendEmail() {
     if (emailCooldown > 0) return;
@@ -220,6 +234,31 @@ export default function OtpVerifyScreen() {
           <Text className="text-gray-500 text-sm mt-2">Working…</Text>
         </View>
       )}
+
+      {/* D2 Step 6 — if the worker dismissed the Terms overlay without agreeing,
+          they cannot finish sign-up; offer a way back to it. */}
+      {bothVerified && !showTerms && !busy && (
+        <View className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <Text className="text-amber-800 text-sm mb-2">
+            One last step — review and accept the Terms to finish creating your
+            account.
+          </Text>
+          <Pressable
+            onPress={() => setShowTerms(true)}
+            className="bg-brand py-3 rounded-lg"
+          >
+            <Text className="text-center text-white font-semibold">
+              Review Terms & continue
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
+      <TermsOverlay
+        visible={showTerms}
+        onAgree={onAgreeTerms}
+        onClose={() => setShowTerms(false)}
+      />
     </View>
   );
 }

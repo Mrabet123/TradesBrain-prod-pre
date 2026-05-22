@@ -79,6 +79,21 @@ function extractSection(text: string): string | null {
   return m?.[1] ?? null;
 }
 
+// Constant-time string comparison — avoids leaking the service-role key length
+// or prefix through early-exit timing on the auth gate.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  // Compare to a fixed-length buffer so length itself is not a timing oracle.
+  const len = Math.max(ab.length, bb.length);
+  let diff = ab.length ^ bb.length;
+  for (let i = 0; i < len; i++) {
+    diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -95,7 +110,7 @@ serve(async (req) => {
   // chunking, embedding, or DB write: a request without the service-role key
   // is rejected with 401 and nothing is processed.
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '');
-  if (!token || token !== SERVICE_ROLE_KEY) {
+  if (!token || !timingSafeEqual(token, SERVICE_ROLE_KEY)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...cors(), 'Content-Type': 'application/json' },
@@ -158,6 +173,9 @@ serve(async (req) => {
       trade_type: body.trade_type,
       source_url: body.source_url ?? null,
       chunk_count: 0,
+      // EF-4 (D5 §12): code_documents.is_active is NOT NULL — omitting it makes
+      // every ingest fail. A freshly ingested document is active by default.
+      is_active: true,
       ingested_by: body.ingested_by ?? 'admin',
     })
     .select()
@@ -188,24 +206,35 @@ serve(async (req) => {
         continue;
       }
     }
-    for (let j = 0; j < group.length; j++) {
-      const content = group[j];
-      const embedding = embeddings[j];
-      if (!embedding || embedding.length === 0) continue;
-      const sectionNumber = extractSection(content);
-      const { error: insErr } = await supabase.from('code_chunks').insert({
-        document_id: doc.id,
-        trade_type: body.trade_type,
-        document_name: body.document_name,
-        version,
-        section_number: sectionNumber,
-        // EF-4: plain-text input has no real pages — D10 specifies null rather
-        // than a synthetic sequential number.
-        page_number: null,
-        content: group[j],
-        embedding,
-      });
-      if (!insErr) inserted++;
+    // EF-4: build all rows for this embedding group and insert them in ONE
+    // batched INSERT. The previous per-row insert meant 3000+ round-trips for a
+    // full code document — a severe perf regression that risked exceeding the
+    // Edge Function wall-clock limit. One insert per ~20-chunk group keeps the
+    // total to ~150 inserts for a large document.
+    const rows = group
+      .map((chunkContent, j) => {
+        const embedding = embeddings[j];
+        if (!embedding || embedding.length === 0) return null;
+        return {
+          document_id: doc.id,
+          trade_type: body.trade_type,
+          document_name: body.document_name,
+          version,
+          section_number: extractSection(chunkContent),
+          // EF-4: plain-text input has no real pages — D10 specifies null
+          // rather than a synthetic sequential number.
+          page_number: null,
+          content: chunkContent,
+          embedding,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+    if (rows.length === 0) continue;
+    const { error: insErr } = await supabase.from('code_chunks').insert(rows);
+    if (insErr) {
+      console.error(`code_chunks batch insert at ${start} failed:`, insErr);
+    } else {
+      inserted += rows.length;
     }
   }
 

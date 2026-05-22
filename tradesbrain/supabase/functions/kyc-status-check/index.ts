@@ -4,6 +4,12 @@
 // returns its hosted verification URL — the mobile app opens that URL so the
 // user can capture their documents. kyc-webhook flips the status fields to
 // 'verified' / 'rejected' once Stripe finishes processing.
+//
+// REQUIRED SECRETS (deploy checklist — audit Issue 7): SUPABASE_URL,
+// SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, and STRIPE_SECRET_KEY. Note
+// STRIPE_SECRET_KEY is NOT in D10's original env list for this function but is
+// required here for the verify_document path — it MUST be set or every
+// verification-session mint throws.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@13.0.0";

@@ -104,6 +104,13 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
   const start = new Date(startTs * 1000).toISOString();
   const cycle = sub.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly";
   const amount = sub.items.data.reduce((s, i) => s + ((i.price.unit_amount ?? 0) * (i.quantity ?? 1)) / 100, 0);
+  // S-04 (intentional, documented): `users.subscription_status` CHECK only
+  // permits trial|active|expired|cancelled — it has no `past_due` value. While
+  // Stripe is still retrying a past_due invoice the worker must KEEP access, so
+  // `past_due` maps to `active` on the users row. The `subscriptions` row below
+  // records the true `past_due` status via subscriptionRowStatus(). The two
+  // tables therefore differ by design: `users` drives the access gate,
+  // `subscriptions` is the accurate billing-state ledger.
   const statusMap: Record<string, string> = { active: "active", past_due: "active", canceled: "cancelled", unpaid: "expired", incomplete: "trial", incomplete_expired: "expired" };
   const tbStatus = statusMap[sub.status] ?? "expired";
   await supabase.from("users").update({ subscription_status: tbStatus, plan_type: tbStatus === "active" ? plan : null, subscription_end_date: end }).eq("id", userId);

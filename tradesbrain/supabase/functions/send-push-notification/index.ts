@@ -13,6 +13,18 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_ROLE_KEY);
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
+// Constant-time string comparison for the service-role auth gate — avoids
+// leaking the key length/prefix through early-exit timing.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  const len = Math.max(ab.length, bb.length);
+  let diff = ab.length ^ bb.length;
+  for (let i = 0; i < len; i++) diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0);
+  return diff === 0;
+}
+
 interface Template {
   title: string;
   body: string;
@@ -87,7 +99,7 @@ serve(async (req) => {
   // invoke it with the service-role client). Reject any other caller so a push
   // cannot be sent to an arbitrary user_id from outside.
   const authToken = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
-  if (!authToken || authToken !== SERVICE_ROLE_KEY) {
+  if (!authToken || !timingSafeEqual(authToken, SERVICE_ROLE_KEY)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { "Content-Type": "application/json" },
     });
