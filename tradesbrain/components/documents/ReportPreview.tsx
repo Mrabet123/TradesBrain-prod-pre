@@ -14,25 +14,49 @@ interface Props {
   onSectionContentChange: (id: string, content: string) => void;
   onAddCustomSection: () => void;
   onRemoveSection: (id: string) => void;
+  // ISS-15: reorder a section up or down in the report.
+  onMoveSection: (id: string, dir: 'up' | 'down') => void;
   onConfirmedAmountChange: (n: number | null) => void;
   onIncludesVatChange: (v: boolean) => void;
   onIncludesLicenseChange: (v: boolean) => void;
 }
 
 export default function ReportPreview(props: Props) {
+  const lastIndex = props.sections.length - 1;
   return (
     <View>
-      {props.sections.map((s) => (
+      {props.sections.map((s, idx) => (
         <View key={s.id} className="mb-4">
           <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-sm font-semibold text-brand">
+            <Text className="text-sm font-semibold text-brand flex-1">
               {s.name}{s.custom ? ' · custom' : ''}
             </Text>
-            {s.custom && (
-              <Pressable onPress={() => props.onRemoveSection(s.id)}>
-                <Text className="text-red-600 text-xs">Remove</Text>
+            {/* ISS-15: move-up / move-down controls (drag-free reorder). */}
+            <View className="flex-row items-center">
+              <Pressable
+                onPress={() => props.onMoveSection(s.id, 'up')}
+                disabled={idx === 0}
+                hitSlop={6}
+                className="px-2"
+                accessibilityLabel={`Move ${s.name} up`}
+              >
+                <Text className={`text-base ${idx === 0 ? 'text-gray-300' : 'text-brand'}`}>↑</Text>
               </Pressable>
-            )}
+              <Pressable
+                onPress={() => props.onMoveSection(s.id, 'down')}
+                disabled={idx === lastIndex}
+                hitSlop={6}
+                className="px-2"
+                accessibilityLabel={`Move ${s.name} down`}
+              >
+                <Text className={`text-base ${idx === lastIndex ? 'text-gray-300' : 'text-brand'}`}>↓</Text>
+              </Pressable>
+              {s.custom && (
+                <Pressable onPress={() => props.onRemoveSection(s.id)} className="ml-2">
+                  <Text className="text-red-600 text-xs">Remove</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
           <TextInput
             value={s.content}

@@ -107,7 +107,7 @@ export default function TeamAddScreen() {
 
       Alert.alert(
         'Member added',
-        `${fullName} will receive an email and SMS with their temporary password.`,
+        `${fullName} will receive an email and SMS with a secure link to set their own password.`,
         [{ text: 'OK', onPress: () => nav.goBack() }],
       );
     } catch (e: any) {
@@ -179,7 +179,7 @@ export default function TeamAddScreen() {
       <PhotoPick uri={nationalIdUri} onPick={() => pickFor(setNationalIdUri)} />
 
       <View className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
-        <Text className="text-xs text-gray-500 mb-1">Temporary password (auto-generated)</Text>
+        <Text className="text-xs text-gray-500 mb-1">Fallback password (auto-generated)</Text>
         <View className="flex-row items-center justify-between">
           <Text className="text-base font-mono text-gray-900 flex-1">{tempPassword}</Text>
           <Pressable onPress={() => setTempPassword(generateTempPassword())}>
@@ -187,7 +187,8 @@ export default function TeamAddScreen() {
           </Pressable>
         </View>
         <Text className="text-xs text-gray-500 mt-1">
-          Sent by SMS + email. Member must change it on first sign-in.
+          The member receives a secure link by email + SMS to set their own
+          password. Share this fallback only if the link does not arrive.
         </Text>
       </View>
 

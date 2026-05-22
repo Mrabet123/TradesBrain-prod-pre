@@ -28,18 +28,33 @@ serve(async (req) => {
     await supabase.functions.invoke("stripe-update-subscription", { headers: { Authorization: ah }, body: { action: "add_seat" } });
     await stripe.identity.verificationSessions.create({ type: "document", metadata: { user_id: nid, document_type: "national_id" }, options: { document: { require_live_capture: true, require_id_number: false } } });
     await stripe.identity.verificationSessions.create({ type: "document", metadata: { user_id: nid, document_type: "license" }, options: { document: { require_live_capture: true, require_id_number: false } } });
+    // ISS-10 (fix 2): credentials are NEVER delivered as a plain-text password.
+    // A single-use Supabase password-recovery link is generated; that link is
+    // what gets emailed and texted. The member clicks it, sets their own
+    // password, and the temp password used above is overwritten.
+    let recoveryUrl: string | null = null;
+    try {
+      const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+        type: "recovery",
+        email: b.email,
+      });
+      if (linkErr) throw linkErr;
+      recoveryUrl = linkData?.properties?.action_link ?? null;
+    } catch (linkErr) {
+      // Link generation failed — the member can still use "Forgot password" on
+      // the sign-in screen. Do NOT fall back to emailing a plain-text password.
+      console.error("generateLink (recovery) failed for new member", nid, linkErr);
+    }
+
+    const emailSetupBlock = recoveryUrl
+      ? `<p>Tap the button below to set your password and get started:</p>
+         <p><a href="${recoveryUrl}" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none">Set your password</a></p>
+         <p style="color:#666;font-size:12px">This link is single-use and expires shortly. If it has expired, open the TradesBrain app and use "Forgot password" with this email address.</p>`
+      : `<p>Open the TradesBrain app, tap "Forgot password" on the sign-in screen, and enter this email address to set your password.</p>`;
+
     // ISS-10 (fix 1): Resend email is isolated in its own try/catch so a delivery
     // failure does NOT roll back the already-created auth user + DB rows.
-    // ISS-10 (note): Prefer supabase.auth.admin.generateLink({ type: 'recovery', email })
-    // and emailing that link instead of a plain-text temp password. The temp password
-    // is kept here to avoid a larger refactor, but SHOULD be replaced with a
-    // password-recovery link so credentials are never transmitted in email body.
     try {
-      // ISS-10 (preferred approach — TODO): replace plain-text password with a
-      // Supabase recovery link:
-      //   const { data: linkData } = await supabase.auth.admin.generateLink({ type: 'recovery', email: b.email });
-      //   const recoveryUrl = linkData?.properties?.action_link;
-      // Then email recoveryUrl instead of b.temp_password.
       await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -47,7 +62,7 @@ serve(async (req) => {
           from: "TradesBrain <noreply@tradesbrain.app>",
           to: [b.email],
           subject: `${od.full_name} added you to TradesBrain`,
-          html: `<h2>Welcome ${b.full_name}</h2><p>Temp password: <strong>${b.temp_password}</strong></p>`,
+          html: `<h2>Welcome ${b.full_name}</h2><p>${od.full_name} has added you to their TradesBrain team.</p>${emailSetupBlock}`,
         }),
       });
     } catch (emailErr) {
@@ -57,20 +72,21 @@ serve(async (req) => {
     }
 
     // ISS-09: D10 requires credentials also be delivered via SMS.
-    // No dedicated SMS/Twilio transport exists in the project; we use the
-    // send-push-notification Edge Function (team_member_added type) as the
-    // in-app channel and add a clearly-documented SMS stub below.
+    // The send-push-notification Edge Function (team_member_added type) is the
+    // in-app channel; sendCredentialsSMS() is the SMS channel below.
     await supabase.functions.invoke("send-push-notification", {
       body: { user_id: nid, type: "team_member_added", deep_link: "tradesbrain://home" },
     }).catch((pushErr: unknown) => {
       console.error("Push notification failed for new member", nid, pushErr);
     });
 
-    // ISS-09 SMS stub: send credential SMS via Twilio (or another SMS provider)
-    // once a Twilio integration is available. Wire up TWILIO_ACCOUNT_SID,
-    // TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER as Edge Function secrets, then
-    // replace this stub with a real Twilio Messages.create() call.
-    await sendCredentialsSMS(b.phone_number, b.full_name, od.full_name);
+    // ISS-09: deliver the password-setup link by SMS. Isolated in its own
+    // try/catch — an SMS failure must not roll back member creation.
+    try {
+      await sendCredentialsSMS(b.phone_number, b.full_name, od.full_name, recoveryUrl);
+    } catch (smsErr) {
+      console.error("Credential SMS failed for new member", nid, smsErr);
+    }
 
     return new Response(JSON.stringify({ success: true, member_id: nid }), { status: 201, headers: { "Content-Type": "application/json" } });
   } catch (err) {
@@ -79,19 +95,48 @@ serve(async (req) => {
   }
 });
 
-// ISS-09 — SMS stub (D10: credentials must be delivered by email AND SMS).
-// TODO: Replace this stub with a real Twilio (or SMS provider) call once the
-// following Edge Function secrets are configured:
+// ISS-09 — credential SMS via Twilio (D10: credentials delivered by email AND SMS).
+// Sends the password-setup link by SMS. Activates automatically once these
+// Edge Function secrets are configured:
 //   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
-//
-// Example implementation:
-//   const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
-//   await fetch(url, {
-//     method: "POST",
-//     headers: { Authorization: "Basic " + btoa(`${sid}:${token}`), "Content-Type": "application/x-www-form-urlencoded" },
-//     body: new URLSearchParams({ To: phoneNumber, From: fromNumber, Body: smsBody }),
-//   });
-async function sendCredentialsSMS(phoneNumber: string, memberName: string, ownerName: string): Promise<void> {
-  // No SMS transport configured yet — log intent so it is visible in function logs.
-  console.log(`[ISS-09 SMS STUB] Would send credential SMS to ${phoneNumber} — ${memberName} added by ${ownerName}. Configure Twilio secrets to enable.`);
+// Until then it logs intent and returns without throwing, so member creation
+// is never blocked by a missing SMS provider.
+async function sendCredentialsSMS(
+  phoneNumber: string,
+  memberName: string,
+  ownerName: string,
+  recoveryUrl: string | null,
+): Promise<void> {
+  const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const token = Deno.env.get("TWILIO_AUTH_TOKEN");
+  const fromNumber = Deno.env.get("TWILIO_FROM_NUMBER");
+
+  const body = recoveryUrl
+    ? `Hi ${memberName}, ${ownerName} added you to TradesBrain. Set your password: ${recoveryUrl}`
+    : `Hi ${memberName}, ${ownerName} added you to TradesBrain. Open the app, tap "Forgot password" and use your email to set your password.`;
+
+  if (!sid || !token || !fromNumber) {
+    console.log(
+      `[ISS-09] Twilio not configured — skipping credential SMS to ${phoneNumber}. ` +
+        `Set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER to enable.`,
+    );
+    return;
+  }
+
+  const resp = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + btoa(`${sid}:${token}`),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ To: phoneNumber, From: fromNumber, Body: body }),
+    },
+  );
+  if (!resp.ok) {
+    console.error(`[ISS-09] Twilio SMS to ${phoneNumber} failed (HTTP ${resp.status})`, await resp.text());
+  } else {
+    console.log(`[ISS-09] Credential SMS sent to ${phoneNumber}.`);
+  }
 }

@@ -261,6 +261,21 @@ export default function ReportBuilderScreen() {
     saveReportDraft(next);
   }
 
+  // ISS-15: reorder report sections (move up / move down). The section order
+  // is what the PDF renders, so swapping the array entries is sufficient.
+  function onMoveSection(id: string, dir: 'up' | 'down') {
+    if (!draft) return;
+    const idx = draft.sections.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    const swap = dir === 'up' ? idx - 1 : idx + 1;
+    if (swap < 0 || swap >= draft.sections.length) return;
+    const sections = [...draft.sections];
+    [sections[idx], sections[swap]] = [sections[swap], sections[idx]];
+    const next: ReportDraft = { ...draft, sections };
+    setDraft(next);
+    saveReportDraft(next);
+  }
+
   // ISS-26: build summary lines shown in the confirm dialog before locking.
   function buildConfirmSummary(): string[] {
     if (!draft) return [];
@@ -433,6 +448,7 @@ export default function ReportBuilderScreen() {
             onSectionContentChange={onSectionContentChange}
             onAddCustomSection={onAddCustomSection}
             onRemoveSection={onRemoveSection}
+            onMoveSection={onMoveSection}
             onConfirmedAmountChange={(n) => {
               const next = { ...draft, confirmedAmount: n };
               setDraft(next);
