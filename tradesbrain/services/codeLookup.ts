@@ -45,6 +45,14 @@ interface MatchRow {
   similarity: number;
 }
 
+// ISS-3: the code_chunks.trade_type CHECK uses 'general' for the General/Other
+// trade, while users.trade_type and the Codes screen switcher use 'other'.
+// match_documents filters on an exact trade_type match, so a General-trade
+// lookup sending 'other' would never match a chunk. Map it to the chunk enum.
+function chunkTradeType(tradeType: string): string {
+  return tradeType === 'other' ? 'general' : tradeType;
+}
+
 async function retrieveTopChunks(
   query: string,
   tradeType: string,
@@ -54,7 +62,7 @@ async function retrieveTopChunks(
 
   const { data, error } = await supabase.rpc('match_documents', {
     query_embedding: embedding,
-    filter_trade_type: tradeType,
+    filter_trade_type: chunkTradeType(tradeType),
     match_count: TOP_N,
   });
   if (error || !data) return [];

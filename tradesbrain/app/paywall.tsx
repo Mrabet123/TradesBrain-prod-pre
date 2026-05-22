@@ -229,7 +229,7 @@ export default function PaywallScreen() {
                 <Text
                   style={{
                     fontSize: 14,
-                    color: active ? '#2E75B6' : '#4B5563',
+                    color: active ? '#1E3A5F' : '#4B5563',
                     fontWeight: active ? '600' : '400',
                   }}
                 >

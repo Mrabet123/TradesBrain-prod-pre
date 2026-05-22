@@ -214,17 +214,24 @@ export async function generateReportContent(
 export async function generateQuoteContent(
   description: string,
   tradeType: string,
+  sessionContext = '',
 ): Promise<{ lineItems: QuoteLineItem[]; labourHours: number; followUps: string[] }> {
   const empty = { lineItems: [] as QuoteLineItem[], labourHours: 0, followUps: [] as string[] };
-  if (!description.trim()) return empty;
+  if (!description.trim() && !sessionContext.trim()) return empty;
   const system =
     `You are Rex, a master ${tradeType}, drafting a customer quote from a worker's spoken job description. ` +
-    `Extract the material/parts line items and estimate labour hours, using ONLY what the description supports. ` +
-    `Leave unitCost as 0 whenever the description gives no price — the worker fills pricing in. ` +
+    `Extract the material/parts line items and estimate labour hours, using ONLY what the description and any prior session context support. ` +
+    `Leave unitCost as 0 whenever the inputs give no price — the worker fills pricing in. ` +
     `Also list up to 3 short follow-up questions for pricing or scope details the worker did not give. ` +
     `Respond with ONLY a JSON object, no prose, no code fences: ` +
     `{"lineItems":[{"name":"<item>","qty":<number>,"unitCost":<number>}],"labourHours":<number>,"followUps":["<question>"]}.`;
-  const parsed = await callClaudeJson(system, description, 900);
+  // ISS-9: Path A passes the prior Rex session transcript so the quote reflects
+  // the actual diagnosis and work done, not just the typed description — the
+  // report builder already does this (ISS-M12 RQ-3).
+  const userText =
+    (sessionContext.trim() ? `PRIOR REX SESSION CONTEXT:\n${sessionContext}\n\n` : '') +
+    `WORKER JOB DESCRIPTION:\n${description || '(none — draft from the session context above)'}`;
+  const parsed = await callClaudeJson(system, userText, 900);
   if (!parsed || typeof parsed !== 'object') return empty;
   const rawItems = Array.isArray(parsed.lineItems) ? parsed.lineItems : [];
   const lineItems: QuoteLineItem[] = rawItems
@@ -360,12 +367,14 @@ export async function createQuoteDraft(
   seedLineItems: QuoteLineItem[] = [],
   tradeType = 'plumber',
   description = '',
+  sessionContext = '',
 ): Promise<QuoteDraft> {
   const versionNumber = await nextVersion('quotes', sessionId);
 
   // ISS-H5: Rex drafts material line items + a labour-hours estimate from the
-  // worker's job description. Best-effort — falls back to the seed items only.
-  const ai = await generateQuoteContent(description, tradeType);
+  // worker's job description. ISS-9: on Path A the prior Rex session transcript
+  // is also fed in. Best-effort — falls back to the seed items only.
+  const ai = await generateQuoteContent(description, tradeType, sessionContext);
   const draft: Omit<QuoteDraft, 'id'> = {
     sessionId,
     userId,
@@ -481,18 +490,33 @@ export function quoteSubtotal(draft: QuoteDraft): number {
   return lineItemSubtotal + labourCost;
 }
 
+// ISS-8 (D2 F4 step 5 / D3 F3): a suggested customer-facing total RANGE for the
+// quote — the report builder already shows one (ISS-M12 RQ-4). Low end is the
+// cost subtotal; high end adds a ~30% markup band, matching the screen's
+// "15–30% markup is typical" guidance.
+export function quoteSuggestedRange(
+  draft: QuoteDraft,
+): { min: number; max: number } | null {
+  const subtotal = quoteSubtotal(draft);
+  if (subtotal <= 0) return null;
+  return {
+    min: Math.round(subtotal * 100) / 100,
+    max: Math.round(subtotal * 1.3 * 100) / 100,
+  };
+}
+
 // ─── HTML renderers (printable to PDF) ──────────────────────────────────────
 function renderReportHtml(draft: ReportDraft, profile: ProfileBlock): string {
   const sectionsHtml = draft.sections
     .map(
       (s) =>
-        `<h2 style="font-size:14px;margin:18px 0 6px;color:#1E5A8F">${escapeHtml(s.name)}</h2><div style="white-space:pre-wrap;font-size:12px;line-height:1.5">${escapeHtml(s.content)}</div>`,
+        `<h2 style="font-size:14px;margin:18px 0 6px;color:#1E3A5F">${escapeHtml(s.name)}</h2><div style="white-space:pre-wrap;font-size:12px;line-height:1.5">${escapeHtml(s.content)}</div>`,
     )
     .join('');
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #222; padding: 32px; }
-    h1 { font-size: 22px; margin: 0; color: #1E5A8F; }
+    h1 { font-size: 22px; margin: 0; color: #1E3A5F; }
     .meta { font-size: 11px; color: #666; margin-top: 4px; }
     .footer { margin-top: 28px; font-size: 11px; color: #666; }
     .amount { margin-top: 18px; font-size: 14px; font-weight: 600; }
@@ -520,7 +544,7 @@ function renderQuoteHtml(draft: QuoteDraft, profile: ProfileBlock): string {
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #222; padding: 32px; }
-    h1 { font-size: 22px; margin: 0; color: #1E5A8F; }
+    h1 { font-size: 22px; margin: 0; color: #1E3A5F; }
     .meta { font-size: 11px; color: #666; margin-top: 4px; }
     table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 12px; }
     th, td { border-bottom: 1px solid #eee; padding: 6px 4px; }

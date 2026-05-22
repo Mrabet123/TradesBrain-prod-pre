@@ -83,11 +83,25 @@ export default function HomeScreen() {
         <Text className="text-sm text-gray-500 mt-1">{user?.email}</Text>
 
         <View className="mt-6">
-          <Pressable onPress={startNewJob} className="bg-brand py-4 rounded-xl mb-3">
-            <Text className="text-center text-white font-semibold">Start a new job</Text>
+          {/* ISS-11 (D2 Sign-In Flow): when the subscription is expired the
+              feature button is visually disabled — the tap still routes to the
+              paywall so upgrading stays one tap away. */}
+          <Pressable
+            onPress={startNewJob}
+            className={`py-4 rounded-xl mb-3 ${hasAccess ? 'bg-brand' : 'bg-gray-300'}`}
+          >
+            <Text
+              className={`text-center font-semibold ${
+                hasAccess ? 'text-white' : 'text-gray-500'
+              }`}
+            >
+              Start a new job
+            </Text>
           </Pressable>
           <Text className="text-xs text-gray-400 text-center">
-            Rex tab also opens a new job session.
+            {hasAccess
+              ? 'Rex tab also opens a new job session.'
+              : 'Your subscription has expired — tap to upgrade and unlock jobs.'}
           </Text>
         </View>
 

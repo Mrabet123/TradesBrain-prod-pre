@@ -5,7 +5,7 @@ import React from 'react';
 import { View, Text, TextInput, Pressable, Switch } from 'react-native';
 import PaymentMethodSelector from './PaymentMethodSelector';
 import type { QuoteDraft, QuoteLineItem } from '../../services/documents';
-import { quoteSubtotal } from '../../services/documents';
+import { quoteSubtotal, quoteSuggestedRange } from '../../services/documents';
 
 interface Props {
   draft: QuoteDraft;
@@ -35,6 +35,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
   }
 
   const subtotal = quoteSubtotal(draft);
+  // ISS-8: suggested customer-facing total range (cost → +30% markup band).
+  const suggestedRange = quoteSuggestedRange(draft);
 
   return (
     <View>
@@ -179,6 +181,12 @@ export default function QuotePreview({ draft, onChange }: Props) {
       </Text>
 
       <Text className="text-sm font-semibold text-brand mb-1">Confirmed total</Text>
+      {suggestedRange != null && draft.confirmedTotal == null && (
+        <Text className="text-xs text-gray-500 mb-1">
+          Rex suggests a range of ${suggestedRange.min.toFixed(2)} – $
+          {suggestedRange.max.toFixed(2)}
+        </Text>
+      )}
       <TextInput
         value={draft.confirmedTotal?.toString() ?? ''}
         onChangeText={(t) =>

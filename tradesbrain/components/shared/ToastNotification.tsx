@@ -24,7 +24,7 @@ export default function ToastNotification({ message, visible, type = 'info', onD
 
   if (!visible) return null;
 
-  const bgColor = type === 'error' ? '#DC2626' : type === 'success' ? '#16A34A' : type === 'warning' ? '#D97706' : '#2E75B6';
+  const bgColor = type === 'error' ? '#DC2626' : type === 'success' ? '#16A34A' : type === 'warning' ? '#D97706' : '#1E3A5F';
 
   return (
     <Animated.View style={[styles.container, { opacity, backgroundColor: bgColor }]}>

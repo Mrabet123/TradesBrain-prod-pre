@@ -56,24 +56,38 @@ function periodDates(sub: Stripe.Subscription): { start: number; end: number } {
   return { start, end };
 }
 
-// ISS-H1: the `subscriptions.status` column CHECK only permits
-// 'active' | 'cancelled' | 'expired' | 'past_due'. Stripe's raw status set
-// (canceled, incomplete, incomplete_expired, trialing, unpaid, paused, …)
-// would violate that CHECK — the INSERT/UPDATE then throws and the error is
-// swallowed by the webhook's try/catch, silently dropping the update. Map
-// every Stripe status onto one of the four allowed values before writing.
-function subscriptionRowStatus(stripeStatus: string): string {
-  const map: Record<string, string> = {
-    active: "active",
-    trialing: "active",
-    past_due: "past_due",
-    unpaid: "past_due",
-    canceled: "cancelled",
-    incomplete: "expired",
-    incomplete_expired: "expired",
-    paused: "expired",
-  };
-  return map[stripeStatus] ?? "expired";
+// ISS-H1 + ISS-5: single source of truth for Stripe-status → TradesBrain-status.
+// The `subscriptions.status` CHECK only permits 'active' | 'cancelled' |
+// 'expired' | 'past_due'; `users.subscription_status` additionally permits
+// 'trial'. A status written outside these sets violates the CHECK, the
+// INSERT/UPDATE throws, and the error is swallowed by the webhook's try/catch —
+// silently dropping the update. Both table writes are derived from this one
+// map so they can never drift apart.
+//
+// The only intentional cross-table difference is `incomplete`: the first
+// invoice is still pending, so the worker keeps trial access on `users`
+// ('trial'), while the `subscriptions` row — which has no 'trial' value —
+// records 'expired' until payment confirms.
+function mapStripeStatus(stripeStatus: string): { user: string; subscription: string } {
+  switch (stripeStatus) {
+    case "active":
+    case "trialing":
+      return { user: "active", subscription: "active" };
+    case "past_due":
+      // Grace period — the worker keeps access on `users` while the
+      // `subscriptions` row reflects the real billing state.
+      return { user: "active", subscription: "past_due" };
+    case "unpaid":
+      return { user: "expired", subscription: "past_due" };
+    case "canceled":
+      return { user: "cancelled", subscription: "cancelled" };
+    case "incomplete":
+      return { user: "trial", subscription: "expired" };
+    case "incomplete_expired":
+    case "paused":
+    default:
+      return { user: "expired", subscription: "expired" };
+  }
 }
 
 function invoiceSubscriptionId(inv: Stripe.Invoice): string | null {
@@ -104,11 +118,11 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
   const start = new Date(startTs * 1000).toISOString();
   const cycle = sub.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly";
   const amount = sub.items.data.reduce((s, i) => s + ((i.price.unit_amount ?? 0) * (i.quantity ?? 1)) / 100, 0);
-  const statusMap: Record<string, string> = { active: "active", past_due: "active", canceled: "cancelled", unpaid: "expired", incomplete: "trial", incomplete_expired: "expired" };
-  const tbStatus = statusMap[sub.status] ?? "expired";
-  await supabase.from("users").update({ subscription_status: tbStatus, plan_type: tbStatus === "active" ? plan : null, subscription_end_date: end }).eq("id", userId);
+  // ISS-5: both writes derive from the one mapStripeStatus() — never diverge.
+  const status = mapStripeStatus(sub.status);
+  await supabase.from("users").update({ subscription_status: status.user, plan_type: status.user === "active" ? plan : null, subscription_end_date: end }).eq("id", userId);
   // ISS-H1: write a CHECK-valid status, not the raw Stripe status.
-  const { error: subErr } = await supabase.from("subscriptions").update({ plan_type: plan, status: subscriptionRowStatus(sub.status), seat_count: countSeats(sub), monthly_amount: amount, billing_cycle: cycle, current_period_start: start, current_period_end: end, cancelled_at: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null }).eq("stripe_subscription_id", sub.id);
+  const { error: subErr } = await supabase.from("subscriptions").update({ plan_type: plan, status: status.subscription, seat_count: countSeats(sub), monthly_amount: amount, billing_cycle: cycle, current_period_start: start, current_period_end: end, cancelled_at: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null }).eq("stripe_subscription_id", sub.id);
   if (subErr) console.error("subscription.updated: subscriptions row update failed", sub.id, subErr);
 }
 

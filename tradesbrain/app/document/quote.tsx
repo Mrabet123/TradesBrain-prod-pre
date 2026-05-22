@@ -54,6 +54,8 @@ export default function QuoteBuilderScreen() {
   const incomingSessionId = route.params?.sessionId ?? null;
   const [sessionId, setSessionId] = useState<string | null>(incomingSessionId);
   const [jobName, setJobName] = useState('');
+  // ISS-9: Path A — digest of the prior Rex session, fed to the AI quote draft.
+  const [sessionContext, setSessionContext] = useState('');
   // ISS-H5: job description drives Rex's line-item / labour draft generation.
   const [description, setDescription] = useState('');
   const [transcribing, setTranscribing] = useState(false);
@@ -75,14 +77,39 @@ export default function QuoteBuilderScreen() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [profileRes, prefs] = await Promise.all([
+      // ISS-9: Path A — pull the prior Rex session transcript so the AI quote
+      // draft reflects the actual diagnosis and work done.
+      const messagesFetch = incomingSessionId
+        ? supabase
+            .from('messages')
+            .select('role, content_text')
+            .eq('session_id', incomingSessionId)
+            .order('created_at', { ascending: true })
+        : Promise.resolve({ data: null });
+
+      const [profileRes, prefs, messagesRes] = await Promise.all([
         supabase
           .from('users')
           .select('full_name, trade_type, hourly_rate, vat_number, license_number, company_name')
           .eq('id', user.id)
           .single(),
         loadPrefs(user.id, 'quote'),
+        messagesFetch,
       ]);
+
+      // ISS-9: build a compact transcript digest (cap ~4000 chars).
+      const msgRows = (messagesRes as any)?.data as
+        | Array<{ role: string; content_text: string | null }>
+        | null;
+      if (msgRows?.length) {
+        setSessionContext(
+          msgRows
+            .filter((m) => m.content_text)
+            .map((m) => `${m.role === 'user' ? 'Worker' : 'Rex'}: ${m.content_text}`)
+            .join('\n')
+            .slice(0, 4000),
+        );
+      }
 
       if (profileRes.data) {
         setProfile({
@@ -195,6 +222,7 @@ export default function QuoteBuilderScreen() {
 
       const prefs = await loadPrefs(user.id, 'quote');
       // ISS-H5: Rex drafts line items + a labour estimate from the description.
+      // ISS-9: Path A also feeds the prior Rex session transcript to the draft.
       const d = await createQuoteDraft(
         sid!,
         user.id,
@@ -203,6 +231,7 @@ export default function QuoteBuilderScreen() {
         seedLineItems,
         tradeType || 'plumber',
         description.trim(),
+        sessionContext,
       );
       // Path A's session-time labour estimate takes precedence when present.
       if (labourHoursSeed > 0) d.labourHours = labourHoursSeed;

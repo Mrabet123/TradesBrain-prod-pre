@@ -9,10 +9,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // TradesBrain Navy — design system primary brand colour.
+        // Source: ../Design system asset/assets/brand-pack/README.md
         brand: {
-          DEFAULT: '#2E75B6',
-          dark: '#1E5A8F',
-          light: '#5A95C9',
+          DEFAULT: '#1E3A5F',
+          dark: '#13283F',
+          light: '#3A5E86',
         },
       },
     },
