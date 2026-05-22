@@ -17,7 +17,10 @@ serve(async (req) => {
   const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
-  const { plan_type, billing_cycle } = await req.json();
+  // ISS-L9 (EF-6): a malformed body should be a clean 400, not an unhandled 500.
+  let plan_type: string | undefined, billing_cycle: string | undefined;
+  try { ({ plan_type, billing_cycle } = await req.json()); }
+  catch { return new Response(JSON.stringify({ error: "invalid_body" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
   const { data: ud } = await supabase.from("users").select("stripe_customer_id, national_id_kyc_status, license_kyc_status, email, full_name, subscription_status").eq("id", user.id).single();
   if (!ud) return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
   if (ud.national_id_kyc_status !== "verified" || ud.license_kyc_status !== "verified") return new Response(JSON.stringify({ error: "kyc_required" }), { status: 403, headers: { "Content-Type": "application/json" } });

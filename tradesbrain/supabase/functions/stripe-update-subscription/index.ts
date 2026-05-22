@@ -18,7 +18,10 @@ serve(async (req) => {
   const uc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: ah } } });
   const { data: { user } } = await uc.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
-  const body = await req.json();
+  // ISS-L9 (EF-6): a malformed body should be a clean 400, not an unhandled 500.
+  let body: any;
+  try { body = await req.json(); }
+  catch { return new Response(JSON.stringify({ error: "invalid_body" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
   const { data: sd } = await supabase.from("subscriptions").select("stripe_subscription_id, plan_type, billing_cycle").eq("user_id", user.id).eq("status", "active").single();
   if (!sd) return new Response(JSON.stringify({ error: "No subscription" }), { status: 404, headers: { "Content-Type": "application/json" } });
   const sub = await stripe.subscriptions.retrieve(sd.stripe_subscription_id);

@@ -70,7 +70,11 @@ function reducer(s: State, a: Action): State {
     case 'INIT':
       return { ...s, session: a.session, messages: a.messages, closed: a.session.status !== 'active' };
     case 'STAGE':
-      return { ...s, stage: a.stage };
+      // ISS-M8 (RX-2): the worker-pushback two-step is per-diagnosis, not
+      // per-session. A stage change is a new diagnosis context, so reset the
+      // pushback counter — otherwise a later disagreement skips the "hold"
+      // step and jumps straight to "adopt".
+      return { ...s, stage: a.stage, pushbackCount: 0 };
     case 'APPEND':
       return { ...s, messages: [...s.messages, a.message] };
     case 'STREAM_START':

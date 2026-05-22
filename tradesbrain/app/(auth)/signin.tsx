@@ -12,7 +12,6 @@ import {
   TextInput,
   Pressable,
   Switch,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -42,6 +41,10 @@ export default function SignInScreen() {
 
   const [failed, setFailed] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  // ISS-M4 (AU-3): inline error banner (D6 Flow02 S10) — replaces modal Alerts.
+  const [signInError, setSignInError] = useState<
+    { message: string; action?: 'reset' | 'create' } | null
+  >(null);
 
   useEffect(() => {
     loadCredentials().then((c) => {
@@ -93,14 +96,20 @@ export default function SignInScreen() {
   async function onEmailSignIn() {
     if (isLocked) return;
 
+    setSignInError(null);
     setBusy(true);
     const { error } = await signInWithPassword(email.trim(), password);
     setBusy(false);
 
     if (error) {
       const msg = error.message.toLowerCase();
+      const code = (error as { code?: string }).code;
+      // No internet — not a failed credential attempt, so it does NOT count
+      // toward the 5-strike lockout. The entered details are preserved.
       if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch')) {
-        Alert.alert('No connection', 'Sign in requires internet access.');
+        setSignInError({
+          message: 'No internet connection — your details are kept. Reconnect and try again.',
+        });
         return;
       }
       const next = failed + 1;
@@ -111,26 +120,24 @@ export default function SignInScreen() {
         AsyncStorage.setItem(LOCKOUT_KEY, String(until)).catch(() => {});
       }
 
-      if (msg.includes('suspended')) {
-        Alert.alert('Account suspended', 'Your account has been suspended — contact support.');
-      } else if (msg.includes('user not found') || msg.includes('no user')) {
-        Alert.alert(
-          'No account',
-          'No account found with this email — create one instead?',
-          [{ text: 'Create Account', onPress: () => nav.navigate('SignUp') }, { text: 'Cancel' }],
-        );
-      } else if (msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('password')) {
-        Alert.alert(
-          'Incorrect password',
-          'Incorrect password — try again or reset your password.',
-          [{ text: 'Reset', onPress: () => (nav as any).navigate('ForgotPassword') }, { text: 'Try again' }],
-        );
+      // ISS-M4 (AU-3): classify on the Supabase error code where available,
+      // falling back to message matching. Note Supabase deliberately returns a
+      // generic invalid-credentials error for both a wrong password and an
+      // unknown email — so that case is presented as a credentials error.
+      if (code === 'user_banned' || msg.includes('suspended') || msg.includes('banned')) {
+        setSignInError({ message: 'Your account has been suspended — contact support.' });
+      } else if (code === 'user_not_found' || msg.includes('user not found') || msg.includes('no user')) {
+        setSignInError({ message: 'No account found with this email.', action: 'create' });
       } else {
-        Alert.alert('Sign in failed', error.message);
+        setSignInError({
+          message: 'Email or password is incorrect. Try again, or reset your password.',
+          action: 'reset',
+        });
       }
       return;
     }
 
+    setSignInError(null);
     setFailed(0);
     setLockedUntil(null);
     AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
@@ -141,6 +148,7 @@ export default function SignInScreen() {
   }
 
   async function onGoogleSignIn() {
+    setSignInError(null);
     setBusy(true);
     try {
       const { error, cancelled } = await signInWithGoogle();
@@ -150,11 +158,13 @@ export default function SignInScreen() {
       // RootLayout routes (to the app, or to complete-profile for new users).
     } catch (e: any) {
       const msg = String(e?.message ?? '').toLowerCase();
-      if (msg.includes('network') || msg.includes('fetch')) {
-        Alert.alert('No connection', 'Google sign-in requires internet access.');
-      } else {
-        Alert.alert('Google sign-in failed', e?.message ?? 'Please try again.');
-      }
+      // ISS-M4 (AU-3): inline banner instead of a modal Alert.
+      setSignInError({
+        message:
+          msg.includes('network') || msg.includes('fetch')
+            ? 'No internet connection — Google sign-in needs a connection.'
+            : e?.message ?? 'Google sign-in failed. Please try again.',
+      });
     } finally {
       setBusy(false);
     }
@@ -175,21 +185,49 @@ export default function SignInScreen() {
         </View>
       )}
 
+      {/* ISS-M4 (AU-3): inline error banner — D6 Flow02 S10 */}
+      {signInError && !isLocked && (
+        <View className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+          <Text className="text-red-700 text-sm">{signInError.message}</Text>
+          {signInError.action === 'reset' && (
+            <Pressable
+              onPress={() => (nav as any).navigate('ForgotPassword')}
+              className="mt-2 self-start"
+            >
+              <Text className="text-red-700 font-semibold text-sm underline">Reset password</Text>
+            </Pressable>
+          )}
+          {signInError.action === 'create' && (
+            <Pressable onPress={() => nav.navigate('SignUp')} className="mt-2 self-start">
+              <Text className="text-red-700 font-semibold text-sm underline">
+                Create an account
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
       {/* METHOD 1 — Email + Password */}
       <Text className="text-sm font-semibold text-gray-700 mb-2">Email & password</Text>
       <TextInput
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(t) => { setEmail(t); setSignInError(null); }}
         placeholder="you@example.com"
         keyboardType="email-address"
         autoCapitalize="none"
         editable={!isLocked && !busy}
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+        className={`border rounded-lg px-3 py-3 text-base mb-3 ${
+          signInError ? 'border-red-300' : 'border-gray-300'
+        }`}
       />
-      <View className="flex-row items-center border border-gray-300 rounded-lg mb-3">
+      <View
+        className={`flex-row items-center border rounded-lg mb-3 ${
+          signInError ? 'border-red-300' : 'border-gray-300'
+        }`}
+      >
         <TextInput
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(t) => { setPassword(t); setSignInError(null); }}
           placeholder="Password"
           secureTextEntry={!showPassword}
           editable={!isLocked && !busy}

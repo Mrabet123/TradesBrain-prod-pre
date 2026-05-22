@@ -10,7 +10,8 @@ interface Props {
   confirmedAmount: number | null;
   includesVat: boolean;
   includesLicense: boolean;
-  suggestedAmount?: number | null;
+  // ISS-M12 (RQ-4): a suggested min–max range rather than a single figure.
+  suggestedRange?: { min: number; max: number } | null;
   onSectionContentChange: (id: string, content: string) => void;
   onAddCustomSection: () => void;
   onRemoveSection: (id: string) => void;
@@ -76,9 +77,10 @@ export default function ReportPreview(props: Props) {
       </Pressable>
 
       <Text className="text-sm font-semibold text-gray-700 mb-1">Confirmed amount</Text>
-      {props.suggestedAmount != null && (
+      {props.suggestedRange != null && (
         <Text className="text-xs text-gray-500 mb-1">
-          Rex suggests around ${props.suggestedAmount.toFixed(2)}
+          Rex suggests a range of ${props.suggestedRange.min.toFixed(2)} – $
+          {props.suggestedRange.max.toFixed(2)}
         </Text>
       )}
       <TextInput

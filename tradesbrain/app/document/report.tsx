@@ -34,6 +34,7 @@ import { sharePdf } from '../../services/share';
 import { transcribeAudio } from '../../services/openai';
 import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
+import { useNetworkContext } from '../../context/NetworkContext';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import ReportPreview from '../../components/documents/ReportPreview';
 import SectionPicker from '../../components/documents/SectionPicker';
@@ -49,6 +50,7 @@ export default function ReportBuilderScreen() {
   const route = useRoute<RouteT>();
   const { user } = useAuthContext();
   const { tradeType, hourlyRate } = useTradeProfileContext();
+  const { isConnected } = useNetworkContext();
   const voice = useVoiceRecording();
 
   // Path indicator
@@ -56,6 +58,8 @@ export default function ReportBuilderScreen() {
   const [sessionId, setSessionId] = useState<string | null>(incomingSessionId);
   // ISS-16: session time-on-jobsite in seconds (fetched when Path A sessionId is present)
   const [jobsiteSeconds, setJobsiteSeconds] = useState<number | null>(null);
+  // ISS-M12 (RQ-3): Path A — digest of the prior Rex session, fed to the draft.
+  const [sessionContext, setSessionContext] = useState('');
   const [jobName, setJobName] = useState('');
 
   // Section picker (first-time gate)
@@ -91,8 +95,17 @@ export default function ReportBuilderScreen() {
             .eq('id', incomingSessionId)
             .maybeSingle()
         : Promise.resolve({ data: null });
+      // ISS-M12 (RQ-3): Path A — pull the prior Rex session transcript so the
+      // report draft reflects the actual diagnosis and work done.
+      const messagesFetch = incomingSessionId
+        ? supabase
+            .from('messages')
+            .select('role, content_text')
+            .eq('session_id', incomingSessionId)
+            .order('created_at', { ascending: true })
+        : Promise.resolve({ data: null });
 
-      const [profileRes, prefs, sessionRes] = await Promise.all([
+      const [profileRes, prefs, sessionRes, messagesRes] = await Promise.all([
         supabase
           .from('users')
           .select('full_name, trade_type, hourly_rate, vat_number, license_number, company_name')
@@ -100,7 +113,21 @@ export default function ReportBuilderScreen() {
           .single(),
         loadPrefs(user.id, 'report'),
         sessionFetch,
+        messagesFetch,
       ]);
+      // ISS-M12 (RQ-3): build a compact transcript digest (cap ~4000 chars).
+      const msgRows = (messagesRes as any)?.data as
+        | Array<{ role: string; content_text: string | null }>
+        | null;
+      if (msgRows?.length) {
+        setSessionContext(
+          msgRows
+            .filter((m) => m.content_text)
+            .map((m) => `${m.role === 'user' ? 'Worker' : 'Rex'}: ${m.content_text}`)
+            .join('\n')
+            .slice(0, 4000),
+        );
+      }
       if (profileRes.data) {
         setProfile({
           fullName: profileRes.data.full_name,
@@ -218,8 +245,26 @@ export default function ReportBuilderScreen() {
       }
 
       const prefs = await loadPrefs(user.id, 'report');
-      const d = await createReportDraft(sid!, user.id, summary.trim(), prefs);
+      // ISS-H5 + ISS-M12 (RQ-3): Rex drafts the section content from the voice
+      // summary and, on Path A, the prior Rex session transcript.
+      const d = await createReportDraft(
+        sid!,
+        user.id,
+        summary.trim(),
+        prefs,
+        tradeType || 'plumber',
+        sessionContext,
+      );
       setDraft(d);
+      // ISS-H5: surface Rex's follow-up questions (non-blocking — the worker can
+      // still edit the draft directly).
+      if (d.aiFollowUps && d.aiFollowUps.length) {
+        Alert.alert(
+          'Rex has a few follow-up questions',
+          d.aiFollowUps.map((q) => `• ${q}`).join('\n') +
+            '\n\nAdd any missing detail directly in the draft below.',
+        );
+      }
     } catch (e: any) {
       Alert.alert('Could not start report', e?.message ?? 'Unknown error');
     } finally {
@@ -300,6 +345,17 @@ export default function ReportBuilderScreen() {
   // Runs the permanent lock after the worker confirms via the in-app prompt.
   async function runConfirm() {
     if (!draft || !profile || !user) return;
+    // ISS-M12 (RQ-5): PDF generation + storage upload need a connection. Fail
+    // fast with a clear message rather than a cryptic PDF error — the draft is
+    // auto-saved on every edit, so the worker can confirm later when online.
+    if (!isConnected) {
+      setConfirmVisible(false);
+      Alert.alert(
+        'You are offline',
+        'Connect to the internet to generate and lock the PDF. Your draft is saved — confirm again when you have signal.',
+      );
+      return;
+    }
     setConfirmVisible(false);
     setConfirming(true);
     try {
@@ -431,19 +487,23 @@ export default function ReportBuilderScreen() {
             confirmedAmount={draft.confirmedAmount}
             includesVat={draft.includesVat}
             includesLicense={draft.includesLicense}
-            suggestedAmount={(() => {
-              // ISS-16: derive a suggested payment amount from available data.
-              // Priority 1: confirmed amount already set by the worker.
-              if (draft.confirmedAmount != null && draft.confirmedAmount > 0) return null; // already set, hint not needed
+            suggestedRange={(() => {
+              // ISS-16 + ISS-M12 (RQ-4): derive a suggested payment RANGE.
+              // Skip the hint once the worker has set a confirmed amount.
+              if (draft.confirmedAmount != null && draft.confirmedAmount > 0) return null;
               const rate = profile?.hourlyRate || hourlyRate || 0;
               if (!rate) return null;
-              // Priority 2: time on jobsite seconds → hours × rate
-              if (jobsiteSeconds && jobsiteSeconds > 0) {
-                const hours = Math.round((jobsiteSeconds / 3600) * 10) / 10;
-                return Math.round(hours * rate * 100) / 100;
-              }
-              // Priority 3: fall back to 1 h × rate as a minimal hint
-              return Math.round(rate * 100) / 100;
+              // Hours from time-on-jobsite; fall back to 1 h as a minimal hint.
+              const hours =
+                jobsiteSeconds && jobsiteSeconds > 0
+                  ? Math.round((jobsiteSeconds / 3600) * 10) / 10
+                  : 1;
+              const base = hours * rate;
+              // Low end = labour only; high end adds a ~30% materials/contingency band.
+              return {
+                min: Math.round(base * 100) / 100,
+                max: Math.round(base * 1.3 * 100) / 100,
+              };
             })()}
             onSectionContentChange={onSectionContentChange}
             onAddCustomSection={onAddCustomSection}

@@ -22,6 +22,7 @@ import type { RootStackParamList } from '../_layout';
 
 import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
+import { useNetworkContext } from '../../context/NetworkContext';
 import { supabase } from '../../services/supabase';
 import { lookupCode, type CodeLookupResult } from '../../services/codeLookup';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
@@ -46,6 +47,8 @@ export default function CodesScreen() {
   const nav = useNavigation<Nav>();
   const { user } = useAuthContext();
   const { tradeType: profileTrade } = useTradeProfileContext();
+  // ISS-M13 (CL-2): offline mode — D6 Flow07 Screen 7.
+  const { isConnected } = useNetworkContext();
 
   // Temporary trade switch — resets each time the user leaves the tab
   const [activeTrade, setActiveTrade] = useState<Trade>(
@@ -114,6 +117,15 @@ export default function CodesScreen() {
   async function runSearch(q: string) {
     const query = q.trim();
     if (!query) return;
+    // ISS-M13 (CL-2): new lookups need a connection — the last 10 cached
+    // lookups remain viewable offline below.
+    if (!isConnected) {
+      Alert.alert(
+        'You are offline',
+        'New code lookups need a connection. Your last 10 lookups are available below.',
+      );
+      return;
+    }
     setBusy(true);
     try {
       // ISS-31: if a prior lookup exists in this session, prepend it as context
@@ -192,19 +204,38 @@ export default function CodesScreen() {
           </View>
         </ScrollView>
 
+        {/* ISS-M13 (CL-2): offline banner — D6 Flow07 Screen 7 */}
+        {!isConnected && (
+          <View className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+            <Text className="text-red-700 text-sm font-medium">You are offline</Text>
+            <Text className="text-red-600 text-xs">
+              New lookups are paused. Your last 10 lookups are available below.
+            </Text>
+          </View>
+        )}
+
         {/* Search bar */}
         <View className="flex-row items-center gap-2 mb-2">
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder='Ask a code question — e.g. "minimum slope for a 3-inch drain"'
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base"
+            editable={isConnected}
+            placeholder={
+              isConnected
+                ? 'Ask a code question — e.g. "minimum slope for a 3-inch drain"'
+                : 'Offline — new lookups paused'
+            }
+            className={`flex-1 border rounded-lg px-3 py-3 text-base ${
+              isConnected ? 'border-gray-300' : 'border-gray-200 bg-gray-100'
+            }`}
             onSubmitEditing={() => runSearch(text)}
           />
           <Pressable
             onPress={() => runSearch(text)}
-            disabled={busy || !text.trim()}
-            className={`px-4 py-3 rounded-lg ${busy || !text.trim() ? 'bg-gray-300' : 'bg-brand'}`}
+            disabled={busy || !text.trim() || !isConnected}
+            className={`px-4 py-3 rounded-lg ${
+              busy || !text.trim() || !isConnected ? 'bg-gray-300' : 'bg-brand'
+            }`}
           >
             <Text className="text-white font-semibold">Ask</Text>
           </Pressable>
@@ -213,6 +244,7 @@ export default function CodesScreen() {
         <View className="flex-row items-center mb-4">
           <VoiceRecordButton
             isRecording={voice.isRecording}
+            disabled={!isConnected}
             onPressIn={voice.startRecording}
             onPressOut={onVoiceStop}
           />

@@ -30,11 +30,15 @@ import {
   type ProfileBlock,
 } from '../../services/documents';
 import { sharePdf } from '../../services/share';
+import { transcribeAudio } from '../../services/openai';
 import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
+import { useNetworkContext } from '../../context/NetworkContext';
+import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import QuotePreview from '../../components/documents/QuotePreview';
 import SectionPicker from '../../components/documents/SectionPicker';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import VoiceRecordButton from '../../components/rex/VoiceRecordButton';
 import { DEFAULT_QUOTE_SECTIONS } from '../../constants/paymentMethods';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -45,10 +49,15 @@ export default function QuoteBuilderScreen() {
   const route = useRoute<RouteT>();
   const { user } = useAuthContext();
   const { tradeType, hourlyRate } = useTradeProfileContext();
+  const { isConnected } = useNetworkContext();
 
   const incomingSessionId = route.params?.sessionId ?? null;
   const [sessionId, setSessionId] = useState<string | null>(incomingSessionId);
   const [jobName, setJobName] = useState('');
+  // ISS-H5: job description drives Rex's line-item / labour draft generation.
+  const [description, setDescription] = useState('');
+  const [transcribing, setTranscribing] = useState(false);
+  const voice = useVoiceRecording();
 
   const [pickerVisible, setPickerVisible] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -113,6 +122,21 @@ export default function QuoteBuilderScreen() {
     if (action) nav.dispatch(action);
   }
 
+  // ISS-H5 — voice → transcribe → job description.
+  async function onVoiceStop() {
+    const uri = await voice.stopRecording();
+    if (!uri) return;
+    setTranscribing(true);
+    const res = await transcribeAudio(uri);
+    setTranscribing(false);
+    if (!res.ok || !res.text) {
+      Alert.alert('Voice failed', 'Could not transcribe — type the description instead.');
+      return;
+    }
+    const text = res.text;
+    setDescription((prev) => (prev ? `${prev}\n\n${text}` : text));
+  }
+
   async function onGenerate() {
     if (!user || !profile) return;
     setConfirming(true);
@@ -170,15 +194,27 @@ export default function QuoteBuilderScreen() {
       }
 
       const prefs = await loadPrefs(user.id, 'quote');
+      // ISS-H5: Rex drafts line items + a labour estimate from the description.
       const d = await createQuoteDraft(
         sid!,
         user.id,
         profile.hourlyRate || hourlyRate || 0,
         prefs,
         seedLineItems,
+        tradeType || 'plumber',
+        description.trim(),
       );
-      d.labourHours = labourHoursSeed;
+      // Path A's session-time labour estimate takes precedence when present.
+      if (labourHoursSeed > 0) d.labourHours = labourHoursSeed;
       setDraft(d);
+      // ISS-H5: surface Rex's follow-up questions (non-blocking).
+      if (d.aiFollowUps && d.aiFollowUps.length) {
+        Alert.alert(
+          'Rex has a few follow-up questions',
+          d.aiFollowUps.map((q) => `• ${q}`).join('\n') +
+            '\n\nAdd any missing detail directly in the draft below.',
+        );
+      }
     } catch (e: any) {
       Alert.alert('Could not start quote', e?.message ?? 'Unknown error');
     } finally {
@@ -212,6 +248,15 @@ export default function QuoteBuilderScreen() {
   // Runs the permanent lock after the worker confirms via the in-app prompt.
   async function runConfirm() {
     if (!draft || !profile || !user) return;
+    // ISS-M12 (RQ-5): PDF generation + storage upload need a connection.
+    if (!isConnected) {
+      setConfirmVisible(false);
+      Alert.alert(
+        'You are offline',
+        'Connect to the internet to generate and lock the PDF. Your draft is saved — confirm again when you have signal.',
+      );
+      return;
+    }
     setConfirmVisible(false);
     setConfirming(true);
     try {
@@ -287,11 +332,32 @@ export default function QuoteBuilderScreen() {
             </View>
           )}
 
-          <Text className="text-sm text-gray-600 mb-4">
+          <Text className="text-sm font-semibold text-brand mb-1">Job description</Text>
+          <Text className="text-xs text-gray-500 mb-2">
             {incomingSessionId
-              ? 'Rex pre-loads materials and labour hours from this session (and the latest confirmed report if one exists).'
-              : 'A fresh quote. Add line items and labour below after generating.'}
+              ? 'Describe the job — Rex drafts the line items and labour estimate, on top of anything reused from this session and the latest confirmed report.'
+              : 'Describe the job in full — Rex will draft the quote line items and a labour estimate from this.'}
           </Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            placeholder="Type or use the mic below…"
+            className="border border-gray-300 rounded-lg px-3 py-3 text-base min-h-[110px] mb-3"
+          />
+          <View className="flex-row items-center mb-4">
+            <VoiceRecordButton
+              isRecording={voice.isRecording}
+              onPressIn={voice.startRecording}
+              onPressOut={onVoiceStop}
+            />
+            {transcribing && (
+              <View className="flex-row items-center ml-3">
+                <ActivityIndicator size="small" />
+                <Text className="text-xs text-gray-500 ml-2">Transcribing…</Text>
+              </View>
+            )}
+          </View>
 
           {!profile?.hourlyRate && (
             <Pressable

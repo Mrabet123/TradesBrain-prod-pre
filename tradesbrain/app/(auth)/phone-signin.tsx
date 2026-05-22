@@ -16,6 +16,15 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 const LOCKOUT_S = 300; // 5 minutes
 const MAX_WRONG = 3;
 const LOCKOUT_KEY = 'tb_phone_signin_lockout';
+const RESEND_COOLDOWN_S = 60;
+
+// ISS-M3 (AU-2): an expired OTP is not a wrong guess — Supabase signals it via
+// the `otp_expired` error code or an "expired" message.
+function isExpiredOtpError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  const msg = (error.message ?? '').toLowerCase();
+  return error.code === 'otp_expired' || msg.includes('expired');
+}
 
 export default function PhoneSignInScreen() {
   const nav = useNavigation<Nav>();
@@ -28,6 +37,8 @@ export default function PhoneSignInScreen() {
   const [wrongCount, setWrongCount] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  // ISS-M5 (AU-4): per-channel 60s resend countdown for the SMS code.
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const fullPhone = `${countryCode}${phoneLocal}`;
 
@@ -65,6 +76,13 @@ export default function PhoneSignInScreen() {
     : 0;
   const isLocked = lockSecondsLeft > 0;
 
+  // ISS-M5 (AU-4): tick the resend countdown down once per second.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
+
   async function onSendCode() {
     if (phoneLocal.replace(/\D/g, '').length < 7) return;
     setBusy(true);
@@ -86,7 +104,22 @@ export default function PhoneSignInScreen() {
     setWrongCount(0);
     setLockedUntil(null);
     AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
+    setResendCooldown(RESEND_COOLDOWN_S);
     setPhase('verify');
+  }
+
+  // ISS-M5 (AU-4): resend the SMS code after the 60s cooldown.
+  async function onResend() {
+    if (resendCooldown > 0 || busy || isLocked) return;
+    setBusy(true);
+    const { error } = await signInWithPhoneStart(fullPhone);
+    setBusy(false);
+    if (error) {
+      Alert.alert('Resend failed', error.message);
+      return;
+    }
+    setResendCooldown(RESEND_COOLDOWN_S);
+    setCode('');
   }
 
   async function onVerify() {
@@ -95,6 +128,11 @@ export default function PhoneSignInScreen() {
     const { error } = await signInWithPhoneVerify(fullPhone, code);
     setBusy(false);
     if (error) {
+      // ISS-M3 (AU-2): an expired code does not count toward the lockout.
+      if (isExpiredOtpError(error)) {
+        Alert.alert('Code expired', 'That code has expired — tap "Resend code" for a new one.');
+        return;
+      }
       const next = wrongCount + 1;
       setWrongCount(next);
       if (next >= MAX_WRONG) {
@@ -174,6 +212,17 @@ export default function PhoneSignInScreen() {
             className={`py-4 rounded-xl ${busy || code.length < 4 || isLocked ? 'bg-gray-300' : 'bg-brand'}`}
           >
             <Text className="text-center text-white font-semibold">Verify & sign in</Text>
+          </Pressable>
+
+          {/* ISS-M5 (AU-4): per-channel 60s resend control */}
+          <Pressable
+            onPress={onResend}
+            disabled={resendCooldown > 0 || busy || isLocked}
+            className="mt-3 self-center"
+          >
+            <Text className={`text-sm ${resendCooldown > 0 || isLocked ? 'text-gray-400' : 'text-brand'}`}>
+              {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+            </Text>
           </Pressable>
         </>
       )}

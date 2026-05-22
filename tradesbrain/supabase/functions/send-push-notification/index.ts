@@ -8,10 +8,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-);
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_ROLE_KEY);
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -83,6 +81,17 @@ const DEFAULT_DEEP_LINKS: Record<string, string> = {
 
 serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+  // ISS-M6 (EF-3): service-role gate — this function is internal only (called
+  // by kyc-webhook, handle-stripe-webhook, create-team-member, all of which
+  // invoke it with the service-role client). Reject any other caller so a push
+  // cannot be sent to an arbitrary user_id from outside.
+  const authToken = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  if (!authToken || authToken !== SERVICE_ROLE_KEY) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    });
+  }
 
   let body: {
     user_id?: string;

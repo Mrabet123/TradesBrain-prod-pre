@@ -56,6 +56,26 @@ function periodDates(sub: Stripe.Subscription): { start: number; end: number } {
   return { start, end };
 }
 
+// ISS-H1: the `subscriptions.status` column CHECK only permits
+// 'active' | 'cancelled' | 'expired' | 'past_due'. Stripe's raw status set
+// (canceled, incomplete, incomplete_expired, trialing, unpaid, paused, …)
+// would violate that CHECK — the INSERT/UPDATE then throws and the error is
+// swallowed by the webhook's try/catch, silently dropping the update. Map
+// every Stripe status onto one of the four allowed values before writing.
+function subscriptionRowStatus(stripeStatus: string): string {
+  const map: Record<string, string> = {
+    active: "active",
+    trialing: "active",
+    past_due: "past_due",
+    unpaid: "past_due",
+    canceled: "cancelled",
+    incomplete: "expired",
+    incomplete_expired: "expired",
+    paused: "expired",
+  };
+  return map[stripeStatus] ?? "expired";
+}
+
 function invoiceSubscriptionId(inv: Stripe.Invoice): string | null {
   if (inv.subscription) return inv.subscription as string;
   const parent = (inv as unknown as { parent?: { subscription_details?: { subscription?: string } } }).parent;
@@ -87,7 +107,9 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
   const statusMap: Record<string, string> = { active: "active", past_due: "active", canceled: "cancelled", unpaid: "expired", incomplete: "trial", incomplete_expired: "expired" };
   const tbStatus = statusMap[sub.status] ?? "expired";
   await supabase.from("users").update({ subscription_status: tbStatus, plan_type: tbStatus === "active" ? plan : null, subscription_end_date: end }).eq("id", userId);
-  await supabase.from("subscriptions").update({ plan_type: plan, status: sub.status, seat_count: countSeats(sub), monthly_amount: amount, billing_cycle: cycle, current_period_start: start, current_period_end: end, cancelled_at: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null }).eq("stripe_subscription_id", sub.id);
+  // ISS-H1: write a CHECK-valid status, not the raw Stripe status.
+  const { error: subErr } = await supabase.from("subscriptions").update({ plan_type: plan, status: subscriptionRowStatus(sub.status), seat_count: countSeats(sub), monthly_amount: amount, billing_cycle: cycle, current_period_start: start, current_period_end: end, cancelled_at: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null }).eq("stripe_subscription_id", sub.id);
+  if (subErr) console.error("subscription.updated: subscriptions row update failed", sub.id, subErr);
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {

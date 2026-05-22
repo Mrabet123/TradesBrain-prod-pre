@@ -33,6 +33,8 @@ export interface ReportDraft {
   includesVat: boolean;
   includesLicense: boolean;
   voiceSummary: string;
+  // ISS-H5: follow-up questions Rex surfaced while drafting (Path-B intent).
+  aiFollowUps?: string[];
 }
 
 export interface QuoteDraft {
@@ -50,6 +52,8 @@ export interface QuoteDraft {
   confirmedTotal: number | null;
   includesVat: boolean;
   includesLicense: boolean;
+  // ISS-H5: follow-up questions Rex surfaced while drafting (Path-B intent).
+  aiFollowUps?: string[];
 }
 
 export interface UserPrefs {
@@ -127,23 +131,143 @@ async function nextVersion(
   return (data?.version_number ?? 0) + 1;
 }
 
+// ─── ISS-H5: AI draft generation (Rex drafts document content) ──────────────
+// Rex drafts report-section content / quote line items from the worker's spoken
+// summary using Haiku via the claude-proxy Edge Function. Every call is
+// best-effort: any failure returns empty content so the worker can still fill
+// the form manually — generation never blocks document creation.
+
+async function callClaudeJson(
+  system: string,
+  userText: string,
+  maxTokens: number,
+): Promise<any | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/claude-proxy`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          system,
+          messages: [{ role: 'user', content: userText }],
+          max_tokens: maxTokens,
+        }),
+      },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text: string = data?.content?.[0]?.text ?? '';
+    if (!text) return null;
+    // Claude may wrap JSON in prose or ```json fences — extract the JSON span.
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const candidate = (fenced ? fenced[1] : text).trim();
+    const startBrace = candidate.search(/[[{]/);
+    const slice = startBrace >= 0 ? candidate.slice(startBrace) : candidate;
+    try { return JSON.parse(slice); } catch { /* fall through */ }
+    try { return JSON.parse(candidate); } catch { /* give up */ }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function generateReportContent(
+  voiceSummary: string,
+  sectionNames: string[],
+  tradeType: string,
+  sessionContext = '',
+): Promise<{ sectionContent: Record<string, string>; followUps: string[] }> {
+  const empty = { sectionContent: {} as Record<string, string>, followUps: [] as string[] };
+  if (!voiceSummary.trim() && !sessionContext.trim()) return empty;
+  const system =
+    `You are Rex, a master ${tradeType}, drafting a professional job report from a worker's spoken job summary. ` +
+    `Write concise, professional content for each named report section, using ONLY facts the summary and any prior session context support — never invent measurements, materials, or outcomes. ` +
+    `If the inputs do not cover a section, use an empty string for that section. ` +
+    `Also list up to 3 short follow-up questions for important details that are still missing. ` +
+    `Respond with ONLY a JSON object, no prose, no code fences: ` +
+    `{"sections":{"<exact section name>":"<drafted text>"},"followUps":["<question>"]}.`;
+  // ISS-M12 (RQ-3): Path A passes the prior Rex session transcript so the draft
+  // reflects the actual diagnosis / work done, not just the voice summary.
+  const user =
+    `REPORT SECTIONS: ${JSON.stringify(sectionNames)}\n\n` +
+    (sessionContext.trim() ? `PRIOR REX SESSION CONTEXT:\n${sessionContext}\n\n` : '') +
+    `WORKER SUMMARY:\n${voiceSummary}`;
+  const parsed = await callClaudeJson(system, user, 1400);
+  if (!parsed || typeof parsed !== 'object') return empty;
+  const sectionContent: Record<string, string> = {};
+  const src = parsed.sections && typeof parsed.sections === 'object' ? parsed.sections : {};
+  for (const name of sectionNames) {
+    if (typeof src[name] === 'string') sectionContent[name] = src[name];
+  }
+  const followUps = Array.isArray(parsed.followUps)
+    ? parsed.followUps.filter((q: any) => typeof q === 'string').slice(0, 3)
+    : [];
+  return { sectionContent, followUps };
+}
+
+export async function generateQuoteContent(
+  description: string,
+  tradeType: string,
+): Promise<{ lineItems: QuoteLineItem[]; labourHours: number; followUps: string[] }> {
+  const empty = { lineItems: [] as QuoteLineItem[], labourHours: 0, followUps: [] as string[] };
+  if (!description.trim()) return empty;
+  const system =
+    `You are Rex, a master ${tradeType}, drafting a customer quote from a worker's spoken job description. ` +
+    `Extract the material/parts line items and estimate labour hours, using ONLY what the description supports. ` +
+    `Leave unitCost as 0 whenever the description gives no price — the worker fills pricing in. ` +
+    `Also list up to 3 short follow-up questions for pricing or scope details the worker did not give. ` +
+    `Respond with ONLY a JSON object, no prose, no code fences: ` +
+    `{"lineItems":[{"name":"<item>","qty":<number>,"unitCost":<number>}],"labourHours":<number>,"followUps":["<question>"]}.`;
+  const parsed = await callClaudeJson(system, description, 900);
+  if (!parsed || typeof parsed !== 'object') return empty;
+  const rawItems = Array.isArray(parsed.lineItems) ? parsed.lineItems : [];
+  const lineItems: QuoteLineItem[] = rawItems
+    .filter((i: any) => i && typeof i.name === 'string' && i.name.trim())
+    .slice(0, 20)
+    .map((i: any, idx: number) => ({
+      id: `ai-${Date.now()}-${idx}`,
+      name: String(i.name).trim(),
+      qty: Number(i.qty) > 0 ? Number(i.qty) : 1,
+      unitCost: Number(i.unitCost) >= 0 ? Number(i.unitCost) : 0,
+    }));
+  const labourHours = Number(parsed.labourHours) >= 0 ? Number(parsed.labourHours) : 0;
+  const followUps = Array.isArray(parsed.followUps)
+    ? parsed.followUps.filter((q: any) => typeof q === 'string').slice(0, 3)
+    : [];
+  return { lineItems, labourHours, followUps };
+}
+
 // ─── Report CRUD ────────────────────────────────────────────────────────────
 export async function createReportDraft(
   sessionId: string,
   userId: string,
   initialText: string,
   prefs: UserPrefs | null,
+  tradeType = 'plumber',
+  sessionContext = '',
 ): Promise<ReportDraft> {
   const versionNumber = await nextVersion('job_reports', sessionId);
-  const sectionsList = prefs?.sections?.length
-    ? prefs.sections
-    : (DEFAULT_REPORT_SECTIONS as readonly string[]);
+  const sectionsList = (
+    prefs?.sections?.length ? prefs.sections : (DEFAULT_REPORT_SECTIONS as readonly string[])
+  ) as string[];
+
+  // ISS-H5: Rex drafts each section from the worker's voice summary (and, on
+  // Path A, the prior session context — ISS-M12 RQ-3). Best-effort — on failure
+  // section 0 keeps the raw summary and the rest stay empty.
+  const ai = await generateReportContent(initialText, sectionsList, tradeType, sessionContext);
   const sections: ReportSection[] = sectionsList.map((name, i) => ({
     id: `s${i}`,
     name,
-    content: i === 0 ? initialText : '',
+    content: ai.sectionContent[name] ?? (i === 0 ? initialText : ''),
     custom: false,
   }));
+  const reportText = sections.map((s) => `## ${s.name}\n${s.content}`).join('\n\n');
 
   const { data, error } = await supabase
     .from('job_reports')
@@ -152,7 +276,7 @@ export async function createReportDraft(
       user_id: userId,
       version_number: versionNumber,
       status: 'draft',
-      report_text: initialText,
+      report_text: reportText || initialText,
       sections_config: { sections },
       includes_vat: prefs?.defaultIncludeVat ?? false,
       includes_license: prefs?.defaultIncludeLicense ?? false,
@@ -171,6 +295,7 @@ export async function createReportDraft(
     includesVat: data.includes_vat,
     includesLicense: data.includes_license,
     voiceSummary: initialText,
+    aiFollowUps: ai.followUps,
   };
 }
 
@@ -233,14 +358,20 @@ export async function createQuoteDraft(
   hourlyRateSnapshot: number,
   prefs: UserPrefs | null,
   seedLineItems: QuoteLineItem[] = [],
+  tradeType = 'plumber',
+  description = '',
 ): Promise<QuoteDraft> {
   const versionNumber = await nextVersion('quotes', sessionId);
+
+  // ISS-H5: Rex drafts material line items + a labour-hours estimate from the
+  // worker's job description. Best-effort — falls back to the seed items only.
+  const ai = await generateQuoteContent(description, tradeType);
   const draft: Omit<QuoteDraft, 'id'> = {
     sessionId,
     userId,
     versionNumber,
-    lineItems: seedLineItems,
-    labourHours: 0,
+    lineItems: [...seedLineItems, ...ai.lineItems],
+    labourHours: ai.labourHours,
     hourlyRateSnapshot,
     paymentTerms: prefs?.defaultPaymentTerms ?? 'Due on completion',
     paymentMethods: prefs?.paymentMethods ?? ['Bank transfer'],
@@ -249,6 +380,7 @@ export async function createQuoteDraft(
     confirmedTotal: null,
     includesVat: prefs?.defaultIncludeVat ?? false,
     includesLicense: prefs?.defaultIncludeLicense ?? false,
+    aiFollowUps: ai.followUps,
   };
 
   const { data, error } = await supabase

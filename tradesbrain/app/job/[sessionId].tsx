@@ -38,6 +38,7 @@ import { usePhotoCapture, type CapturedPhoto } from '../../hooks/usePhotoCapture
 import { useOfflineQueue, type QueuedMessage } from '../../hooks/useOfflineQueue';
 import { transcribeAudio } from '../../services/openai';
 import { useNetworkContext } from '../../context/NetworkContext';
+import { SESSION_SOFT_CAP } from '../../constants/limits';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RouteT = RouteProp<RootStackParamList, 'Job'>;
@@ -52,6 +53,16 @@ const MONTHS = [
 function formatJobDate(d: Date): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
+
+// ISS-M10 (RX-4): D6 Flow04 locks a visible stage indicator. The five Rex
+// stages, used by the header pill and the ①→⑤ progress strip.
+const STAGE_NAMES: Record<number, string> = {
+  1: 'Context',
+  2: 'Diagnosis',
+  3: 'Steps',
+  4: 'Final check',
+  5: 'Close',
+};
 
 export default function ActiveSessionScreen() {
   const nav = useNavigation<Nav>();
@@ -210,6 +221,8 @@ export default function ActiveSessionScreen() {
   const apprenticePending =
     rex.apprenticeAsked && !rex.apprenticeAnswered && !rex.streaming && !rex.closed;
   const inputDisabled = rex.streaming || trialExhausted;
+  // ISS-L11 (RX-8): user-message count drives the "message N of 30" soft-cap copy.
+  const userMsgCount = rex.messages.filter((m) => m.role === 'user').length;
 
   return (
     <KeyboardAvoidingView
@@ -222,7 +235,12 @@ export default function ActiveSessionScreen() {
           <Pressable onPress={() => nav.goBack()}>
             <Text className="text-brand text-base">← Back</Text>
           </Pressable>
-          <Text className="text-base font-semibold">Rex · Stage {rex.stage}</Text>
+          {/* ISS-M10 (RX-4): header stage pill — always visible (D6 Flow04). */}
+          <View className="bg-brand/10 px-3 py-1 rounded-full">
+            <Text className="text-sm font-semibold text-brand">
+              Stage {rex.stage} · {STAGE_NAMES[rex.stage]}
+            </Text>
+          </View>
           {!rex.closed ? (
             <Pressable onPress={openCloseModal}>
               <Text className="text-red-600 text-base font-semibold">Close Job</Text>
@@ -231,6 +249,38 @@ export default function ActiveSessionScreen() {
             <Text className="text-green-700 text-base font-semibold">Closed</Text>
           )}
         </View>
+
+        {/* ISS-M10 (RX-4): ①→⑤ stage progress strip (D6 Flow04 locked element) */}
+        {!rex.closed && (
+          <View className="flex-row items-center px-4 py-2 border-b border-gray-100">
+            {([1, 2, 3, 4, 5] as const).map((n) => {
+              const done = n < rex.stage;
+              const current = n === rex.stage;
+              return (
+                <View key={n} className="flex-row items-center flex-1 last:flex-none">
+                  <View
+                    className={`w-6 h-6 rounded-full items-center justify-center ${
+                      current ? 'bg-brand' : done ? 'bg-brand/40' : 'bg-gray-200'
+                    }`}
+                  >
+                    <Text
+                      className={`text-xs font-bold ${
+                        current || done ? 'text-white' : 'text-gray-500'
+                      }`}
+                    >
+                      {n}
+                    </Text>
+                  </View>
+                  {n < 5 && (
+                    <View
+                      className={`flex-1 h-0.5 mx-1 ${done ? 'bg-brand/40' : 'bg-gray-200'}`}
+                    />
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Offline indicator */}
         {!isConnected && (
@@ -270,9 +320,21 @@ export default function ActiveSessionScreen() {
         )}
         {rex.softCapWarning && !rex.softCapReached && (
           <View className="bg-amber-50 border-b border-amber-200 px-4 py-2">
-            <Text className="text-amber-700 text-sm">
-              Approaching session limit — Rex will summarise soon.
+            {/* ISS-L11 (RX-8): show the message count + offer the linked-session
+                choice at the warning point (D6 Flow04 State 8). */}
+            <Text className="text-amber-700 text-sm mb-2">
+              Approaching the session limit — message {userMsgCount} of {SESSION_SOFT_CAP}.
+              Start a linked session now, or continue here.
             </Text>
+            <Pressable
+              onPress={onStartLinkedSession}
+              disabled={linking}
+              className={`py-2 rounded-lg ${linking ? 'bg-gray-300' : 'bg-amber-500'}`}
+            >
+              <Text className="text-center text-white font-semibold text-sm">
+                {linking ? 'Starting…' : 'Start linked session'}
+              </Text>
+            </Pressable>
           </View>
         )}
 

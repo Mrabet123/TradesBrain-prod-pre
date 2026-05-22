@@ -3,12 +3,13 @@
 // confidential Rex system prompts live here too (RULE 10): the app sends
 // trade_type + mode + rag_context and this function assembles the system
 // message — see prompts.ts. A raw `system` string is still honoured for
-// non-Rex utility calls (e.g. the conversation summariser).
+// non-Rex utility calls (e.g. the conversation summariser, document drafting).
 // Deploy with: supabase functions deploy claude-proxy
-// Secrets: ANTHROPIC_API_KEY
+// Secrets: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY
 
 // @ts-ignore — Deno globals available in Supabase Edge Functions runtime
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { buildSystemPrompt } from './prompts.ts';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -19,6 +20,27 @@ serve(async (req) => {
   }
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
+  }
+
+  // ISS-H3: verify the caller's JWT before proxying to Anthropic — closes the
+  // open cost-exposure gap (whisper-proxy / embedding-proxy were already gated).
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+    });
+  }
+  // @ts-ignore Deno
+  const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+    });
   }
 
   // @ts-ignore Deno

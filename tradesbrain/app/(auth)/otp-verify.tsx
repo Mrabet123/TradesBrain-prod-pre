@@ -20,6 +20,14 @@ import {
 
 type Params = { OtpVerify: { signUpData: SignUpInput } };
 
+// ISS-M3 (AU-2): distinguish an expired OTP from a wrong one — Supabase signals
+// expiry via the `otp_expired` error code or an "expired" message.
+function isExpiredOtpError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  const msg = (error.message ?? '').toLowerCase();
+  return error.code === 'otp_expired' || msg.includes('expired');
+}
+
 const RESEND_COOLDOWN_S = 60;
 const LOCKOUT_S = 300; // 5 minutes
 const MAX_WRONG = 3;
@@ -89,6 +97,12 @@ export default function OtpVerifyScreen() {
     const { error } = await verifyEmailOtp(data.email, emailCode);
     setBusy(false);
     if (error) {
+      // ISS-M3 (AU-2): an expired code is not a wrong guess — surface the
+      // expiry and do NOT count it toward the 3-strike lockout.
+      if (isExpiredOtpError(error)) {
+        Alert.alert('Code expired', 'That email code has expired — tap "Resend code" for a new one.');
+        return;
+      }
       const next = emailWrong + 1;
       setEmailWrong(next);
       if (next >= MAX_WRONG) {
@@ -108,6 +122,11 @@ export default function OtpVerifyScreen() {
     const { error } = await verifyPhoneOtp(data.phone, phoneCode);
     setBusy(false);
     if (error) {
+      // ISS-M3 (AU-2): an expired code does not count toward the lockout.
+      if (isExpiredOtpError(error)) {
+        Alert.alert('Code expired', 'That SMS code has expired — tap "Resend code" for a new one.');
+        return;
+      }
       const next = phoneWrong + 1;
       setPhoneWrong(next);
       if (next >= MAX_WRONG) {

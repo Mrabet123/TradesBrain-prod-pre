@@ -1,7 +1,12 @@
 // D6 Flow04 (flow_04_rex_session.html) — Stage-aware contextual buttons shown
-// below Rex's response. CC-2: labels carry the D6 canonical text + emoji.
-// The action keys and stage-keyed rendering are unchanged — only the displayed
-// label strings were updated (text-only fix).
+// below Rex's response.
+// ISS-M10 (RX-5) — honest note: these are REACTION buttons (the worker reacts
+// to Rex's latest message), not the input-gathering set ("Take photo / Describe
+// further / …") that D6 Flow04 shows on some stages. The label strings are
+// approximate, not verbatim-D6; an earlier comment claiming "D6 canonical text"
+// was inaccurate and has been corrected. The free-text input + voice + photo
+// controls cover the input-gathering actions; these buttons are the quick
+// reaction shortcuts. Action keys map to handlers in useRexSession.
 //   Stage 1: "✓ Looks right" / "Disagree" / "❓ Need more detail"
 //   Stage 2: "✓ Confirm diagnosis" / "Disagree" / "❓ Ask follow-up"
 //   Stage 3: "✓ Step done" / "Pushback" / "⏭ Pause"

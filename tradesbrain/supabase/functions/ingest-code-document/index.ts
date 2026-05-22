@@ -112,22 +112,49 @@ serve(async (req) => {
     });
   }
 
-  const required = ['document_name', 'trade_type', 'content'];
-  for (const k of required) {
-    if (!body[k]) {
-      return new Response(JSON.stringify({ error: `Missing field: ${k}` }), {
+  // EF-4: D10 names the body field `text_content`; this build historically used
+  // `content`. Accept either so both the D10 contract and the existing
+  // ingestion script work.
+  const content: string | undefined = body.content ?? body.text_content;
+  const required: Record<string, unknown> = {
+    document_name: body.document_name,
+    trade_type: body.trade_type,
+    content,
+  };
+  for (const [k, v] of Object.entries(required)) {
+    if (!v) {
+      return new Response(JSON.stringify({ error: `Missing field: ${k === 'content' ? 'content (or text_content)' : k}` }), {
         status: 400,
         headers: { ...cors(), 'Content-Type': 'application/json' },
       });
     }
   }
 
+  const shortName: string = body.short_name ?? body.document_name;
+  const version: string = body.version ?? '1.0';
+
+  // ISS-M7 (EF-4): duplicate guard (D10 §2.11). code_documents has
+  // UNIQUE(short_name, version) — without this check a re-ingest throws an
+  // opaque 500 unique-violation instead of a clean 409.
+  const { data: existingDoc } = await supabase
+    .from('code_documents')
+    .select('id')
+    .eq('short_name', shortName)
+    .eq('version', version)
+    .maybeSingle();
+  if (existingDoc) {
+    return new Response(
+      JSON.stringify({ error: 'duplicate_document', detail: `${shortName} ${version} is already ingested.` }),
+      { status: 409, headers: { ...cors(), 'Content-Type': 'application/json' } },
+    );
+  }
+
   const { data: doc, error: docErr } = await supabase
     .from('code_documents')
     .insert({
       document_name: body.document_name,
-      short_name: body.short_name ?? body.document_name,
-      version: body.version ?? '1.0',
+      short_name: shortName,
+      version,
       trade_type: body.trade_type,
       source_url: body.source_url ?? null,
       chunk_count: 0,
@@ -143,7 +170,7 @@ serve(async (req) => {
     );
   }
 
-  const chunks = chunkText(body.content);
+  const chunks = chunkText(content!);
   let inserted = 0;
   // CC-3 — embed in batches of EMBED_BATCH_SIZE. A failed batch is retried once
   // before being skipped; row count is unchanged versus the per-chunk approach.
@@ -170,10 +197,12 @@ serve(async (req) => {
         document_id: doc.id,
         trade_type: body.trade_type,
         document_name: body.document_name,
-        version: body.version ?? '1.0',
+        version,
         section_number: sectionNumber,
-        page_number: start + j + 1,
-        content,
+        // EF-4: plain-text input has no real pages — D10 specifies null rather
+        // than a synthetic sequential number.
+        page_number: null,
+        content: group[j],
         embedding,
       });
       if (!insErr) inserted++;

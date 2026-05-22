@@ -72,9 +72,12 @@ serve(async (req) => {
     });
 
   try {
-    // 1) Wipe storage objects
+    // 1) Wipe storage objects — ISS-L8 (EF-7): clear ALL four user buckets so
+    //    self-deletion leaves no orphaned storage (matches delete-team-member).
     await clearBucket(user.id, 'kyc-documents');
     await clearBucket(user.id, 'job-documents');
+    await clearBucket(user.id, 'job-photos');
+    await clearBucket(user.id, 'profile-assets');
 
     // 2) Delete public.users — FK cascade drops job_sessions, messages,
     //    job_reports, quotes, team_members, worker_preferences, subscriptions,

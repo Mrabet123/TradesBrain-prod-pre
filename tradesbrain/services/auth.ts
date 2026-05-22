@@ -209,7 +209,10 @@ export async function profileExists(): Promise<boolean> {
 }
 
 export async function signInWithPhoneStart(phone: string) {
-  return supabase.auth.signInWithOtp({ phone });
+  // ISS-M2 (AU-1): shouldCreateUser:false — this is a SIGN-IN, not sign-up.
+  // Without it Supabase silently provisions a brand-new account for any
+  // unregistered number, making the "phone not registered" error unreachable.
+  return supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
 }
 
 export async function signInWithPhoneVerify(phone: string, token: string) {

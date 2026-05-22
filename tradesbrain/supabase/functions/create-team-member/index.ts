@@ -17,14 +17,32 @@ serve(async (req) => {
   if (od?.plan_type !== "team" || od?.subscription_status !== "active") return new Response(JSON.stringify({ error: "team_plan_required" }), { status: 403, headers: { "Content-Type": "application/json" } });
   const { count } = await supabase.from("team_members").select("id", { count: "exact" }).eq("team_owner_id", owner.id).eq("is_active", true);
   if ((count ?? 0) >= 10) return new Response(JSON.stringify({ error: "max_seats_reached" }), { status: 409, headers: { "Content-Type": "application/json" } });
-  const b = await req.json();
+  let b: Record<string, string>;
+  try { b = await req.json(); }
+  catch { return new Response(JSON.stringify({ error: "invalid_body" }), { status: 400, headers: { "Content-Type": "application/json" } }); }
+
+  // ISS-H2: validate every required field BEFORE any account/Stripe side-effect.
+  // Missing fields previously surfaced only as a mid-flow DB NOT NULL error,
+  // after a Stripe seat / KYC sessions may already have been created.
+  const REQUIRED = ["email", "phone_number", "temp_password", "full_name", "trade_type", "vat_number", "license_number", "license_proof_url", "national_id_url"];
+  const missing = REQUIRED.filter((k) => !b?.[k] || String(b[k]).trim() === "");
+  if (missing.length) {
+    return new Response(JSON.stringify({ error: "missing_fields", fields: missing }), { status: 400, headers: { "Content-Type": "application/json" } });
+  }
+
   let nid: string | null = null;
   try {
     const { data: au, error } = await supabase.auth.admin.createUser({ email: b.email, phone: b.phone_number, password: b.temp_password, email_confirm: true, phone_confirm: false });
     if (error || !au.user) throw new Error(error?.message);
     nid = au.user.id;
-    await supabase.from("users").insert({ id: nid, full_name: b.full_name, email: b.email, phone_number: b.phone_number, trade_type: b.trade_type, account_type: "solopreneur", hourly_rate: 0, vat_number: b.vat_number, license_number: b.license_number, license_proof_url: b.license_proof_url, national_id_url: b.national_id_url, national_id_kyc_status: "pending", license_kyc_status: "pending", trial_queries_remaining: 0, subscription_status: "active", plan_type: "team", terms_accepted_at: new Date().toISOString(), terms_version: "1.2" });
-    await supabase.from("team_members").insert({ team_owner_id: owner.id, member_id: nid, is_active: true, temporary_password_set: true });
+    // ISS-H2: error-check the profile + team_member inserts. A silent failure
+    // here previously left a half-provisioned member (Stripe seat added, KYC
+    // sessions minted, emails sent) with no users row — and no rollback,
+    // because no error was thrown. Throwing routes into the rollback below.
+    const { error: userErr } = await supabase.from("users").insert({ id: nid, full_name: b.full_name, email: b.email, phone_number: b.phone_number, trade_type: b.trade_type, account_type: "solopreneur", hourly_rate: 0, vat_number: b.vat_number, license_number: b.license_number, license_proof_url: b.license_proof_url, national_id_url: b.national_id_url, national_id_kyc_status: "pending", license_kyc_status: "pending", trial_queries_remaining: 0, subscription_status: "active", plan_type: "team", terms_accepted_at: new Date().toISOString(), terms_version: "1.2" });
+    if (userErr) throw new Error(`users insert failed: ${userErr.message}`);
+    const { error: teamErr } = await supabase.from("team_members").insert({ team_owner_id: owner.id, member_id: nid, is_active: true, temporary_password_set: true });
+    if (teamErr) throw new Error(`team_members insert failed: ${teamErr.message}`);
     await supabase.functions.invoke("stripe-update-subscription", { headers: { Authorization: ah }, body: { action: "add_seat" } });
     await stripe.identity.verificationSessions.create({ type: "document", metadata: { user_id: nid, document_type: "national_id" }, options: { document: { require_live_capture: true, require_id_number: false } } });
     await stripe.identity.verificationSessions.create({ type: "document", metadata: { user_id: nid, document_type: "license" }, options: { document: { require_live_capture: true, require_id_number: false } } });
