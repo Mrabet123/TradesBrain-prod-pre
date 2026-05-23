@@ -3,6 +3,11 @@
 // Header actions: Reopen Job · Delete Job · Generate new version (per tab).
 // Reopen: status → reopened, navigate to active Rex with recap=true so
 // useRexSession dispatches a recap-trigger message (RULE 3).
+//
+// M5 RULE 6 — History stays browseable when the subscription is expired.
+// View / Download / Share of confirmed PDFs always works; the feature
+// buttons (Reopen job, Generate report N+1, Generate quote N+1) are
+// disabled and tap-routed to the paywall instead.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -10,17 +15,16 @@ import {
   Text,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   Modal,
   Image,
   Linking,
-  Alert,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../_layout';
 
 import MessageBubble from '../../../components/rex/MessageBubble';
+import ConfirmDialog from '../../../components/shared/ConfirmDialog';
 import {
   deleteSessionCascade,
   fetchMessages,
@@ -35,6 +39,7 @@ import {
 } from '../../../services/history';
 import { sharePdf } from '../../../services/share';
 import SkeletonCard from '../../../components/history/SkeletonCard';
+import { useSubscriptionContext } from '../../../context/SubscriptionContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RouteT = RouteProp<RootStackParamList, 'JobDetail'>;
@@ -51,6 +56,7 @@ export default function JobDetailScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteT>();
   const jobId = route.params.jobId;
+  const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
 
   const [job, setJob] = useState<HistoryJob | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +66,20 @@ export default function JobDetailScreen() {
   const [reports, setReports] = useState<DocVersion[]>([]);
   const [quotes, setQuotes] = useState<DocVersion[]>([]);
   const [photoModal, setPhotoModal] = useState<string | null>(null);
+
+  // M5 polish — in-app confirms (replaces Alert.alert for reopen + delete).
+  const [reopenVisible, setReopenVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // PDF-load failure surface (no Alert.alert anywhere).
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // M5 RULE 6 — read-write access is gated by subscription. PDF view/share is
+  // always allowed; feature buttons (reopen, generate new version) route to
+  // the paywall when subscription is expired/cancelled.
+  const hasFeatureAccess =
+    subscriptionStatus === 'active' ||
+    (subscriptionStatus === 'trial' && trialQueriesRemaining > 0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,10 +105,11 @@ export default function JobDetailScreen() {
     .map((m) => ({ id: m.id, uri: m.photoUrl as string, stage: m.sessionStage }));
 
   async function onOpenPdf(path: string | null) {
+    setPdfError(null);
     if (!path) return;
     const url = await getSignedPdfUrl(path);
     if (!url) {
-      Alert.alert('Could not load PDF', 'The file may have been removed.');
+      setPdfError('Could not load PDF — the file may have been removed.');
       return;
     }
     Linking.openURL(url);
@@ -97,43 +118,51 @@ export default function JobDetailScreen() {
   async function onSharePdf(path: string | null) {
     if (!path) return;
     const url = await getSignedPdfUrl(path);
-    if (!url) return;
+    if (!url) {
+      setPdfError('Could not load PDF — the file may have been removed.');
+      return;
+    }
     sharePdf(url, 'TradesBrain Document');
   }
 
-  function onReopen() {
-    Alert.alert(
-      'Reopen this job?',
-      'Rex will load the full prior conversation and give a recap.',
-      [
-        { text: 'Cancel' },
-        {
-          text: 'Reopen',
-          onPress: async () => {
-            await reopenSession(jobId);
-            nav.replace('Job', { sessionId: jobId, recap: true } as any);
-          },
-        },
-      ],
-    );
+  function onReopenTap() {
+    if (!hasFeatureAccess) {
+      nav.navigate('Paywall');
+      return;
+    }
+    setReopenVisible(true);
   }
 
-  function onDelete() {
-    Alert.alert(
-      'Delete this job?',
-      'All messages, reports, quotes, and PDFs are permanently removed. This cannot be undone.',
-      [
-        { text: 'Cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteSessionCascade(jobId);
-            nav.goBack();
-          },
-        },
-      ],
-    );
+  async function confirmReopen() {
+    setBusy(true);
+    try {
+      await reopenSession(jobId);
+      setReopenVisible(false);
+      nav.replace('Job', { sessionId: jobId, recap: true } as any);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDelete() {
+    setBusy(true);
+    try {
+      await deleteSessionCascade(jobId);
+      setDeleteVisible(false);
+      nav.goBack();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function onGenerate(kind: 'report' | 'quote') {
+    if (!hasFeatureAccess) {
+      nav.navigate('Paywall');
+      return;
+    }
+    nav.navigate(kind === 'report' ? 'ReportBuilder' : 'QuoteBuilder', {
+      sessionId: jobId,
+    });
   }
 
   if (loading || !job) {
@@ -158,7 +187,7 @@ export default function JobDetailScreen() {
           <Text className="text-base font-semibold flex-1 text-center">
             {job.jobName || 'Untitled job'}
           </Text>
-          <Pressable onPress={onDelete}>
+          <Pressable onPress={() => setDeleteVisible(true)}>
             <Text className="text-red-600 text-base">Delete</Text>
           </Pressable>
         </View>
@@ -171,10 +200,22 @@ export default function JobDetailScreen() {
               · {new Date(job.updatedAt).toLocaleDateString()}
             </Text>
           </View>
-          <Pressable onPress={onReopen}>
-            <Text className="text-brand font-semibold">Reopen job</Text>
+          <Pressable onPress={onReopenTap} disabled={!hasFeatureAccess}>
+            <Text
+              className={`font-semibold ${
+                hasFeatureAccess ? 'text-brand' : 'text-gray-400'
+              }`}
+            >
+              ↩ Reopen Rex
+            </Text>
           </Pressable>
         </View>
+        {!hasFeatureAccess && (
+          <Text className="text-[11px] text-gray-500 mb-1">
+            Subscription expired — viewing and PDF download still work. Reopen
+            and generating new versions require an active plan.
+          </Text>
+        )}
 
         {/* Tab control */}
         <View className="flex-row border-b border-gray-100 -mx-4 px-4">
@@ -207,6 +248,16 @@ export default function JobDetailScreen() {
         </View>
       </View>
 
+      {/* PDF error surface (replaces Alert.alert) */}
+      {pdfError && (
+        <View className="bg-red-50 border-b border-red-200 px-4 py-2 flex-row items-center justify-between">
+          <Text className="text-red-700 text-xs flex-1 pr-2">{pdfError}</Text>
+          <Pressable onPress={() => setPdfError(null)}>
+            <Text className="text-red-600 text-xs font-semibold">Dismiss</Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* Tab content */}
       {active === 'rex' && (
         <ScrollView className="flex-1" contentContainerClassName="py-2">
@@ -230,14 +281,26 @@ export default function JobDetailScreen() {
 
       {active === 'reports' && (
         <ScrollView className="flex-1" contentContainerClassName="px-4 py-4">
+          {/* M5 RULE 6 — disabled when subscription expired; PDFs below still
+              open. D6 note: 'requires reopening the session first'. */}
           <Pressable
-            onPress={() => nav.navigate('ReportBuilder', { sessionId: jobId })}
-            className="bg-brand py-3 rounded-xl mb-4"
+            onPress={() => onGenerate('report')}
+            disabled={!hasFeatureAccess}
+            className={`py-3 rounded-xl mb-1 ${
+              hasFeatureAccess ? 'bg-brand' : 'bg-gray-300'
+            }`}
           >
-            <Text className="text-center text-white font-semibold">
-              Generate report {reports.length + 1}
+            <Text
+              className={`text-center font-semibold ${
+                hasFeatureAccess ? 'text-white' : 'text-gray-500'
+              }`}
+            >
+              + Generate Report {reports.length + 1} from this session
             </Text>
           </Pressable>
+          <Text className="text-[11px] text-gray-500 text-center mb-4">
+            Requires reopening the session first
+          </Text>
           {reports.length === 0 ? (
             <Text className="text-center text-gray-400">
               No confirmed reports yet.
@@ -259,13 +322,23 @@ export default function JobDetailScreen() {
       {active === 'quotes' && (
         <ScrollView className="flex-1" contentContainerClassName="px-4 py-4">
           <Pressable
-            onPress={() => nav.navigate('QuoteBuilder', { sessionId: jobId })}
-            className="bg-brand py-3 rounded-xl mb-4"
+            onPress={() => onGenerate('quote')}
+            disabled={!hasFeatureAccess}
+            className={`py-3 rounded-xl mb-1 ${
+              hasFeatureAccess ? 'bg-brand' : 'bg-gray-300'
+            }`}
           >
-            <Text className="text-center text-white font-semibold">
-              Generate quote {quotes.length + 1}
+            <Text
+              className={`text-center font-semibold ${
+                hasFeatureAccess ? 'text-white' : 'text-gray-500'
+              }`}
+            >
+              + Generate Quote {quotes.length + 1} from this session
             </Text>
           </Pressable>
+          <Text className="text-[11px] text-gray-500 text-center mb-4">
+            Requires reopening the session first
+          </Text>
           {quotes.length === 0 ? (
             <Text className="text-center text-gray-400">
               No confirmed quotes yet.
@@ -331,6 +404,31 @@ export default function JobDetailScreen() {
           <Text className="text-white mt-4">Tap to close</Text>
         </Pressable>
       </Modal>
+
+      {/* Reopen confirm — in-app, no Alert.alert. */}
+      <ConfirmDialog
+        visible={reopenVisible}
+        title="Reopen this job?"
+        message="Rex will load the full prior conversation and give a recap of what you worked on last time."
+        primaryLabel="Reopen Rex session"
+        secondaryLabel="Cancel"
+        onPrimary={confirmReopen}
+        onSecondary={() => setReopenVisible(false)}
+        busy={busy}
+      />
+
+      {/* Delete confirm — destructive secondary. */}
+      <ConfirmDialog
+        visible={deleteVisible}
+        title="Delete this job?"
+        message="All messages, reports, quotes, and PDFs are permanently removed. This cannot be undone."
+        primaryLabel="Cancel"
+        secondaryLabel="Delete — I am sure"
+        onPrimary={() => setDeleteVisible(false)}
+        onSecondary={confirmDelete}
+        destructiveSecondary
+        busy={busy}
+      />
     </View>
   );
 }
@@ -349,7 +447,8 @@ function DocVersionRow({
   return (
     <View className="bg-white border border-gray-200 rounded-xl p-3 mb-3">
       <Text className="text-base font-semibold text-gray-900">
-        {kind === 'report' ? 'Report' : 'Quote'} {version.versionNumber}
+        {kind === 'report' ? 'Report' : 'Quote'} {version.versionNumber}{' '}
+        <Text className="text-xs text-green-700">🔒 Locked</Text>
       </Text>
       <Text className="text-xs text-gray-500 mb-3">
         Confirmed {new Date(version.createdAt).toLocaleString()}

@@ -301,7 +301,8 @@ export default function QuoteBuilderScreen() {
         defaultPaymentTerms: next.paymentTerms,
         paymentMethods: next.paymentMethods,
       }).catch(() => {});
-      Alert.alert('Quote confirmed', 'PDF generated and locked.');
+      // AUDIT-005 — success state renders inline below the button (locked PDF
+      // panel becomes visible when pdfUri is set); no Alert toast needed.
     } catch {
       // CC-4 (D6 Flow12 S18) — exact PDF-failure copy + a Retry action.
       Alert.alert('Could not generate PDF', 'Could not generate PDF — try again.', [

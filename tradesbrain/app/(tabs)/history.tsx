@@ -79,7 +79,7 @@ export default function HistoryScreen() {
       <TextInput
         value={search}
         onChangeText={setSearch}
-        placeholder="Search job name or address"
+        placeholder="Search by job name, address, or date"
         className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
       />
 

@@ -45,11 +45,46 @@ export interface MessageRow {
 }
 
 // ── Fetch + search ──────────────────────────────────────────────────────────
+// Search matches job name, jobsite (server-side ilike) AND date — date matching
+// is done client-side because Postgres stores closed_at/updated_at as
+// timestamptz and the worker is likely typing partial strings like "May",
+// "2026-05", "May 20", or "20/05". The DB query stays cheap; the client filter
+// only runs across the user's own sessions and is bounded by RLS.
+const MONTHS_FULL = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+];
+const MONTHS_SHORT = [
+  'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+  'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+];
+function dateMatches(iso: string | null, q: string): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  const month = d.getMonth();
+  const candidates = [
+    d.toISOString().slice(0, 10), // 2026-05-23
+    `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`,
+    `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}`,
+    `${MONTHS_SHORT[month]} ${d.getDate()}`,
+    `${MONTHS_SHORT[month]} ${d.getFullYear()}`,
+    `${MONTHS_FULL[month]} ${d.getDate()}`,
+    `${MONTHS_FULL[month]} ${d.getFullYear()}`,
+    `${d.getDate()} ${MONTHS_SHORT[month]} ${d.getFullYear()}`,
+    `${d.getDate()} ${MONTHS_FULL[month]} ${d.getFullYear()}`,
+    `${String(d.getFullYear())}`,
+  ];
+  const lower = q.toLowerCase();
+  return candidates.some((c) => c.toLowerCase().includes(lower));
+}
+
 export async function fetchHistorySessions(
   userId: string,
   search: string,
 ): Promise<HistoryJob[]> {
-  let query = supabase
+  const q = search.trim();
+  const query = supabase
     .from('job_sessions')
     .select(
       'id, job_name, jobsite, trade_type, status, created_at, updated_at, closed_at, message_count, job_reports!left(id, status), quotes!left(id, status)',
@@ -58,15 +93,10 @@ export async function fetchHistorySessions(
     .in('status', ['completed', 'reopened'])
     .order('updated_at', { ascending: false });
 
-  if (search.trim()) {
-    const s = `%${search.trim()}%`;
-    query = query.or(`job_name.ilike.${s},jobsite.ilike.${s}`);
-  }
-
   const { data, error } = await query;
   if (error || !data) return [];
 
-  return data
+  const rows = data
     .map((row: any) => {
       const reports = (row.job_reports ?? []).filter((r: any) => r.status === 'finalised');
       const quotes = (row.quotes ?? []).filter((q: any) => q.status === 'finalised');
@@ -85,6 +115,17 @@ export async function fetchHistorySessions(
       };
     })
     .filter((j) => j.reportCount + j.quoteCount > 0);
+
+  if (!q) return rows;
+
+  const lower = q.toLowerCase();
+  return rows.filter(
+    (j) =>
+      (j.jobName ?? '').toLowerCase().includes(lower) ||
+      (j.jobsite ?? '').toLowerCase().includes(lower) ||
+      dateMatches(j.closedAt ?? j.updatedAt, q) ||
+      dateMatches(j.updatedAt, q),
+  );
 }
 
 // ── Job Detail ──────────────────────────────────────────────────────────────

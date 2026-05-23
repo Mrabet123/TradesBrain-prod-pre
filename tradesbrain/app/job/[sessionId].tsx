@@ -93,6 +93,12 @@ export default function ActiveSessionScreen() {
   const [closeModalVisible, setCloseModalVisible] = useState(false);
   const [closeName, setCloseName] = useState('');
   const [linking, setLinking] = useState(false);
+  // CC-2 — voice contextual buttons (🎙 Describe problem, 🎙 Voice confirmation)
+  // are hints, not press-and-hold triggers. Tapping them shows a transient
+  // banner that points to the real mic button below the input.
+  const [voiceHint, setVoiceHint] = useState(false);
+  // CC-2 — soft-cap "Continue here" is sticky-dismissable per session.
+  const [softCapDismissed, setSoftCapDismissed] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   // Trial gate. A trial user who has run out gets an in-thread notice (D6 S8) —
@@ -202,10 +208,23 @@ export default function ActiveSessionScreen() {
     await rex.closeJob(closeName.trim() || autoJobName());
   }
 
-  // Intercept the Stage-5 "Close job" button so it goes through the naming modal.
+  // CC-2 — route the D6-verbatim action keys. Input-gathering buttons (photo /
+  // voice) are owned by the screen because they touch device APIs; reaction
+  // buttons go to the hook.
   function handleContextual(action: string) {
     if (action === 'close_job') {
       openCloseModal();
+      return;
+    }
+    if (action === 'take_photo' || action === 'photo_step' || action === 'send_final_photo') {
+      handlePhoto();
+      return;
+    }
+    if (action === 'describe_problem' || action === 'voice_confirmation') {
+      // Voice is press-and-hold — surface a short banner that points the worker
+      // at the mic button below the input.
+      setVoiceHint(true);
+      setTimeout(() => setVoiceHint(false), 3000);
       return;
     }
     rex.onContextualAction(action);
@@ -318,7 +337,7 @@ export default function ActiveSessionScreen() {
             </Pressable>
           </View>
         )}
-        {rex.softCapWarning && !rex.softCapReached && (
+        {rex.softCapWarning && !rex.softCapReached && !softCapDismissed && (
           <View className="bg-amber-50 border-b border-amber-200 px-4 py-2">
             {/* ISS-L11 (RX-8): show the message count + offer the linked-session
                 choice at the warning point (D6 Flow04 State 8). */}
@@ -326,15 +345,29 @@ export default function ActiveSessionScreen() {
               Approaching the session limit — message {userMsgCount} of {SESSION_SOFT_CAP}.
               Start a linked session now, or continue here.
             </Text>
-            <Pressable
-              onPress={onStartLinkedSession}
-              disabled={linking}
-              className={`py-2 rounded-lg ${linking ? 'bg-gray-300' : 'bg-amber-500'}`}
-            >
-              <Text className="text-center text-white font-semibold text-sm">
-                {linking ? 'Starting…' : 'Start linked session'}
-              </Text>
-            </Pressable>
+            {/* CC-2 — D6 wireframe shows TWO buttons at the warning point:
+                'Start linked session' (primary) and 'Continue here'
+                (dismiss). The latter keeps the worker in the current session
+                until the hard limit (banner returns at 30). */}
+            <View className="flex-row gap-2">
+              <Pressable
+                onPress={onStartLinkedSession}
+                disabled={linking}
+                className={`flex-1 py-2 rounded-lg ${linking ? 'bg-gray-300' : 'bg-amber-500'}`}
+              >
+                <Text className="text-center text-white font-semibold text-sm">
+                  {linking ? 'Starting…' : 'Start linked session'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setSoftCapDismissed(true)}
+                className="flex-1 py-2 rounded-lg border border-amber-500 bg-white"
+              >
+                <Text className="text-center text-amber-700 font-semibold text-sm">
+                  Continue here
+                </Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -389,16 +422,18 @@ export default function ActiveSessionScreen() {
                 onPress={() => rex.onApprenticeAnswer(true)}
                 className="flex-1 bg-brand py-2.5 rounded-lg"
               >
+                {/* CC-2 — D6 verbatim. */}
                 <Text className="text-center text-white font-semibold text-sm">
-                  Yes, walk me through
+                  Yes — walk me through in detail
                 </Text>
               </Pressable>
               <Pressable
                 onPress={() => rex.onApprenticeAnswer(false)}
                 className="flex-1 border border-gray-300 py-2.5 rounded-lg"
               >
+                {/* CC-2 — D6 verbatim. */}
                 <Text className="text-center text-gray-700 font-semibold text-sm">
-                  No, standard detail
+                  No — standard guidance
                 </Text>
               </Pressable>
             </View>
@@ -412,6 +447,16 @@ export default function ActiveSessionScreen() {
             disabled={rex.streaming}
             onPress={handleContextual}
           />
+        )}
+
+        {/* CC-2 — voice contextual buttons are hints; show a transient banner
+            pointing the worker at the press-and-hold mic below the input. */}
+        {voiceHint && !rex.closed && (
+          <View className="bg-indigo-50 border-t border-indigo-200 px-4 py-2">
+            <Text className="text-indigo-800 text-xs text-center">
+              Press and hold the 🎙 mic below to record your description.
+            </Text>
+          </View>
         )}
 
         {/* Trial exhaustion notice (D6 Flow12 S8) — session preserved */}
@@ -436,17 +481,18 @@ export default function ActiveSessionScreen() {
         {/* Post-close: Report + Quote buttons (D6 Flow04 — never during active session) */}
         {rex.canShowReportQuote && rex.session && (
           <View className="flex-row gap-2 px-3 pb-2">
+            {/* CC-2 — D6 verbatim labels '📄 Job report' / '💰 Quote'. */}
             <Pressable
               onPress={() => nav.navigate('ReportBuilder', { sessionId: rex.session!.id })}
               className="flex-1 bg-brand py-3 rounded-xl"
             >
-              <Text className="text-center text-white font-semibold">Generate report</Text>
+              <Text className="text-center text-white font-semibold">📄 Job report</Text>
             </Pressable>
             <Pressable
               onPress={() => nav.navigate('QuoteBuilder', { sessionId: rex.session!.id })}
               className="flex-1 bg-green-600 py-3 rounded-xl"
             >
-              <Text className="text-center text-white font-semibold">Generate quote</Text>
+              <Text className="text-center text-white font-semibold">💰 Quote</Text>
             </Pressable>
           </View>
         )}

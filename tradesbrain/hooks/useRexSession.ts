@@ -414,6 +414,11 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
   );
 
   // ── Worker pushback (D6 Flow04 Pushback A/B): two-step. ───────────────────
+  // Action keys map to D6 flow_04 verbatim labels (see ContextualButtons.tsx).
+  // 'close_job', 'take_photo', 'photo_step', 'send_final_photo',
+  // 'describe_problem', 'voice_confirmation' are routed by the screen
+  // (input-gathering / modal-opening). Everything below is a "reaction" that
+  // either advances the stage or sends a worker turn to Rex.
   const onContextualAction = useCallback(
     (action: string) => {
       switch (action) {
@@ -431,31 +436,35 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
                 : "I'm sticking with my read. Adopt my position and proceed.",
           });
           break;
-        case 'looks_right':
         case 'agree_diagnosis':
           advanceStage(((state.stage + 1) as Stage) <= 5 ? ((state.stage + 1) as Stage) : 5);
+          break;
+        case 'skip_to_repair':
+          // D6 Stage 2 — worker bypasses analysis and asks Rex to go straight
+          // to the repair sequence. Jumps to Stage 3 with an explicit prompt.
+          advanceStage(3);
+          sendMessage({
+            text: 'Skip to the repair — give me the first step now.',
+          });
           break;
         case 'step_done':
           sendMessage({ text: 'Step done — give me the next step.' });
           break;
-        case 'more_detail':
-        case 'followup':
-          sendMessage({ text: 'Give me more detail before I move on.' });
+        case 'need_clarification':
+          sendMessage({ text: 'Need clarification on this step before I move on.' });
+          break;
+        case 'skip_step':
+          sendMessage({
+            text: 'Skipping this step — flag any consequences and move me to the next one.',
+          });
           break;
         case 'final_pass':
-          sendMessage({ text: 'Final check passed.' });
+          sendMessage({ text: 'Final check passed — all clear.' });
           break;
         case 'found_issue':
           sendMessage({ text: 'Found a new issue during final check — please assess.' });
           break;
-        // ISS-06: pause was a silent no-op; now sends a hold message so Rex
-        // records where we are and can resume cleanly.
-        case 'pause':
-          sendMessage({
-            text: 'Pausing here for a moment — I will continue shortly. Note where we are so we can resume cleanly.',
-          });
-          break;
-        // 'close_job' is handled by the screen (it collects a job name first).
+        // 'close_job' / input-gathering buttons are handled by the screen.
       }
     },
     [state.pushbackCount, state.stage, sendMessage, advanceStage],
