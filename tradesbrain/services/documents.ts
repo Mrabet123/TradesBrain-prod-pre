@@ -6,7 +6,7 @@
 
 import * as Print from 'expo-print';
 import { supabase } from './supabase';
-import { PAYMENT_METHODS, type PaymentMethod, DEFAULT_REPORT_SECTIONS, DEFAULT_QUOTE_SECTIONS, DEFAULT_VALIDITY_DAYS } from '../constants/paymentMethods';
+import { PAYMENT_METHODS, type PaymentMethod, DEFAULT_REPORT_SECTIONS, DEFAULT_QUOTE_SECTIONS, DEFAULT_VALIDITY_DAYS, DEFAULT_PAYMENT_METHODS } from '../constants/paymentMethods';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface ReportSection {
@@ -389,7 +389,7 @@ export async function createQuoteDraft(
     labourHours: ai.labourHours,
     hourlyRateSnapshot,
     paymentTerms: prefs?.defaultPaymentTerms ?? 'Due on completion',
-    paymentMethods: prefs?.paymentMethods ?? ['Bank transfer'],
+    paymentMethods: prefs?.paymentMethods ?? DEFAULT_PAYMENT_METHODS,
     validityDays: DEFAULT_VALIDITY_DAYS,
     notes: '',
     confirmedTotal: null,

@@ -136,9 +136,19 @@ export default function SubscriptionSettingsScreen() {
   }
 
   async function onCancel() {
+    // RULE 7 — quote the exact end date. Prefer the server-computed
+    // endDateFormatted; fall back to current_period_end from the local sub row
+    // so the worker always sees a real date instead of "your period end".
+    const endDate =
+      days.endDateFormatted ??
+      (sub?.current_period_end
+        ? new Date(sub.current_period_end).toLocaleDateString()
+        : null);
     Alert.alert(
       'Cancel subscription?',
-      `Access continues until ${days.endDateFormatted ?? 'your period end'}. You can restore anytime before then.`,
+      endDate
+        ? `Access continues until ${endDate}. You can restore anytime before then.`
+        : 'Access continues until the end of your current billing period. You can restore anytime before then.',
       [
         { text: 'Keep subscription' },
         {

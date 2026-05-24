@@ -42,6 +42,47 @@ serve(async (req) => {
         if (!ap) return new Response(JSON.stringify({ error: "No annual price" }), { status: 400, headers: { "Content-Type": "application/json" } });
         await stripe.subscriptions.update(sub.id, { items: [{ id: ci.id, price: ap }], proration_behavior: "create_prorations", billing_cycle_anchor: "now" }); break;
       }
+      // Bi-directional cycle switch — the mobile wrapper switchBillingCycle()
+      // sends { billing_cycle: 'monthly' | 'annual' }. switch_annual stays for
+      // backwards compatibility but new code uses this case.
+      case "switch_billing_cycle": {
+        const target = body.billing_cycle === "annual" ? "annual" : "monthly";
+        if (sd.billing_cycle === target)
+          return new Response(JSON.stringify({ error: `already_${target}` }), { status: 409, headers: { "Content-Type": "application/json" } });
+        const np = PPM[sd.plan_type]?.[target];
+        if (!np) return new Response(JSON.stringify({ error: "No price for target cycle" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        await stripe.subscriptions.update(sub.id, { items: [{ id: ci.id, price: np }], proration_behavior: "create_prorations", billing_cycle_anchor: "now" }); break;
+      }
+      // changePlan(plan) wrapper — derive upgrade vs downgrade from the plan
+      // ordering (solo < pro < team) so the client doesn't need to know.
+      case "change_plan": {
+        const order: Record<string, number> = { solo: 1, pro: 2, team: 3 };
+        const targetPlan = body.plan_type ?? body.new_plan_type;
+        if (!targetPlan || !order[targetPlan])
+          return new Response(JSON.stringify({ error: "Invalid plan" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        if (targetPlan === sd.plan_type)
+          return new Response(JSON.stringify({ error: "already_on_plan" }), { status: 409, headers: { "Content-Type": "application/json" } });
+        const np = PPM[targetPlan]?.[sd.billing_cycle];
+        if (!np) return new Response(JSON.stringify({ error: "Invalid plan" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        await stripe.subscriptions.update(sub.id, { items: [{ id: ci.id, price: np }], proration_behavior: "create_prorations" }); break;
+      }
+      // RULE 7 — cancel via cancel_at_period_end so the worker keeps access
+      // until the period boundary. Settings → Subscription surfaces the exact
+      // end date via calculate-days-remaining.
+      case "cancel": {
+        if ((sub as any).cancel_at_period_end === true)
+          return new Response(JSON.stringify({ error: "already_cancelled" }), { status: 409, headers: { "Content-Type": "application/json" } });
+        await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+        break;
+      }
+      // Restore = un-cancel a subscription that was scheduled to end at the
+      // period boundary. Only valid while cancel_at_period_end is still true.
+      case "restore": {
+        if ((sub as any).cancel_at_period_end !== true)
+          return new Response(JSON.stringify({ error: "not_cancelled" }), { status: 409, headers: { "Content-Type": "application/json" } });
+        await stripe.subscriptions.update(sub.id, { cancel_at_period_end: false });
+        break;
+      }
       case "add_seat": {
         // Enforce the 10-seat maximum (D10) before touching Stripe.
         const { count: activeMembers } = await supabase

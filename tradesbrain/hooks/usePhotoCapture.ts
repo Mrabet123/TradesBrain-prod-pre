@@ -23,6 +23,11 @@ export interface CaptureResult {
    *  caller to tell the worker something. denied=true means the caller should
    *  surface the permission banner. */
   denied: boolean;
+  /** True when the captured photo exceeded the 8 MB bundle cap and went
+   *  through an emergency recompression pass. The caller surfaces a transient
+   *  "Photo was large — compressed to fit" toast so the worker knows quality
+   *  was reduced. */
+  recompressed?: boolean;
 }
 
 const MAX_BASE64_BYTES = 8 * 1024 * 1024; // 8 MB raw bundle cap
@@ -37,9 +42,9 @@ async function recompressIfTooLarge(
   mime: string,
   quality: number,
   maxDimension: number,
-): Promise<{ uri: string; base64: string; mime: string }> {
+): Promise<{ uri: string; base64: string; mime: string; recompressed: boolean }> {
   if (estimateBytes(base64) <= MAX_BASE64_BYTES) {
-    return { uri, base64, mime };
+    return { uri, base64, mime, recompressed: false };
   }
   // Resize to maxDimension on the longer side, drop quality to 35%
   // (more aggressive than the stage bucket). Repeat with a smaller dimension
@@ -58,11 +63,13 @@ async function recompressIfTooLarge(
       base64: result.base64 ?? '',
       mime: 'image/jpeg',
     };
-    if (estimateBytes(out.base64) <= MAX_BASE64_BYTES) return out;
+    if (estimateBytes(out.base64) <= MAX_BASE64_BYTES) {
+      return { ...out, recompressed: true };
+    }
     q = Math.max(0.2, q - 0.05);
     dim = Math.max(400, Math.floor(dim * 0.75));
   }
-  return out;
+  return { ...out, recompressed: true };
 }
 
 export function usePhotoCapture() {
@@ -109,9 +116,13 @@ export function usePhotoCapture() {
         settings.maxDimension,
       );
 
-      const captured: CapturedPhoto = compressed;
+      const captured: CapturedPhoto = {
+        uri: compressed.uri,
+        base64: compressed.base64,
+        mime: compressed.mime,
+      };
       setPhoto(captured);
-      return { photo: captured, denied: false };
+      return { photo: captured, denied: false, recompressed: compressed.recompressed };
     },
     [],
   );

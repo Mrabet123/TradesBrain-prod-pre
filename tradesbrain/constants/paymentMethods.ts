@@ -11,6 +11,10 @@ export const PAYMENT_METHODS = [
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+// Default payment methods pre-selected on the first quote — most common pair
+// for trade workers per D3 F3. Worker's actual saved preferences override.
+export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ['Cash', 'Bank transfer'];
+
 // D3 F2 / D3 F3 — default section lists. Saved per user per document_type in
 // worker_preferences after the first generation.
 export const DEFAULT_REPORT_SECTIONS = [

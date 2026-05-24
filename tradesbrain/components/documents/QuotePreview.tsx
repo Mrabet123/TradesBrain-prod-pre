@@ -87,7 +87,11 @@ export default function QuotePreview({ draft, onChange }: Props) {
 
   return (
     <View>
-      <Text className="text-sm font-semibold text-brand mb-2">Line items</Text>
+      <View className="flex-row items-center mb-2">
+        <Text className="text-gray-300 text-base mr-1" accessibilityLabel="reorder handle">⠿</Text>
+        <Text className="text-sm font-semibold text-brand">Line items</Text>
+        <Text className="text-xs text-gray-400 ml-2">· Edit</Text>
+      </View>
       <View className="border border-gray-200 rounded-lg overflow-hidden mb-2">
         <View className="flex-row bg-gray-50 px-2 py-2 border-b border-gray-200">
           <Text className="flex-1 text-xs font-semibold text-gray-700">Item</Text>
@@ -101,16 +105,20 @@ export default function QuotePreview({ draft, onChange }: Props) {
         )}
         {draft.lineItems.map((li) => {
           // ISS-22: flag items that need worker input — zero cost or empty name.
+          // D6 Flow06 S7 — Rex-uncertain items render italic + grey with a "*"
+          // marker so the worker spots them before locking the quote.
           const needsInput = li.unitCost === 0 || !li.name.trim();
+          const uncertainStyle = needsInput ? 'italic text-gray-400' : '';
           return (
           <SwipeableLineItemRow key={li.id} onDelete={() => removeLine(li.id)}>
-          <View className="flex-row items-center px-2 py-2 border-b border-gray-100">
+          <View className={`flex-row items-center px-2 py-2 border-b border-gray-100 ${needsInput ? 'bg-amber-50/40' : ''}`}>
             <View className="flex-1 flex-row items-center">
             <TextInput
               value={li.name}
               onChangeText={(t) => updateLine(li.id, { name: t })}
-              placeholder="Item name"
-              className="flex-1 px-1 text-sm"
+              placeholder={needsInput ? 'TBC — tap to name' : 'Item name'}
+              placeholderTextColor={needsInput ? '#d97706' : undefined}
+              className={`flex-1 px-1 text-sm ${uncertainStyle}`}
             />
             {needsInput && (
               <Text className="text-amber-500 text-sm font-bold ml-0.5" accessibilityLabel="needs input">
@@ -122,16 +130,16 @@ export default function QuotePreview({ draft, onChange }: Props) {
               value={li.qty.toString()}
               onChangeText={(t) => updateLine(li.id, { qty: Number(t) || 0 })}
               keyboardType="decimal-pad"
-              className="w-12 text-right text-sm"
+              className={`w-12 text-right text-sm ${uncertainStyle}`}
             />
             <TextInput
               value={li.unitCost.toString()}
               onChangeText={(t) => updateLine(li.id, { unitCost: Number(t) || 0 })}
               keyboardType="decimal-pad"
-              className="w-20 text-right text-sm"
+              className={`w-20 text-right text-sm ${uncertainStyle}`}
             />
-            <Text className="w-20 text-right text-sm font-medium">
-              ${(li.qty * li.unitCost).toFixed(2)}
+            <Text className={`w-20 text-right text-sm font-medium ${uncertainStyle}`}>
+              {needsInput && li.unitCost === 0 ? 'TBC' : `$${(li.qty * li.unitCost).toFixed(2)}`}
             </Text>
             <Pressable onPress={() => removeLine(li.id)} className="w-8 items-end pr-1">
               <Text className="text-red-600 text-base">✕</Text>
@@ -148,7 +156,11 @@ export default function QuotePreview({ draft, onChange }: Props) {
         <Text className="text-center text-gray-600">+ Add line item</Text>
       </Pressable>
 
-      <Text className="text-sm font-semibold text-brand mb-2">Labour</Text>
+      <View className="flex-row items-center mb-2">
+        <Text className="text-gray-300 text-base mr-1" accessibilityLabel="reorder handle">⠿</Text>
+        <Text className="text-sm font-semibold text-brand">Labour</Text>
+        <Text className="text-xs text-gray-400 ml-2">· Edit</Text>
+      </View>
       <View className="flex-row gap-2 mb-4">
         <View className="flex-1">
           <Text className="text-xs text-gray-600 mb-1">Hours</Text>
@@ -172,14 +184,22 @@ export default function QuotePreview({ draft, onChange }: Props) {
         </View>
       </View>
 
-      <Text className="text-sm font-semibold text-brand mb-1">Payment terms</Text>
+      <View className="flex-row items-center mb-1">
+        <Text className="text-gray-300 text-base mr-1" accessibilityLabel="reorder handle">⠿</Text>
+        <Text className="text-sm font-semibold text-brand">Payment terms</Text>
+        <Text className="text-xs text-gray-400 ml-2">· Edit</Text>
+      </View>
       <TextInput
         value={draft.paymentTerms}
         onChangeText={(t) => onChange({ ...draft, paymentTerms: t })}
         className="border border-gray-300 rounded-lg px-3 py-2 text-base mb-3"
       />
 
-      <Text className="text-sm font-semibold text-brand mb-2">Payment methods</Text>
+      <View className="flex-row items-center mb-2">
+        <Text className="text-gray-300 text-base mr-1" accessibilityLabel="reorder handle">⠿</Text>
+        <Text className="text-sm font-semibold text-brand">Payment methods</Text>
+        <Text className="text-xs text-gray-400 ml-2">· Edit</Text>
+      </View>
       <View className="mb-3">
         <PaymentMethodSelector
           selected={draft.paymentMethods}
@@ -187,7 +207,11 @@ export default function QuotePreview({ draft, onChange }: Props) {
         />
       </View>
 
-      <Text className="text-sm font-semibold text-brand mb-1">Validity (days)</Text>
+      <View className="flex-row items-center mb-1">
+        <Text className="text-gray-300 text-base mr-1" accessibilityLabel="reorder handle">⠿</Text>
+        <Text className="text-sm font-semibold text-brand">Validity (days)</Text>
+        <Text className="text-xs text-gray-400 ml-2">· Edit</Text>
+      </View>
       <TextInput
         value={draft.validityDays.toString()}
         onChangeText={(t) => onChange({ ...draft, validityDays: Number(t) || 0 })}
@@ -195,7 +219,11 @@ export default function QuotePreview({ draft, onChange }: Props) {
         className="border border-gray-300 rounded-lg px-3 py-2 text-base mb-3"
       />
 
-      <Text className="text-sm font-semibold text-brand mb-1">Notes</Text>
+      <View className="flex-row items-center mb-1">
+        <Text className="text-gray-300 text-base mr-1" accessibilityLabel="reorder handle">⠿</Text>
+        <Text className="text-sm font-semibold text-brand">Notes</Text>
+        <Text className="text-xs text-gray-400 ml-2">· Edit</Text>
+      </View>
       <TextInput
         value={draft.notes}
         onChangeText={(t) => onChange({ ...draft, notes: t })}

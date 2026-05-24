@@ -420,12 +420,27 @@ export default function ReportBuilderScreen() {
 
   return (
     <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5 pt-12">
-      <View className="flex-row items-center justify-between mb-2">
+      {/* D6 Flow05 S6 — when the doc is confirmed the header flips green and
+          shows the versioned "🔒 Report N" badge. Otherwise the neutral Path
+          A / Path B label stays. */}
+      <View
+        className={`flex-row items-center justify-between mb-2 -mx-5 -mt-12 px-5 pt-12 pb-3 ${
+          pdfUri ? 'bg-green-50' : ''
+        }`}
+      >
         <Pressable onPress={() => nav.goBack()}>
-          <Text className="text-brand text-base">← Back</Text>
+          <Text className={`text-base ${pdfUri ? 'text-green-700' : 'text-brand'}`}>
+            ← Back
+          </Text>
         </Pressable>
-        <Text className="text-base font-semibold">
-          Report {incomingSessionId ? 'Path A' : 'Path B'}
+        <Text
+          className={`text-base font-semibold ${
+            pdfUri ? 'text-green-700' : 'text-gray-900'
+          }`}
+        >
+          {pdfUri
+            ? `🔒 Report ${draft?.versionNumber ?? ''}`.trim()
+            : `Report ${incomingSessionId ? 'Path A' : 'Path B'}`}
         </Text>
         <View className="w-12" />
       </View>
@@ -587,8 +602,8 @@ export default function ReportBuilderScreen() {
         title="This action permanently locks all sections."
         message="The report cannot be edited after confirming."
         summaryLines={buildConfirmSummary()}
-        primaryLabel="Confirm and generate PDF"
-        secondaryLabel="Cancel"
+        primaryLabel="Yes — confirm and generate PDF"
+        secondaryLabel="Go back and edit"
         onPrimary={runConfirm}
         onSecondary={() => setConfirmVisible(false)}
         busy={confirming}

@@ -29,9 +29,17 @@ export default function ReportPreview(props: Props) {
       {props.sections.map((s, idx) => (
         <View key={s.id} className="mb-4">
           <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-sm font-semibold text-brand flex-1">
-              {s.name}{s.custom ? ' · custom' : ''}
-            </Text>
+            <View className="flex-row items-center flex-1">
+              {/* D6 Flow05 S3 — visual drag handle next to each section title.
+                  Behaviour is driven by the ↑↓ buttons on the right. */}
+              <Text className="text-gray-300 text-base mr-1" accessibilityLabel="reorder handle">
+                ⠿
+              </Text>
+              <Text className="text-sm font-semibold text-brand">
+                {s.name}{s.custom ? ' · custom' : ''}
+              </Text>
+              <Text className="text-xs text-gray-400 ml-2">· Edit</Text>
+            </View>
             {/* ISS-15: move-up / move-down controls (drag-free reorder). */}
             <View className="flex-row items-center">
               <Pressable

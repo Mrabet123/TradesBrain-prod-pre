@@ -1,5 +1,6 @@
 // D3 F5 — Job card in the History list. No customer name (RULE 5). Trade
-// badge, status, counts, optional inline-editable job name.
+// badge, status, counts, optional inline-editable job name. Matching search
+// terms in the name / jobsite are highlighted in yellow per D6 Flow08 S2.
 
 import React, { useState } from 'react';
 import { View, Text, Pressable, TextInput } from 'react-native';
@@ -9,9 +10,39 @@ interface Props {
   job: HistoryJob;
   onPress: () => void;
   onRename: (newName: string) => void | Promise<void>;
+  /** Active search term — case-insensitive matches are highlighted in yellow. */
+  searchTerm?: string;
 }
 
-export default function JobCard({ job, onPress, onRename }: Props) {
+// Splits `text` around case-insensitive matches of `term` and renders the
+// matches with a yellow background. Returns a list of <Text> children.
+function highlightMatches(
+  text: string,
+  term: string | undefined,
+  className: string,
+): React.ReactNode {
+  if (!term) return <Text className={className}>{text}</Text>;
+  const trimmed = term.trim();
+  if (!trimmed) return <Text className={className}>{text}</Text>;
+  // Escape regex special chars in the search term.
+  const safe = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${safe})`, 'ig'));
+  return (
+    <Text className={className}>
+      {parts.map((part, i) =>
+        part.toLowerCase() === trimmed.toLowerCase() ? (
+          <Text key={i} className={`${className} bg-yellow-200`}>
+            {part}
+          </Text>
+        ) : (
+          part
+        ),
+      )}
+    </Text>
+  );
+}
+
+export default function JobCard({ job, onPress, onRename, searchTerm }: Props) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(job.jobName ?? '');
 
@@ -38,9 +69,14 @@ export default function JobCard({ job, onPress, onRename }: Props) {
           />
         ) : (
           <Pressable onPress={() => setEditing(true)} className="flex-1">
-            <Text className="text-base font-semibold text-gray-900">
-              {job.jobName || 'Untitled job'} <Text className="text-xs text-gray-400">✎</Text>
-            </Text>
+            <View className="flex-row items-center">
+              {highlightMatches(
+                job.jobName || 'Untitled job',
+                searchTerm,
+                'text-base font-semibold text-gray-900',
+              )}
+              <Text className="text-xs text-gray-400 ml-1">✎</Text>
+            </View>
           </Pressable>
         )}
         <View className="bg-brand/10 rounded-full px-2 py-0.5 ml-2">
@@ -51,7 +87,10 @@ export default function JobCard({ job, onPress, onRename }: Props) {
       </View>
 
       {job.jobsite && (
-        <Text className="text-xs text-gray-500 mb-1">📍 {job.jobsite}</Text>
+        <View className="mb-1 flex-row items-center">
+          <Text className="text-xs text-gray-500">📍 </Text>
+          {highlightMatches(job.jobsite, searchTerm, 'text-xs text-gray-500')}
+        </View>
       )}
 
       <Text className="text-xs text-gray-500">

@@ -9,15 +9,20 @@
 // buttons (Reopen job, Generate report N+1, Generate quote N+1) are
 // disabled and tap-routed to the paywall instead.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   Pressable,
   ScrollView,
   Modal,
   Image,
   Linking,
+  FlatList,
+  Dimensions,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -33,11 +38,12 @@ import {
   fetchSessionDetail,
   getSignedPdfUrl,
   reopenSession,
+  updateJobName,
   type DocVersion,
   type HistoryJob,
   type MessageRow,
 } from '../../../services/history';
-import { sharePdf } from '../../../services/share';
+import { sharePdf, sharePhoto } from '../../../services/share';
 import SkeletonCard from '../../../components/history/SkeletonCard';
 import { useSubscriptionContext } from '../../../context/SubscriptionContext';
 
@@ -51,6 +57,16 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'quotes', label: 'Quotes' },
   { value: 'photos', label: 'Photos' },
 ];
+
+// Mirrors STAGE_NAMES in app/job/[sessionId].tsx so stage groupings on the
+// Photos tab stay in sync with the live session header.
+const STAGE_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: 'Problem ID',
+  2: 'Diagnosis',
+  3: 'Steps',
+  4: 'Final check',
+  5: 'Close',
+};
 
 export default function JobDetailScreen() {
   const nav = useNavigation<Nav>();
@@ -73,6 +89,22 @@ export default function JobDetailScreen() {
   const [busy, setBusy] = useState(false);
   // PDF-load failure surface (no Alert.alert anywhere).
   const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // D6 Flow08 NEW SCREEN A — inline-edit the job name in the header. This is
+  // the only field editable on an archived job (M5 LOCKED RULE).
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState('');
+
+  // D6 Flow08 NEW SCREEN D — fullscreen photo viewer with swipe pagination.
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const photoListRef = useRef<FlatList<any>>(null);
+  const screenWidth = Dimensions.get('window').width;
+
+  // D6 Flow08 Screen 5 — long threads collapse to first + last few messages
+  // with a "N more — tap to expand" affordance.
+  const [rexExpanded, setRexExpanded] = useState(false);
+  const REX_COLLAPSE_THRESHOLD = 12;
+  const REX_HEAD_TAIL = 4;
 
   // M5 RULE 6 — read-write access is gated by subscription. PDF view/share is
   // always allowed; feature buttons (reopen, generate new version) route to
@@ -165,6 +197,63 @@ export default function JobDetailScreen() {
     });
   }
 
+  function beginEditName() {
+    if (!job) return;
+    setDraftName(job.jobName ?? '');
+    setEditing(true);
+  }
+
+  async function saveEditName() {
+    const name = draftName.trim();
+    if (!name || !job) {
+      setEditing(false);
+      return;
+    }
+    await updateJobName(jobId, name);
+    setJob({ ...job, jobName: name });
+    setEditing(false);
+  }
+
+  function onDeleteTap() {
+    // M5 LOCKED RULE — Delete is locked when subscription is expired so the
+    // worker can't permanently destroy records they can no longer regenerate.
+    if (!hasFeatureAccess) {
+      nav.navigate('Paywall');
+      return;
+    }
+    setDeleteVisible(true);
+  }
+
+  // Track the active photo in the fullscreen pager for the "2 of 8" indicator.
+  function onPhotoScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const i = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+    if (i !== photoIndex) setPhotoIndex(i);
+  }
+
+  function openPhotoAt(uri: string) {
+    const idx = photos.findIndex((p) => p.uri === uri);
+    setPhotoIndex(idx < 0 ? 0 : idx);
+    setPhotoModal(uri);
+  }
+
+  // D6 Flow08 Screen 8 — "Download all photos" loops through every photo in
+  // the session and offers the system share sheet for each. The worker can
+  // cancel mid-loop; iOS / Android both surface "Save Image" in the sheet.
+  const [downloading, setDownloading] = useState(false);
+  async function downloadAllPhotos() {
+    if (downloading || photos.length === 0) return;
+    setDownloading(true);
+    try {
+      for (let i = 0; i < photos.length; i++) {
+        await sharePhoto(photos[i].uri, `Photo ${i + 1} of ${photos.length}`);
+      }
+    } catch (e) {
+      setPdfError('One or more photos could not be downloaded.');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (loading || !job) {
     // D6 Flow12 S21 — skeleton during Supabase fetch (no blank screen).
     return (
@@ -178,17 +267,48 @@ export default function JobDetailScreen() {
 
   return (
     <View className="flex-1 bg-white pt-12">
-      {/* Header */}
+      {/* Header — D6 Flow08 NEW SCREEN A */}
       <View className="px-4 pb-2 border-b border-gray-200">
         <View className="flex-row items-center justify-between mb-2">
           <Pressable onPress={() => nav.goBack()}>
             <Text className="text-brand text-base">← Back</Text>
           </Pressable>
-          <Text className="text-base font-semibold flex-1 text-center">
-            {job.jobName || 'Untitled job'}
-          </Text>
-          <Pressable onPress={() => setDeleteVisible(true)}>
-            <Text className="text-red-600 text-base">Delete</Text>
+          {editing ? (
+            <View className="flex-1 mx-2 flex-row items-center">
+              <TextInput
+                value={draftName}
+                onChangeText={setDraftName}
+                autoFocus
+                placeholder="Job name"
+                onSubmitEditing={saveEditName}
+                className="flex-1 border border-brand rounded-lg px-2 py-1 text-base"
+              />
+              <Pressable onPress={saveEditName} className="px-2">
+                <Text className="text-brand text-sm font-semibold">Save</Text>
+              </Pressable>
+              <Pressable onPress={() => setEditing(false)} className="px-1">
+                <Text className="text-gray-500 text-sm">Cancel</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              onPress={beginEditName}
+              className="flex-1 flex-row items-center justify-center"
+            >
+              <Text className="text-base font-semibold text-center">
+                {job.jobName || 'Untitled job'}
+              </Text>
+              <Text className="text-gray-400 text-xs ml-1">  ✎</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={onDeleteTap} disabled={!hasFeatureAccess}>
+            <Text
+              className={`text-base ${
+                hasFeatureAccess ? 'text-red-600' : 'text-gray-400'
+              }`}
+            >
+              {hasFeatureAccess ? 'Delete' : '🔒 Delete'}
+            </Text>
           </Pressable>
         </View>
         <View className="flex-row items-center justify-between mb-2">
@@ -206,7 +326,7 @@ export default function JobDetailScreen() {
                 hasFeatureAccess ? 'text-brand' : 'text-gray-400'
               }`}
             >
-              ↩ Reopen Rex
+              ↩ Reopen Job
             </Text>
           </Pressable>
         </View>
@@ -265,16 +385,55 @@ export default function JobDetailScreen() {
             <Text className="text-center text-gray-400 mt-10">
               No messages in this session.
             </Text>
+          ) : messages.length > REX_COLLAPSE_THRESHOLD && !rexExpanded ? (
+            <>
+              {messages.slice(0, REX_HEAD_TAIL).map((m) => (
+                <MessageBubble
+                  key={m.id}
+                  role={m.role}
+                  content={m.contentText ?? ''}
+                  photoUrl={m.photoUrl}
+                  transcript={m.transcriptEdited ?? m.transcriptOriginal}
+                />
+              ))}
+              <Pressable
+                onPress={() => setRexExpanded(true)}
+                className="mx-4 my-3 py-3 rounded-lg border border-dashed border-gray-300 bg-gray-50"
+              >
+                <Text className="text-center text-sm text-gray-600 font-medium">
+                  {messages.length - REX_HEAD_TAIL * 2} more messages — tap to expand
+                </Text>
+              </Pressable>
+              {messages.slice(-REX_HEAD_TAIL).map((m) => (
+                <MessageBubble
+                  key={m.id}
+                  role={m.role}
+                  content={m.contentText ?? ''}
+                  photoUrl={m.photoUrl}
+                  transcript={m.transcriptEdited ?? m.transcriptOriginal}
+                />
+              ))}
+            </>
           ) : (
-            messages.map((m) => (
-              <MessageBubble
-                key={m.id}
-                role={m.role}
-                content={m.contentText ?? ''}
-                photoUrl={m.photoUrl}
-                transcript={m.transcriptEdited ?? m.transcriptOriginal}
-              />
-            ))
+            <>
+              {messages.map((m) => (
+                <MessageBubble
+                  key={m.id}
+                  role={m.role}
+                  content={m.contentText ?? ''}
+                  photoUrl={m.photoUrl}
+                  transcript={m.transcriptEdited ?? m.transcriptOriginal}
+                />
+              ))}
+              {messages.length > REX_COLLAPSE_THRESHOLD && rexExpanded && (
+                <Pressable
+                  onPress={() => setRexExpanded(false)}
+                  className="mx-4 my-2 py-2"
+                >
+                  <Text className="text-center text-xs text-gray-500">Collapse thread</Text>
+                </Pressable>
+              )}
+            </>
           )}
         </ScrollView>
       )}
@@ -364,45 +523,151 @@ export default function JobDetailScreen() {
               No photos in this session.
             </Text>
           ) : (
-            <View className="flex-row flex-wrap -mx-1">
-              {photos.map((p) => (
-                <Pressable
-                  key={p.id}
-                  onPress={() => setPhotoModal(p.uri)}
-                  className="w-1/3 aspect-square p-1"
-                >
-                  <Image
-                    source={{ uri: p.uri }}
-                    className="w-full h-full rounded-md"
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ))}
+            <>
+              <Pressable
+                onPress={downloadAllPhotos}
+                disabled={downloading}
+                className={`py-3 rounded-xl mb-3 border border-brand ${
+                  downloading ? 'opacity-50' : ''
+                }`}
+              >
+                <Text className="text-center text-brand font-semibold">
+                  {downloading ? 'Preparing…' : `+ Download all ${photos.length} photos`}
+                </Text>
+              </Pressable>
+              {/* D6 Flow08 Screen 8 — stage-grouped photo grid. */}
+              {[1, 2, 3, 4, 5].map((stage) => {
+                const inStage = photos.filter((p) => (p.stage ?? 0) === stage);
+                if (inStage.length === 0) return null;
+                const stageLabel = STAGE_LABELS[stage as 1 | 2 | 3 | 4 | 5];
+                return (
+                  <View key={stage} className="mb-5">
+                    <Text className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">
+                      Stage {stage} — {stageLabel}
+                    </Text>
+                    <View className="flex-row flex-wrap -mx-1">
+                      {inStage.map((p) => (
+                        <Pressable
+                          key={p.id}
+                          onPress={() => openPhotoAt(p.uri)}
+                          className="w-1/3 aspect-square p-1"
+                        >
+                          <Image
+                            source={{ uri: p.uri }}
+                            className="w-full h-full rounded-md"
+                            resizeMode="cover"
+                          />
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
+            </>
+          )}
+          {/* Photos not tagged to a stage (legacy or non-Rex sources). */}
+          {photos.some((p) => !p.stage) && (
+            <View className="mb-5">
+              <Text className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">
+                Other
+              </Text>
+              <View className="flex-row flex-wrap -mx-1">
+                {photos
+                  .filter((p) => !p.stage)
+                  .map((p) => (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => openPhotoAt(p.uri)}
+                      className="w-1/3 aspect-square p-1"
+                    >
+                      <Image
+                        source={{ uri: p.uri }}
+                        className="w-full h-full rounded-md"
+                        resizeMode="cover"
+                      />
+                    </Pressable>
+                  ))}
+              </View>
             </View>
           )}
         </ScrollView>
       )}
 
-      {/* Full-screen photo modal */}
+      {/* Full-screen photo viewer — D6 Flow08 NEW SCREEN D.
+          Horizontal pager + "N of M" indicator + stage label overlay. */}
       <Modal
         visible={!!photoModal}
         animationType="fade"
         onRequestClose={() => setPhotoModal(null)}
         transparent
       >
-        <Pressable
-          onPress={() => setPhotoModal(null)}
-          className="flex-1 bg-black items-center justify-center"
-        >
-          {photoModal && (
-            <Image
-              source={{ uri: photoModal }}
-              style={{ width: '100%', height: '85%' }}
-              resizeMode="contain"
-            />
+        <View className="flex-1 bg-black">
+          {/* Top bar: close + counter */}
+          <View className="flex-row items-center justify-between pt-12 px-4 pb-2">
+            <Pressable onPress={() => setPhotoModal(null)}>
+              <Text className="text-white text-base">Close</Text>
+            </Pressable>
+            <Text className="text-white text-sm font-semibold">
+              {photos.length > 0 ? `${photoIndex + 1} of ${photos.length}` : ''}
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
+
+          <FlatList
+            ref={photoListRef}
+            data={photos}
+            horizontal
+            pagingEnabled
+            initialScrollIndex={photoIndex}
+            getItemLayout={(_, i) => ({
+              length: screenWidth,
+              offset: screenWidth * i,
+              index: i,
+            })}
+            onScroll={onPhotoScroll}
+            scrollEventThrottle={16}
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View
+                style={{ width: screenWidth }}
+                className="items-center justify-center"
+              >
+                <Image
+                  source={{ uri: item.uri }}
+                  style={{ width: screenWidth, height: '80%' }}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+          />
+
+          {/* Stage label overlay for the current photo. */}
+          {photos[photoIndex]?.stage ? (
+            <View className="absolute bottom-12 left-0 right-0 items-center">
+              <View className="bg-white/15 px-3 py-1.5 rounded-full">
+                <Text className="text-white text-xs font-semibold tracking-wider">
+                  STAGE {photos[photoIndex].stage} —{' '}
+                  {STAGE_LABELS[photos[photoIndex].stage as 1 | 2 | 3 | 4 | 5]}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Pagination dots. */}
+          {photos.length > 1 && (
+            <View className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5">
+              {photos.map((_, i) => (
+                <View
+                  key={i}
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    i === photoIndex ? 'bg-white' : 'bg-white/30'
+                  }`}
+                />
+              ))}
+            </View>
           )}
-          <Text className="text-white mt-4">Tap to close</Text>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Reopen confirm — in-app, no Alert.alert. */}

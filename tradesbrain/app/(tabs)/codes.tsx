@@ -346,7 +346,7 @@ export default function CodesScreen() {
         {recent.length > 0 && (
           <View className="mt-2">
             <Text className="text-sm font-semibold text-gray-700 mb-2">
-              Recent lookups (offline)
+              {isConnected ? 'Recent lookups' : 'Cached lookups — available offline'}
             </Text>
             {recent.map((r) => (
               <Pressable

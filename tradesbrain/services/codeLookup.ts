@@ -115,13 +115,15 @@ export async function lookupCode(
   }));
 
   if (!result.ok) {
+    // Don't tack the AHJ note onto an error/offline message — the note's whole
+    // purpose is to caveat a successful code answer with "verify local
+    // adoption". Pasting it under an error is misleading (no answer to verify).
     return {
       ok: false,
       query,
       tradeType,
-      answerText: ensureAhj(
+      answerText:
         'Code lookup is offline. Check your connection or deploy the claude-proxy / embedding-proxy Edge Functions and try again.',
-      ),
       citations,
       ranAt,
       error: result.error,

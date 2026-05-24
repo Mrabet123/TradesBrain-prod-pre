@@ -28,6 +28,7 @@ import StreamingText from '../../components/rex/StreamingText';
 import VoiceRecordButton from '../../components/rex/VoiceRecordButton';
 import PhotoCapture from '../../components/rex/PhotoCapture';
 import ContextualButtons from '../../components/rex/ContextualButtons';
+import ToastNotification from '../../components/shared/ToastNotification';
 
 import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
@@ -57,7 +58,7 @@ function formatJobDate(d: Date): string {
 // ISS-M10 (RX-4): D6 Flow04 locks a visible stage indicator. The five Rex
 // stages, used by the header pill and the ①→⑤ progress strip.
 const STAGE_NAMES: Record<number, string> = {
-  1: 'Context',
+  1: 'Problem ID',
   2: 'Diagnosis',
   3: 'Steps',
   4: 'Final check',
@@ -79,6 +80,12 @@ export default function ActiveSessionScreen() {
     tradeType: tradeType || 'plumber',
     userId: user?.id ?? '',
     recapOnLoad,
+    onTrialDecrementFailed: () => {
+      setToast({
+        msg: 'Trial count may be out of sync — server unreachable. We will retry on next message.',
+        type: 'error',
+      });
+    },
   });
 
   const voice = useVoiceRecording();
@@ -88,6 +95,11 @@ export default function ActiveSessionScreen() {
   const [text, setText] = useState('');
   const [pendingPhoto, setPendingPhoto] = useState<CapturedPhoto | null>(null);
   const [transcript, setTranscript] = useState<string | null>(null);
+  // Transient toast used by the photo-recompression and trial-decrement
+  // failure surfaces (both are silent failures the worker should be aware of).
+  const [toast, setToast] = useState<{ msg: string; type: 'info' | 'warning' | 'error' } | null>(
+    null,
+  );
   const [transcribing, setTranscribing] = useState(false);
   const [voiceDenied, setVoiceDenied] = useState(false);
   const [closeModalVisible, setCloseModalVisible] = useState(false);
@@ -160,7 +172,18 @@ export default function ActiveSessionScreen() {
 
   async function handlePhoto() {
     const result = await photo.capture(rex.stage);
-    if (result.photo) setPendingPhoto(result.photo);
+    if (result.photo) {
+      setPendingPhoto(result.photo);
+      // RX-recompression toast — the photo was over 8 MB and was downscaled
+      // silently. Surface a non-blocking note so the worker knows quality
+      // was reduced before sending.
+      if (result.recompressed) {
+        setToast({
+          msg: 'Photo was large — compressed to fit. Quality reduced.',
+          type: 'warning',
+        });
+      }
+    }
   }
 
   async function handleSend() {
@@ -248,6 +271,14 @@ export default function ActiveSessionScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1 }}
     >
+      {toast && (
+        <ToastNotification
+          message={toast.msg}
+          visible={!!toast}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
+      )}
       <View className="flex-1 bg-white pt-12">
         {/* Header */}
         <View className="px-4 pb-2 flex-row items-center justify-between border-b border-gray-200">

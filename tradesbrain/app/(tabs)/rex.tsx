@@ -1,6 +1,9 @@
 // D6 Flow04 — Rex tab entry.
 // If there's an active session: amber "Continue session" banner + start new option.
-// Otherwise: "Start a new job" button. SubscriptionGate wraps the New Job CTA.
+// Otherwise: "Start a new job" button. The CTA tap is gated by an inline
+// hasAccess check (trial-with-queries or active subscription) — when the gate
+// fails, startNewJob() routes to the Paywall modal so the underlying tab
+// remains mounted underneath (RULE 8 / D6 Flow12 S9).
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Image } from 'react-native';

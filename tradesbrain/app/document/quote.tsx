@@ -191,6 +191,13 @@ export default function QuoteBuilderScreen() {
         if (error || !data) throw error;
         sid = data.id;
         setSessionId(sid);
+      } else if (jobName.trim()) {
+        // D6 Flow06 S2 Path A — if the worker named the job here, persist it
+        // back to the existing session so History reflects the chosen name.
+        await supabase
+          .from('job_sessions')
+          .update({ job_name: jobName.trim() })
+          .eq('id', sid);
       }
 
       // Path A — reuse a prior report's confirmed_amount and time-on-site
@@ -286,6 +293,24 @@ export default function QuoteBuilderScreen() {
       );
       return;
     }
+    // D6 Flow06 S7 — quote with labour hours but no hourly rate is invalid:
+    // the locked PDF would show $0 labour. Block the confirm and offer a
+    // direct route to set the rate.
+    if ((draft.labourHours ?? 0) > 0 && (!profile.hourlyRate || profile.hourlyRate <= 0)) {
+      setConfirmVisible(false);
+      Alert.alert(
+        'Hourly rate missing',
+        'Set your hourly rate before locking a quote with labour. Open Settings → Profile to add it.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => (nav as any).navigate('SettingsProfile'),
+          },
+        ],
+      );
+      return;
+    }
     setConfirmVisible(false);
     setConfirming(true);
     try {
@@ -330,12 +355,22 @@ export default function QuoteBuilderScreen() {
 
   return (
     <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5 pt-12">
-      <View className="flex-row items-center justify-between mb-2">
+      {/* D6 Flow06 S6 — confirmed state flips the header background green and
+          shows "🔒 Quote N" with version. */}
+      <View
+        className={`flex-row items-center justify-between mb-2 -mx-5 -mt-12 px-5 pt-12 pb-3 ${
+          pdfUri ? 'bg-green-50' : ''
+        }`}
+      >
         <Pressable onPress={() => nav.goBack()}>
-          <Text className="text-brand text-base">← Back</Text>
+          <Text className={`text-base ${pdfUri ? 'text-green-700' : 'text-brand'}`}>← Back</Text>
         </Pressable>
-        <Text className="text-base font-semibold">
-          Quote {incomingSessionId ? 'Path A' : 'Path B'}
+        <Text
+          className={`text-base font-semibold ${pdfUri ? 'text-green-700' : 'text-gray-900'}`}
+        >
+          {pdfUri
+            ? `🔒 Quote ${draft?.versionNumber ?? ''}`.trim()
+            : `Quote ${incomingSessionId ? 'Path A' : 'Path B'}`}
         </Text>
         <View className="w-12" />
       </View>
@@ -350,17 +385,19 @@ export default function QuoteBuilderScreen() {
 
       {!draft ? (
         <View>
-          {!incomingSessionId && (
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-1">Job name</Text>
-              <TextInput
-                value={jobName}
-                onChangeText={setJobName}
-                placeholder="e.g. Bathroom remodel — 47 Oak Lane"
-                className="border border-gray-300 rounded-lg px-3 py-3 text-base"
-              />
-            </View>
-          )}
+          {/* D6 Flow06 S2 — Path A also lets the worker name the job so it
+              shows clearly in History. Path B requires it (no source session). */}
+          <View className="mb-4">
+            <Text className="text-sm font-medium text-gray-700 mb-1">
+              {incomingSessionId ? 'Job name (optional — for History)' : 'Job name'}
+            </Text>
+            <TextInput
+              value={jobName}
+              onChangeText={setJobName}
+              placeholder="e.g. Bathroom remodel — 47 Oak Lane"
+              className="border border-gray-300 rounded-lg px-3 py-3 text-base"
+            />
+          </View>
 
           <Text className="text-sm font-semibold text-brand mb-1">Job description</Text>
           <Text className="text-xs text-gray-500 mb-2">
@@ -455,8 +492,8 @@ export default function QuoteBuilderScreen() {
         title="This action permanently locks all sections."
         message="The quote cannot be edited after confirming."
         summaryLines={buildConfirmSummary()}
-        primaryLabel="Confirm and generate PDF"
-        secondaryLabel="Cancel"
+        primaryLabel="Yes — confirm and generate PDF"
+        secondaryLabel="Go back and edit"
         onPrimary={runConfirm}
         onSecondary={() => setConfirmVisible(false)}
         busy={confirming}

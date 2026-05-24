@@ -109,9 +109,19 @@ interface UseRexOpts {
   tradeType: string;
   userId: string;
   recapOnLoad?: boolean;
+  /** Called when the server-side trial decrement failed twice (retry exhausted).
+   *  The session continues — the worker just sees a toast so the trial-count
+   *  drift is visible. */
+  onTrialDecrementFailed?: () => void;
 }
 
-export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: UseRexOpts) {
+export function useRexSession({
+  sessionId,
+  tradeType,
+  userId,
+  recapOnLoad,
+  onTrialDecrementFailed,
+}: UseRexOpts) {
   const [state, dispatch] = useReducer(reducer, initial);
   const streamingRef = useRef('');
   const recapTriggeredRef = useRef(false);
@@ -315,7 +325,14 @@ export function useRexSession({ sessionId, tradeType, userId, recapOnLoad }: Use
     // ISS-32: one silent retry on failure (~1 s delay); still non-blocking.
     supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() =>
       new Promise<void>((res) => setTimeout(res, 1000)).then(() =>
-        supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() => {}),
+        supabase.functions
+          .invoke('decrement-trial-query', { body: {} })
+          .catch(() => {
+            // Second retry also failed — surface to the screen so the worker
+            // sees that the trial count may have drifted out of sync with the
+            // actual queries used.
+            onTrialDecrementFailed?.();
+          }),
       ),
     );
     // CC-5 Fix B — tag a pushback response with [[PUSHBACK:n]] so MessageBubble
