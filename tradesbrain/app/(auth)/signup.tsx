@@ -13,7 +13,6 @@ import {
   Text,
   TextInput,
   Pressable,
-  ScrollView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -23,6 +22,7 @@ import type { RootStackParamList } from '../_layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { startSignUp, signInWithGoogle } from '../../services/auth';
 import { useAuthContext } from '../../context/AuthContext';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import {
   Field,
   RadioRow,
@@ -234,7 +234,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="px-5 pt-12 pb-10">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5 pt-12">
       <Text className="text-2xl font-bold text-gray-900 mb-1">Create your account</Text>
       <Text className="text-sm text-gray-500 mb-5">Step {step} of 3</Text>
 
@@ -460,7 +460,7 @@ export default function SignUpScreen() {
           </Pressable>
         )}
       </View>
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }
 

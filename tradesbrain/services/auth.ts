@@ -222,7 +222,13 @@ export async function signInWithPhoneVerify(phone: string, token: string) {
 }
 
 export async function sendPasswordReset(email: string) {
-  return supabase.auth.resetPasswordForEmail(email);
+  // The deep link below opens the TradesBrain app back at the Forgot Password
+  // screen in 'reset' phase. The scheme is registered in app.json + linking
+  // config in App.tsx. Configure the matching URL under Supabase Dashboard →
+  // Authentication → URL Configuration → Redirect URLs.
+  return supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'tradesbrain://reset-password',
+  });
 }
 
 export async function updatePassword(newPassword: string) {

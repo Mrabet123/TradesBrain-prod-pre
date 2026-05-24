@@ -10,6 +10,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signInWithPhoneStart, signInWithPhoneVerify } from '../../services/auth';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -151,7 +152,7 @@ export default function PhoneSignInScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white px-5 pt-12">
+    <KeyboardAwareScreen>
       <Text className="text-2xl font-bold text-gray-900 mb-1">
         {phase === 'enter' ? 'Sign in with phone' : 'Enter SMS code'}
       </Text>
@@ -246,6 +247,6 @@ export default function PhoneSignInScreen() {
           <ActivityIndicator />
         </View>
       )}
-    </View>
+    </KeyboardAwareScreen>
   );
 }

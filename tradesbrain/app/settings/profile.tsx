@@ -12,11 +12,11 @@ import {
   Text,
   TextInput,
   Pressable,
-  ScrollView,
   Alert,
   ActivityIndicator,
   Image,
 } from 'react-native';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
@@ -194,7 +194,7 @@ export default function ProfileSettingsScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="pt-12 px-5 pb-10">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="pt-12 px-5">
       <View className="flex-row items-center justify-between mb-4">
         <Pressable onPress={() => nav.goBack()}>
           <Text className="text-brand text-base">← Back</Text>
@@ -284,7 +284,7 @@ export default function ProfileSettingsScreen() {
           onVerify={() => verifyIdentity('license')}
         />
       </View>
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }
 

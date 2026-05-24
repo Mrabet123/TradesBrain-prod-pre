@@ -9,11 +9,11 @@ import {
   View,
   Text,
   Pressable,
-  ScrollView,
   Alert,
   ActivityIndicator,
   TextInput,
 } from 'react-native';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
@@ -419,7 +419,7 @@ export default function ReportBuilderScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="px-5 pt-12 pb-10">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5 pt-12">
       <View className="flex-row items-center justify-between mb-2">
         <Pressable onPress={() => nav.goBack()}>
           <Text className="text-brand text-base">← Back</Text>
@@ -605,6 +605,6 @@ export default function ReportBuilderScreen() {
         onPrimary={() => setPendingNav(null)}
         onSecondary={onConfirmDiscard}
       />
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }

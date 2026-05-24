@@ -10,6 +10,7 @@ import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'reac
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TermsOverlay from '../../components/shared/TermsOverlay';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   verifyEmailOtp,
@@ -36,7 +37,7 @@ const MAX_WRONG = 3;
 const LOCKOUT_KEY = 'tb_otp_lockout';
 
 export default function OtpVerifyScreen() {
-  const { refreshProfileStatus, setProfileSetupPending } = useAuthContext();
+  const { refreshProfileStatus, setProfileSetupPending, refreshUser } = useAuthContext();
   const route = useRoute<RouteProp<Params, 'OtpVerify'>>();
   const data = route.params.signUpData;
 
@@ -49,8 +50,11 @@ export default function OtpVerifyScreen() {
   const [phoneWrong, setPhoneWrong] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
-  const [emailCooldown, setEmailCooldown] = useState(RESEND_COOLDOWN_S);
-  const [phoneCooldown, setPhoneCooldown] = useState(RESEND_COOLDOWN_S);
+  // ISS-OTP-COOLDOWN: previously seeded at 60s, forcing a first-open countdown
+  // before the (already-sent) initial codes could be resent. Start at 0 so the
+  // Resend link is immediately usable.
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
 
   const [busy, setBusy] = useState(false);
   // D2 Step 6 — Terms overlay shown after both OTPs are verified.
@@ -118,6 +122,8 @@ export default function OtpVerifyScreen() {
       return;
     }
     setEmailVerified(true);
+    // Pull the fresh user row so RootLayout's fullyVerified flag updates.
+    await refreshUser();
   }
 
   async function tryVerifyPhone() {
@@ -142,6 +148,7 @@ export default function OtpVerifyScreen() {
       return;
     }
     setPhoneVerified(true);
+    await refreshUser();
   }
 
   // D2 Step 5 → Step 6: once both OTPs are verified, present the Terms overlay.
@@ -189,7 +196,7 @@ export default function OtpVerifyScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white px-5 pt-12">
+    <KeyboardAwareScreen>
       <Text className="text-2xl font-bold text-gray-900 mb-1">Verify your identity</Text>
       <Text className="text-sm text-gray-600 mb-6">
         Enter the codes we sent to your email and phone.
@@ -259,7 +266,7 @@ export default function OtpVerifyScreen() {
         onAgree={onAgreeTerms}
         onClose={() => setShowTerms(false)}
       />
-    </View>
+    </KeyboardAwareScreen>
   );
 }
 

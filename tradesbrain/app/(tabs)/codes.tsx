@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
@@ -203,7 +204,7 @@ export default function CodesScreen() {
   );
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-10">
+    <KeyboardAwareScreen bottomInset={80} contentContainerClassName="">
       <View className="pt-12 px-5">
         <Text className="text-2xl font-bold text-gray-900">Codes</Text>
         <Text className="text-sm text-gray-600 mb-3">
@@ -373,6 +374,6 @@ export default function CodesScreen() {
           </View>
         )}
       </View>
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }

@@ -99,8 +99,13 @@ export default function PaywallScreen() {
         setKycMessage('Identity verified.');
       } else if (nid === 'rejected' || lic === 'rejected') {
         setKycReady(false);
+        // Surface both when both are rejected; otherwise name only the rejected
+        // document so the worker knows which one to re-upload.
+        const rejected: string[] = [];
+        if (nid === 'rejected') rejected.push('National ID');
+        if (lic === 'rejected') rejected.push('License');
         setKycMessage(
-          `${nid === 'rejected' ? 'National ID' : 'License'} rejected — re-upload from Settings.`,
+          `${rejected.join(' and ')} rejected — re-upload from Settings.`,
         );
       } else if (nid === 'pending' || lic === 'pending') {
         setKycReady(false);

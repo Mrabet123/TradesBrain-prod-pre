@@ -4,11 +4,12 @@
 // createUserProfile() — which creates the users row and clears the gate.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, Alert } from 'react-native';
 import { supabase } from '../../services/supabase';
 import { createUserProfile, type SignUpInput } from '../../services/auth';
 import { useAuthContext } from '../../context/AuthContext';
 import TermsOverlay from '../../components/shared/TermsOverlay';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import {
   Field,
   RadioRow,
@@ -121,7 +122,7 @@ export default function CompleteProfileScreen() {
   if (loading) return <View className="flex-1 bg-white" />;
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="px-5 pt-12 pb-10">
+    <KeyboardAwareScreen bottomInset={96}>
       <Text className="text-2xl font-bold text-gray-900 mb-1">Finish setting up</Text>
       <Text className="text-sm text-gray-500 mb-5">
         A few more details before you can start using TradesBrain.
@@ -248,6 +249,6 @@ export default function CompleteProfileScreen() {
         onClose={() => setShowTerms(false)}
         onAgree={onConfirm}
       />
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }

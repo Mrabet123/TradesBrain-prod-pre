@@ -20,10 +20,20 @@ interface AuthContextType {
   // profileChecked: the first profile lookup after sign-in has resolved.
   // profileSetupPending: the email sign-up flow (OtpVerify) is mid-creation —
   //   the gate waits instead of flashing the complete-profile screen.
+  // emailVerified / phoneVerified: per-channel confirmation flags derived from
+  //   the auth user. An email-signup is considered "fully verified" only when
+  //   BOTH are true (TradesBrain collects email + phone at signup).
+  // fullyVerified: convenience flag for the RootLayout gate — distinguishes a
+  //   user who just verified one channel from one who verified both.
   profileComplete: boolean;
   profileChecked: boolean;
   profileSetupPending: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  fullyVerified: boolean;
+  signUpProvider: 'email' | 'oauth' | 'phone' | null;
   refreshProfileStatus: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   setProfileSetupPending: (pending: boolean) => void;
   signOut: () => Promise<void>;
 }
@@ -36,10 +46,57 @@ const AuthContext = createContext<AuthContextType>({
   profileComplete: false,
   profileChecked: false,
   profileSetupPending: false,
+  emailVerified: false,
+  phoneVerified: false,
+  fullyVerified: false,
+  signUpProvider: null,
   refreshProfileStatus: async () => {},
+  refreshUser: async () => {},
   setProfileSetupPending: () => {},
   signOut: async () => {},
 });
+
+// Classify how the user signed up so the RootLayout gate knows which channels
+// must be confirmed before the app opens.
+//   email  — used both email+phone (signup form). Both OTPs required.
+//   phone  — phone-OTP only sign-in. Just phone confirmation needed.
+//   oauth  — Google. Provider already verified the email; we trust it.
+function classifyProvider(user: User | null): 'email' | 'oauth' | 'phone' | null {
+  if (!user) return null;
+  const provider = user.app_metadata?.provider ?? '';
+  if (provider && provider !== 'email' && provider !== 'phone') return 'oauth';
+  if (provider === 'phone') return 'phone';
+  // Default to 'email' — that's what supabase.auth.signUp uses for email+phone
+  // accounts and matches the TradesBrain sign-up form.
+  return 'email';
+}
+
+function deriveVerification(user: User | null) {
+  if (!user) {
+    return {
+      emailVerified: false,
+      phoneVerified: false,
+      provider: null as 'email' | 'oauth' | 'phone' | null,
+      fullyVerified: false,
+    };
+  }
+  const provider = classifyProvider(user);
+  const emailVerified = !!user.email_confirmed_at;
+  const phoneVerified = !!user.phone_confirmed_at || !user.phone;
+  let fully: boolean;
+  if (provider === 'oauth') {
+    // OAuth accounts trust the provider for the email and don't carry a phone
+    // until the user adds it in CompleteProfile / Settings → Profile.
+    fully = true;
+  } else if (provider === 'phone') {
+    fully = phoneVerified;
+  } else {
+    // Email sign-up. TradesBrain collects both at signup so both must be
+    // verified before we let the user past the gate.
+    fully = emailVerified && phoneVerified;
+  }
+  return { emailVerified, phoneVerified, provider, fullyVerified: fully };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -54,6 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileComplete(exists);
     setProfileChecked(true);
     if (exists) setProfileSetupPending(false);
+  }, []);
+
+  // Pulls a fresh copy of the auth user from Supabase. Used after a successful
+  // OTP verification so email_confirmed_at / phone_confirmed_at update locally
+  // without waiting for the next onAuthStateChange.
+  const refreshUser = useCallback(async () => {
+    const { data } = await supabase.auth.getUser();
+    setUser(data.user ?? null);
   }, []);
 
   useEffect(() => {
@@ -104,6 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileSetupPending(false);
   };
 
+  const { emailVerified, phoneVerified, provider, fullyVerified } = deriveVerification(user);
+
   return (
     <AuthContext.Provider
       value={{
@@ -114,7 +181,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profileComplete,
         profileChecked,
         profileSetupPending,
+        emailVerified,
+        phoneVerified,
+        fullyVerified,
+        signUpProvider: provider,
         refreshProfileStatus,
+        refreshUser,
         setProfileSetupPending,
         signOut,
       }}

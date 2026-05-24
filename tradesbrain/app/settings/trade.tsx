@@ -12,11 +12,11 @@ import {
   View,
   Text,
   Pressable,
-  ScrollView,
   Alert,
   ActivityIndicator,
   TextInput,
 } from 'react-native';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
@@ -148,7 +148,7 @@ export default function TradeSettingsScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="pt-12 px-5 pb-10">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="pt-12 px-5">
       <View className="flex-row items-center justify-between mb-4">
         <Pressable onPress={() => nav.goBack()}>
           <Text className="text-brand text-base">← Back</Text>
@@ -273,6 +273,6 @@ export default function TradeSettingsScreen() {
           </View>
         </View>
       )}
-    </ScrollView>
+    </KeyboardAwareScreen>
   );
 }

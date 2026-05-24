@@ -1421,6 +1421,7 @@ import ForceUpgradeScreen from '../components/shared/ForceUpgradeScreen';
 import SplashScreen from '../components/shared/SplashScreen';
 import { useMinVersion } from '../hooks/useMinVersion';
 import { registerPushToken } from '../services/pushNotifications';
+import VerifyPendingScreen from './(auth)/verify-pending';
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -1446,6 +1447,7 @@ export type RootStackParamList = {
   TeamMemberDetail: { memberId: string };
   Suspended: undefined;
   History: undefined;
+  VerifyPending: undefined;
 };
 
 export type TabParamList = {
@@ -1519,6 +1521,7 @@ export default function RootLayout() {
     profileComplete,
     profileChecked,
     profileSetupPending,
+    fullyVerified,
     user,
   } = useAuthContext();
   const suspended = useSuspended(isAuthenticated);
@@ -1566,7 +1569,14 @@ export default function RootLayout() {
     <View style={{ flex: 1 }}>
       <OfflineBanner />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated && profileComplete ? (
+      {isAuthenticated && !fullyVerified && !profileSetupPending ? (
+        // Channel-level gate (fix for "verifying just one OTP went to Home").
+        // A session can exist before both channels are confirmed — we keep the
+        // worker on the verify screen until email AND phone are both checked.
+        // Skipped while profileSetupPending is true so the OtpVerify wizard
+        // inside the auth stack can finish creating the profile.
+        <Stack.Screen name="VerifyPending" component={VerifyPendingScreen} />
+      ) : isAuthenticated && profileComplete && fullyVerified ? (
         <>
           <Stack.Screen name="Tabs" component={TabsNavigator} />
           <Stack.Screen name="Job" component={ActiveSessionScreen} />

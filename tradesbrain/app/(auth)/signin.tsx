@@ -25,6 +25,7 @@ import {
   loadCredentials,
   clearCredentials,
 } from '../../hooks/useSavePassword';
+import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -142,6 +143,14 @@ export default function SignInScreen() {
         setSignInError({ message: 'Your account has been suspended — contact support.' });
       } else if (code === 'user_not_found' || msg.includes('user not found') || msg.includes('no user')) {
         setSignInError({ message: 'No account found with this email.', action: 'create' });
+      } else if (code === 'email_not_confirmed' || msg.includes('email not confirmed') || msg.includes('confirm your email')) {
+        // Unconfirmed sign-up: don't penalise as a wrong password — undo the
+        // failed-counter bump so the user isn't locked out for a fixable issue.
+        setFailed(failed);
+        setSignInError({
+          message:
+            'Your email is not verified yet. Check your inbox for the verification code, then sign in again.',
+        });
       } else {
         setSignInError({
           message: 'Email or password is incorrect. Try again, or reset your password.',
@@ -187,7 +196,7 @@ export default function SignInScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white px-5 pt-12">
+    <KeyboardAwareScreen bottomInset={80}>
       <Text className="text-2xl font-bold text-gray-900 mb-1">Sign in</Text>
       <Text className="text-sm text-gray-600 mb-6">Welcome back.</Text>
 
@@ -329,6 +338,6 @@ export default function SignInScreen() {
           <ActivityIndicator />
         </View>
       )}
-    </View>
+    </KeyboardAwareScreen>
   );
 }
