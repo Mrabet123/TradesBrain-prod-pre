@@ -1544,9 +1544,6 @@ export default function RootLayout() {
   }
   // Wait for the first profile lookup before choosing a stack.
   if (isAuthenticated && !profileChecked) return <SplashScreen />;
-  // Email sign-up (OtpVerify) is mid-creation — hold rather than flash the
-  // complete-profile screen at a user who already filled the form.
-  if (isAuthenticated && !profileComplete && profileSetupPending) return <SplashScreen />;
 
   // Suspended (D6 Flow12 S20) — restricted stack: read-only Job History only.
   if (isAuthenticated && suspended) {
@@ -1596,7 +1593,7 @@ export default function RootLayout() {
             options={{ presentation: 'modal' }}
           />
         </>
-      ) : isAuthenticated && !profileComplete ? (
+      ) : isAuthenticated && !profileComplete && !profileSetupPending ? (
         <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
       ) : (
         <>
