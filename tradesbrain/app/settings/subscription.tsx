@@ -112,10 +112,43 @@ export default function SubscriptionSettingsScreen() {
   async function withBusy(fn: () => Promise<{ success: boolean; error?: string }>): Promise<void> {
     setBusy(true);
     const r = await fn();
-    setBusy(false);
     if (!r.success) {
+      setBusy(false);
       Alert.alert('Could not complete', r.error ?? 'Unknown error');
       return;
+    }
+    // Stripe responds before its webhook reaches our DB. Poll briefly so the
+    // visible plan reflects the new state without forcing a manual refresh.
+    await pollForUpdate();
+    setBusy(false);
+  }
+
+  // Polls the subscriptions row up to ~8s, exiting as soon as plan_type or
+  // billing_cycle (or cancellation flag) changes from what we currently show.
+  async function pollForUpdate(maxMs = 8000, intervalMs = 1000) {
+    if (!user) return;
+    const startedAt = Date.now();
+    const initial = sub ? {
+      plan_type: sub.plan_type,
+      billing_cycle: sub.billing_cycle,
+      cancelled: !!sub.cancelled_at,
+    } : null;
+    while (Date.now() - startedAt < maxMs) {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('plan_type, billing_cycle, cancelled_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const changed =
+        !initial ||
+        (data &&
+          (data.plan_type !== initial.plan_type ||
+            data.billing_cycle !== initial.billing_cycle ||
+            !!data.cancelled_at !== initial.cancelled));
+      if (changed) break;
+      await new Promise((r) => setTimeout(r, intervalMs));
     }
     await reload();
   }
@@ -130,7 +163,14 @@ export default function SubscriptionSettingsScreen() {
         : 'Switches back to monthly at next renewal.',
       [
         { text: 'Cancel' },
-        { text: 'Switch', onPress: () => withBusy(() => switchBillingCycle(target)) },
+        {
+          text: 'Switch',
+          onPress: () => {
+            // Optimistic flip — reconciled by pollForUpdate once webhook lands.
+            setSub((s) => (s ? { ...s, billing_cycle: target } : s));
+            withBusy(() => switchBillingCycle(target));
+          },
+        },
       ],
     );
   }
@@ -172,7 +212,19 @@ export default function SubscriptionSettingsScreen() {
     Alert.alert(
       'Change plan?',
       `Switches to ${target.toUpperCase()}. Stripe prorates the difference.`,
-      [{ text: 'Cancel' }, { text: 'Switch', onPress: () => withBusy(() => changePlan(target)) }],
+      [
+        { text: 'Cancel' },
+        {
+          text: 'Switch',
+          onPress: () => {
+            // Optimistic: flip the visible plan immediately so the user sees
+            // the change land instantly; pollForUpdate will reconcile from the
+            // server-of-record once the Stripe webhook commits.
+            setSub((s) => (s ? { ...s, plan_type: target } : s));
+            withBusy(() => changePlan(target));
+          },
+        },
+      ],
     );
   }
 

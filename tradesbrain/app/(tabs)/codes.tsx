@@ -255,7 +255,8 @@ export default function CodesScreen() {
                 ? 'Ask a code question — e.g. "minimum slope for a 3-inch drain"'
                 : 'Offline — new lookups paused'
             }
-            className={`flex-1 border rounded-lg px-3 py-3 text-base ${
+            placeholderTextColor="#9CA3AF"
+            className={`flex-1 border rounded-lg px-3 py-3 text-base text-gray-900 ${
               isConnected ? 'border-gray-300' : 'border-gray-200 bg-gray-100'
             }`}
             onSubmitEditing={() => runSearch(text)}

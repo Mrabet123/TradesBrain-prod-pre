@@ -62,10 +62,11 @@ export function Field(props: {
         keyboardType={props.keyboardType}
         autoCapitalize={props.autoCapitalize}
         placeholder={props.placeholder}
+        placeholderTextColor="#9CA3AF"
         editable={editable}
         className={`border rounded-lg px-3 py-3 text-base ${
           props.error ? 'border-red-400' : 'border-gray-300'
-        } ${editable ? '' : 'bg-gray-100 text-gray-500'}`}
+        } ${editable ? 'text-gray-900' : 'bg-gray-100 text-gray-500'}`}
       />
       {!!props.error && (
         <Text className="text-xs text-red-600 mt-1">{props.error}</Text>

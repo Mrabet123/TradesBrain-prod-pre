@@ -250,10 +250,11 @@ export default function SignInScreen() {
           value={email}
           onChangeText={(t) => { setEmail(t); setSignInError(null); }}
           placeholder="you@example.com"
+          placeholderTextColor="#9CA3AF"
           keyboardType="email-address"
           autoCapitalize="none"
           editable={!isLocked && !busy}
-          className={`border rounded-lg px-3 py-3 text-base mb-3 ${
+          className={`border rounded-lg px-3 py-3 text-base text-gray-900 mb-3 ${
             signInError ? 'border-red-300' : 'border-gray-300'
           }`}
         />
@@ -266,9 +267,10 @@ export default function SignInScreen() {
             value={password}
             onChangeText={(t) => { setPassword(t); setSignInError(null); }}
             placeholder="Password"
+            placeholderTextColor="#9CA3AF"
             secureTextEntry={!showPassword}
             editable={!isLocked && !busy}
-            className="flex-1 px-3 py-3 text-base"
+            className="flex-1 px-3 py-3 text-base text-gray-900"
           />
           <Pressable onPress={() => setShowPassword((v) => !v)} className="px-3 py-3">
             <Text className="text-gray-500 text-sm">{showPassword ? 'Hide' : 'Show'}</Text>

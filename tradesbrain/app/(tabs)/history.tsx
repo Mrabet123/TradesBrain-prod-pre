@@ -138,7 +138,8 @@ export default function HistoryScreen() {
         value={search}
         onChangeText={setSearch}
         placeholder="Search by job name, address, or date"
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-3"
       />
 
       {/* D6 Flow08 S1 — filter chips. */}

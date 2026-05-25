@@ -1,9 +1,13 @@
-// D2 Sign Up Step 5 → Step 6, D6 Flow01 S5 — Dual OTP verification.
-// Single screen with two code inputs (email + SMS).
-// Both must be verified before proceeding. Resend per channel after 60s.
+// D2 Sign Up Step 5 → Step 6, D6 Flow01 S5 — Sequential dual OTP verification.
+// Step 1: enter and verify the EMAIL code. Until that is confirmed at the
+//         Supabase level (user.email_confirmed_at) the SMS field is hidden.
+// Step 2: enter and verify the SMS code. The screen confirms BOTH channels
+//         against the fresh auth user before opening the Terms overlay.
+// Step 3: Terms acceptance → createUserProfile → Home tabs.
+//
 // Wrong OTP × 3 → lock OTP input 5 min with countdown.
-// On both verified → Terms overlay (D2 Step 6) → on agree → createUserProfile()
-// → Home tabs. The Terms consent gesture follows OTP verification.
+// The OtpVerify screen never navigates the user away on its own — RootLayout's
+// gate keeps them here while profileSetupPending is true.
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
@@ -12,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import TermsOverlay from '../../components/shared/TermsOverlay';
 import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useAuthContext } from '../../context/AuthContext';
+import { supabase } from '../../services/supabase';
 import {
   verifyEmailOtp,
   verifyPhoneOtp,
@@ -23,8 +28,6 @@ import {
 
 type Params = { OtpVerify: { signUpData: SignUpInput } };
 
-// ISS-M3 (AU-2): distinguish an expired OTP from a wrong one — Supabase signals
-// expiry via the `otp_expired` error code or an "expired" message.
 function isExpiredOtpError(error: { message?: string; code?: string } | null): boolean {
   if (!error) return false;
   const msg = (error.message ?? '').toLowerCase();
@@ -50,15 +53,12 @@ export default function OtpVerifyScreen() {
   const [phoneWrong, setPhoneWrong] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
-  // ISS-OTP-COOLDOWN: previously seeded at 60s, forcing a first-open countdown
-  // before the (already-sent) initial codes could be resent. Start at 0 so the
-  // Resend link is immediately usable.
   const [emailCooldown, setEmailCooldown] = useState(0);
   const [phoneCooldown, setPhoneCooldown] = useState(0);
 
   const [busy, setBusy] = useState(false);
-  // D2 Step 6 — Terms overlay shown after both OTPs are verified.
   const [showTerms, setShowTerms] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -69,7 +69,6 @@ export default function OtpVerifyScreen() {
     return () => clearInterval(t);
   }, []);
 
-  // Restore a persisted OTP lockout if its expiry is still in the future.
   useEffect(() => {
     AsyncStorage.getItem(LOCKOUT_KEY).then((raw) => {
       if (!raw) return;
@@ -82,14 +81,11 @@ export default function OtpVerifyScreen() {
     });
   }, []);
 
-  const [now, setNow] = useState(Date.now());
-
   const lockSecondsLeft = lockedUntil
     ? Math.max(0, Math.ceil((lockedUntil - now) / 1000))
     : 0;
   const isLocked = lockSecondsLeft > 0;
 
-  // Clear the lock and the persisted key once the lockout expires.
   useEffect(() => {
     if (lockedUntil && now >= lockedUntil) {
       setLockedUntil(null);
@@ -105,8 +101,6 @@ export default function OtpVerifyScreen() {
     const { error } = await verifyEmailOtp(data.email, emailCode);
     setBusy(false);
     if (error) {
-      // ISS-M3 (AU-2): an expired code is not a wrong guess — surface the
-      // expiry and do NOT count it toward the 3-strike lockout.
       if (isExpiredOtpError(error)) {
         Alert.alert('Code expired', 'That email code has expired — tap "Resend code" for a new one.');
         return;
@@ -122,8 +116,16 @@ export default function OtpVerifyScreen() {
       return;
     }
     setEmailVerified(true);
-    // Pull the fresh user row so RootLayout's fullyVerified flag updates.
+    setEmailCode('');
+    // Refresh the auth user so email_confirmed_at flows into the gate, and
+    // (re)send the SMS OTP now that we are advancing to step 2. The signup
+    // flow already triggered the first SMS, but resending here gives the
+    // worker an obvious "code on the way" beat at the moment they need it.
     await refreshUser();
+    if (data.phone) {
+      const { error: resendErr } = await resendPhoneOtp(data.phone);
+      if (!resendErr) setPhoneCooldown(RESEND_COOLDOWN_S);
+    }
   }
 
   async function tryVerifyPhone() {
@@ -132,7 +134,6 @@ export default function OtpVerifyScreen() {
     const { error } = await verifyPhoneOtp(data.phone, phoneCode);
     setBusy(false);
     if (error) {
-      // ISS-M3 (AU-2): an expired code does not count toward the lockout.
       if (isExpiredOtpError(error)) {
         Alert.alert('Code expired', 'That SMS code has expired — tap "Resend code" for a new one.');
         return;
@@ -148,39 +149,56 @@ export default function OtpVerifyScreen() {
       return;
     }
     setPhoneVerified(true);
+    setPhoneCode('');
     await refreshUser();
   }
 
-  // D2 Step 5 → Step 6: once both OTPs are verified, present the Terms overlay.
-  // The profile (and the terms acceptance timestamp) is created only after the
-  // worker agrees to the Terms — see onAgreeTerms.
+  // D2 Step 5 → Step 6 — both OTPs verified locally; double-check against the
+  // fresh auth user before presenting Terms. The extra check defends against a
+  // race where local state thinks both are confirmed but Supabase hasn't yet
+  // stamped phone_confirmed_at.
   useEffect(() => {
-    if (emailVerified && phoneVerified) {
+    if (!emailVerified || !phoneVerified || showTerms) return;
+    let cancelled = false;
+    (async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const u = authData.user;
+      const okEmail = !!u?.email_confirmed_at;
+      const okPhone = !!u?.phone_confirmed_at;
+      if (cancelled) return;
+      if (!okEmail || !okPhone) {
+        // Roll back the local flag so the user can re-enter the missing code.
+        if (!okEmail) setEmailVerified(false);
+        if (!okPhone) setPhoneVerified(false);
+        Alert.alert(
+          'Verification incomplete',
+          !okEmail
+            ? 'Email is not confirmed yet — try the email code again.'
+            : 'Phone is not confirmed yet — try the SMS code again.',
+        );
+        return;
+      }
       AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
       setShowTerms(true);
-    }
-  }, [emailVerified, phoneVerified]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [emailVerified, phoneVerified, showTerms]);
 
-  // D2 Step 6 — worker agreed to the Terms: now create the users row
-  // (createUserProfile stamps terms_accepted_at / terms_version).
   async function onAgreeTerms() {
     setShowTerms(false);
     setBusy(true);
     try {
       await createUserProfile(data);
-      // users row created → flip the RootLayout gate into the app.
       await refreshProfileStatus();
     } catch (e: any) {
-      // Couldn't create the profile — release the gate so RootLayout shows
-      // the complete-profile screen, where the user can retry.
       setProfileSetupPending(false);
       Alert.alert('Sign up incomplete', e?.message ?? 'Could not create profile.');
     } finally {
       setBusy(false);
     }
   }
-
-  const bothVerified = emailVerified && phoneVerified;
 
   async function resendEmail() {
     if (emailCooldown > 0) return;
@@ -195,12 +213,41 @@ export default function OtpVerifyScreen() {
     if (error) Alert.alert('Resend failed', error.message);
   }
 
+  // Sequential: only show the SMS row once email has been confirmed.
+  const showPhoneRow = emailVerified;
+  const bothVerified = emailVerified && phoneVerified;
+
   return (
     <KeyboardAwareScreen>
       <Text className="text-2xl font-bold text-gray-900 mb-1">Verify your identity</Text>
-      <Text className="text-sm text-gray-600 mb-6">
-        Enter the codes we sent to your email and phone.
+      <Text className="text-sm text-gray-600 mb-2">
+        {emailVerified
+          ? 'Email confirmed. Now enter the code we sent to your phone.'
+          : 'First, enter the 6-digit code we sent to your email.'}
       </Text>
+
+      {/* Progress strip */}
+      <View className="flex-row items-center mb-6">
+        <View className="flex-1 flex-row items-center">
+          <View
+            className={`w-6 h-6 rounded-full items-center justify-center ${
+              emailVerified ? 'bg-green-600' : 'bg-brand'
+            }`}
+          >
+            <Text className="text-white text-xs font-bold">{emailVerified ? '✓' : '1'}</Text>
+          </View>
+          <Text className="ml-2 text-xs text-gray-700">Email</Text>
+          <View className={`flex-1 h-0.5 mx-2 ${emailVerified ? 'bg-green-600' : 'bg-gray-200'}`} />
+          <View
+            className={`w-6 h-6 rounded-full items-center justify-center ${
+              phoneVerified ? 'bg-green-600' : emailVerified ? 'bg-brand' : 'bg-gray-300'
+            }`}
+          >
+            <Text className="text-white text-xs font-bold">{phoneVerified ? '✓' : '2'}</Text>
+          </View>
+          <Text className="ml-2 text-xs text-gray-700">Phone</Text>
+        </View>
+      </View>
 
       {isLocked && (
         <View className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
@@ -223,17 +270,25 @@ export default function OtpVerifyScreen() {
         disabled={isLocked || busy || emailVerified}
       />
 
-      <OtpRow
-        label="SMS code"
-        target={data.phone}
-        value={phoneCode}
-        onChangeText={setPhoneCode}
-        onVerify={tryVerifyPhone}
-        onResend={resendPhone}
-        verified={phoneVerified}
-        cooldown={phoneCooldown}
-        disabled={isLocked || busy || phoneVerified}
-      />
+      {showPhoneRow ? (
+        <OtpRow
+          label="SMS code"
+          target={data.phone}
+          value={phoneCode}
+          onChangeText={setPhoneCode}
+          onVerify={tryVerifyPhone}
+          onResend={resendPhone}
+          verified={phoneVerified}
+          cooldown={phoneCooldown}
+          disabled={isLocked || busy || phoneVerified}
+        />
+      ) : (
+        <View className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-5">
+          <Text className="text-sm text-gray-500">
+            We'll ask for your SMS code right after your email is verified.
+          </Text>
+        </View>
+      )}
 
       {busy && (
         <View className="mt-6 items-center">
@@ -242,8 +297,6 @@ export default function OtpVerifyScreen() {
         </View>
       )}
 
-      {/* D2 Step 6 — if the worker dismissed the Terms overlay without agreeing,
-          they cannot finish sign-up; offer a way back to it. */}
       {bothVerified && !showTerms && !busy && (
         <View className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-3">
           <Text className="text-amber-800 text-sm mb-2">
@@ -298,7 +351,8 @@ function OtpRow(props: {
           keyboardType="number-pad"
           maxLength={6}
           placeholder="123456"
-          className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base tracking-widest"
+          placeholderTextColor="#9CA3AF"
+          className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 tracking-widest"
         />
         <Pressable
           onPress={props.onVerify}

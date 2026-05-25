@@ -60,6 +60,7 @@ export default function SignUpScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [phoneLocal, setPhoneLocal] = useState('');
 
@@ -90,6 +91,12 @@ export default function SignUpScreen() {
       fullName.trim().length >= 2 ? '' : 'Enter your full name (min 2 characters).',
     email: EMAIL_RE.test(email) ? '' : 'Enter a valid email address.',
     password: password.length >= 8 ? '' : 'Password must be at least 8 characters.',
+    confirmPassword:
+      confirmPassword.length === 0
+        ? 'Re-enter your password to confirm.'
+        : confirmPassword !== password
+        ? 'Passwords do not match.'
+        : '',
     phone:
       phoneLocal.replace(/\D/g, '').length >= 7
         ? ''
@@ -151,6 +158,7 @@ export default function SignUpScreen() {
     fullName.trim().length > 1 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
     password.length >= 8 &&
+    confirmPassword === password &&
     phoneLocal.replace(/\D/g, '').length >= 7;
 
   const step2Valid =
@@ -265,6 +273,14 @@ export default function SignUpScreen() {
             onBlur={() => markTouched('password')}
             error={touched.password ? fieldErrors.password : ''}
           />
+          <Field
+            label="Confirm password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            onBlur={() => markTouched('confirmPassword')}
+            error={touched.confirmPassword ? fieldErrors.confirmPassword : ''}
+          />
           {password.length > 0 && (
             <View className="-mt-2 mb-3">
               <View className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
@@ -286,7 +302,8 @@ export default function SignUpScreen() {
             <TextInput
               value={countryCode}
               onChangeText={setCountryCode}
-              className="border border-gray-300 rounded-lg px-3 py-3 w-20 text-base"
+              placeholderTextColor="#9CA3AF"
+              className="border border-gray-300 rounded-lg px-3 py-3 w-20 text-base text-gray-900"
               keyboardType="phone-pad"
             />
             <TextInput
@@ -294,7 +311,8 @@ export default function SignUpScreen() {
               onChangeText={setPhoneLocal}
               onBlur={() => markTouched('phone')}
               placeholder="555 123 4567"
-              className={`flex-1 border rounded-lg px-3 py-3 text-base ${
+              placeholderTextColor="#9CA3AF"
+              className={`flex-1 border rounded-lg px-3 py-3 text-base text-gray-900 ${
                 touched.phone && fieldErrors.phone ? 'border-red-400' : 'border-gray-300'
               }`}
               keyboardType="phone-pad"
@@ -421,7 +439,8 @@ export default function SignUpScreen() {
           <TextInput
             value={companyName}
             onChangeText={setCompanyName}
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+            placeholderTextColor="#9CA3AF"
+            className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
           />
 
           <Text className="text-sm font-medium text-gray-700 mb-1">Company logo (optional)</Text>

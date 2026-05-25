@@ -156,14 +156,16 @@ export default function CompleteProfileScreen() {
             value={countryCode}
             onChangeText={setCountryCode}
             keyboardType="phone-pad"
-            className="border border-gray-300 rounded-lg px-3 py-3 w-20 text-base"
+            placeholderTextColor="#9CA3AF"
+            className="border border-gray-300 rounded-lg px-3 py-3 w-20 text-base text-gray-900"
           />
           <TextInput
             value={phoneLocal}
             onChangeText={setPhoneLocal}
             keyboardType="phone-pad"
             placeholder="555 123 4567"
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base"
+            placeholderTextColor="#9CA3AF"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900"
           />
         </View>
       )}
@@ -224,7 +226,8 @@ export default function CompleteProfileScreen() {
       <TextInput
         value={companyName}
         onChangeText={setCompanyName}
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
       />
 
       <Text className="text-sm font-medium text-gray-700 mb-1">Company logo (optional)</Text>

@@ -93,6 +93,18 @@ export async function createUserProfile(input: SignUpInput): Promise<void> {
   const { data: authData } = await supabase.auth.getUser();
   const user = authData.user;
   if (!user) throw new Error('No authenticated user — verify OTPs first.');
+  // Defence in depth — the OtpVerify screen already double-checks both
+  // channels, but a stale local state must never reach the profile insert.
+  // OAuth users (Google) don't have a phone yet — they finish via the
+  // complete-profile screen, where this guard is skipped because the auth
+  // provider already vouches for their email.
+  const isOauth = !!user.app_metadata?.provider && user.app_metadata.provider !== 'email';
+  if (!isOauth) {
+    if (!user.email_confirmed_at) throw new Error('Email is not confirmed yet.');
+    if (user.phone && !user.phone_confirmed_at) {
+      throw new Error('Phone is not confirmed yet.');
+    }
+  }
 
   const licensePath = await uploadKycPhoto(user.id, 'license', input.licenseProofUri);
   const nationalIdPath = await uploadKycPhoto(user.id, 'national_id', input.nationalIdUri);
@@ -222,13 +234,20 @@ export async function signInWithPhoneVerify(phone: string, token: string) {
 }
 
 export async function sendPasswordReset(email: string) {
-  // The deep link below opens the TradesBrain app back at the Forgot Password
-  // screen in 'reset' phase. The scheme is registered in app.json + linking
-  // config in App.tsx. Configure the matching URL under Supabase Dashboard →
-  // Authentication → URL Configuration → Redirect URLs.
+  // Supabase emits a 6-digit recovery code in the email when the project's
+  // "Reset Password" email template includes {{ .Token }}. The mobile app
+  // verifies the code via verifyRecoveryOtp (below) — no deep-link round trip
+  // needed. redirectTo is kept so the link variant still re-opens the app if
+  // the template falls back to it.
   return supabase.auth.resetPasswordForEmail(email, {
     redirectTo: 'tradesbrain://reset-password',
   });
+}
+
+// Verifies the 6-digit recovery code emailed by Supabase. On success the user
+// has a short-lived recovery session that authorises updatePassword().
+export async function verifyRecoveryOtp(email: string, token: string) {
+  return supabase.auth.verifyOtp({ email, token, type: 'recovery' });
 }
 
 export async function updatePassword(newPassword: string) {

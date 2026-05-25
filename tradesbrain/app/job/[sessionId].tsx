@@ -268,7 +268,11 @@ export default function ActiveSessionScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // Android needs an explicit behavior or the input row stays under the
+      // soft keyboard. 'height' lets the layout reflow so the input stays
+      // visible above the keyboard while the message list shrinks.
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       style={{ flex: 1 }}
     >
       {toast && (
@@ -583,9 +587,10 @@ export default function ActiveSessionScreen() {
                     ? 'Type a message to Rex'
                     : 'Offline — message will queue'
                 }
+                placeholderTextColor="#9CA3AF"
                 editable={!inputDisabled}
                 multiline
-                className="flex-1 border border-gray-300 rounded-2xl px-3 py-2 text-base max-h-32"
+                className="flex-1 border border-gray-300 rounded-2xl px-3 py-2 text-base text-gray-900 max-h-32"
               />
               <Pressable
                 onPress={handleSend}
@@ -651,7 +656,8 @@ export default function ActiveSessionScreen() {
               value={closeName}
               onChangeText={setCloseName}
               placeholder="e.g. 122 Main St — water heater (optional)"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+              placeholderTextColor="#9CA3AF"
+              className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
             />
             <View className="flex-row gap-2">
               <Pressable

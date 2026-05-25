@@ -119,8 +119,9 @@ export default function VerifyPendingScreen() {
               keyboardType="number-pad"
               maxLength={6}
               placeholder="123456"
+              placeholderTextColor="#9CA3AF"
               editable={!busy}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base tracking-widest"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 tracking-widest"
             />
             <Pressable
               onPress={onVerifyEmail}
@@ -161,8 +162,9 @@ export default function VerifyPendingScreen() {
               keyboardType="number-pad"
               maxLength={6}
               placeholder="123456"
+              placeholderTextColor="#9CA3AF"
               editable={!busy}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base tracking-widest"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 tracking-widest"
             />
             <Pressable
               onPress={onVerifyPhone}

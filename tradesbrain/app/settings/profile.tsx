@@ -218,14 +218,16 @@ export default function ProfileSettingsScreen() {
       <TextInput
         value={form.fullName}
         onChangeText={(t) => patch({ fullName: t })}
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
       />
 
       <FieldLabel>Company name (optional)</FieldLabel>
       <TextInput
         value={form.companyName}
         onChangeText={(t) => patch({ companyName: t })}
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
       />
 
       <FieldLabel>Hourly rate (USD)</FieldLabel>
@@ -233,7 +235,8 @@ export default function ProfileSettingsScreen() {
         value={form.hourlyRate}
         onChangeText={(t) => patch({ hourlyRate: t })}
         keyboardType="decimal-pad"
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
       />
 
       <FieldLabel>Phone number</FieldLabel>
@@ -241,7 +244,8 @@ export default function ProfileSettingsScreen() {
         value={form.phone}
         onChangeText={(t) => patch({ phone: t })}
         keyboardType="phone-pad"
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
       />
 
       <FieldLabel>Company logo (optional)</FieldLabel>

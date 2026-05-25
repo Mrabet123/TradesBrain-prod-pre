@@ -245,7 +245,8 @@ export default function TradeSettingsScreen() {
             value={downgradeText}
             onChangeText={setDowngradeText}
             autoCapitalize="characters"
-            className="border border-red-300 rounded-lg px-3 py-2 text-base mb-3 bg-white"
+            placeholderTextColor="#9CA3AF"
+            className="border border-red-300 rounded-lg px-3 py-2 text-base text-gray-900 mb-3 bg-white"
           />
           <View className="flex-row gap-2">
             <Pressable
