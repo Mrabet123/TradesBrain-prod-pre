@@ -280,9 +280,7 @@ export default function CompleteProfileScreen() {
                 onPress: async () => {
                   try {
                     await deleteAccountFully();
-                    Alert.alert('Account deleted', 'You can now sign up with the same details.', [
-                      { text: 'OK', onPress: () => signOut() },
-                    ]);
+                    Alert.alert('Account deleted', 'You can now sign up with the same details.');
                   } catch (e: any) {
                     Alert.alert('Could not delete', e?.message ?? 'Try again later.');
                   }

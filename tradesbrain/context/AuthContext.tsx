@@ -219,7 +219,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // The auth.users row may already be gone (e.g. immediately after
+    // deleteAccountFully) — in that case /logout returns 403 with
+    // "User from sub claim in JWT does not exist". Swallow the error so
+    // local state still clears cleanly.
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      /* dead token — local clear below is what matters */
+    }
     setUser(null);
     setSession(null);
     setProfileComplete(false);

@@ -325,9 +325,23 @@ export async function signInWithPhoneVerify(phone: string, token: string) {
 // Caller MUST be authenticated. Throws on failure so callers can surface a
 // recovery message. Use from Settings (post-signup) and from the VerifyPending /
 // CompleteProfile recovery screens so stuck users can wipe their account too.
+//
+// On success we also drop the local session here — the JWT now references a
+// deleted user, so subsequent supabase calls (incl. /logout) would return
+// 403. Clearing locally avoids that dead-token round-trip; the AuthContext
+// onAuthStateChange listener picks up the SIGNED_OUT event and the gate
+// routes back to Welcome.
 export async function deleteAccountFully(): Promise<void> {
   const { error } = await supabase.functions.invoke('delete-account', {});
   if (error) throw error;
+  // Best-effort: clear the now-dead JWT from secure storage. Errors are
+  // swallowed because the auth row is already gone — the only thing left to
+  // do is forget the local token.
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    /* token already invalid — nothing else to clean */
+  }
 }
 
 export async function sendPasswordReset(email: string) {

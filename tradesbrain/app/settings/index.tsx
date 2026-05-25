@@ -100,7 +100,6 @@ export default function SettingsScreen() {
       Alert.alert(
         'Account deleted',
         'All your data has been permanently removed.',
-        [{ text: 'OK', onPress: () => signOut() }],
       );
     } catch (e: any) {
       Alert.alert(
