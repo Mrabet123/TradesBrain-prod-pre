@@ -20,7 +20,11 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { startSignUp, signInWithGoogle } from '../../services/auth';
+import {
+  startSignUp,
+  signInWithGoogle,
+  checkSignupAvailability,
+} from '../../services/auth';
 import { useAuthContext } from '../../context/AuthContext';
 import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import {
@@ -198,13 +202,44 @@ export default function SignUpScreen() {
 
   async function onCreateAccount() {
     setSubmitting(true);
-    // CRITICAL: set the gate-holding flag BEFORE startSignUp resolves.
-    // supabase.auth.signUp synchronously establishes a session and fires
-    // onAuthStateChange, which would otherwise see profileSetupPending=false
-    // and let RootLayout route the user to VerifyPending — losing the
-    // OtpVerify route params before we get a chance to navigate.
-    setProfileSetupPending(true);
     try {
+      // Pre-flight duplicate check — runs BEFORE supabase.auth.signUp so a
+      // duplicate phone (which Supabase Auth doesn't enforce uniqueness on)
+      // gets caught at the form instead of silently creating a second
+      // account. Email duplicates are caught here too — Supabase would
+      // catch them server-side but surfacing the error upfront is friendlier.
+      const availability = await checkSignupAvailability(email.trim(), fullPhone);
+      if (availability.emailTaken && availability.phoneTaken) {
+        Alert.alert(
+          'Already registered',
+          'Both this email and phone number are already in use. Sign in instead, or use different details.',
+          [{ text: 'Go to Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
+        );
+        return;
+      }
+      if (availability.emailTaken) {
+        Alert.alert(
+          'Email already registered',
+          'This email is already in use. Sign in instead, or use a different email.',
+          [{ text: 'Go to Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
+        );
+        return;
+      }
+      if (availability.phoneTaken) {
+        Alert.alert(
+          'Phone already in use',
+          'This phone number is already attached to another account. Use a different number, or sign in with the original account.',
+          [{ text: 'Go to Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
+        );
+        return;
+      }
+
+      // CRITICAL: set the gate-holding flag BEFORE startSignUp resolves.
+      // supabase.auth.signUp synchronously establishes a session and fires
+      // onAuthStateChange, which would otherwise see profileSetupPending=false
+      // and let RootLayout route the user to VerifyPending — losing the
+      // OtpVerify route params before we get a chance to navigate.
+      setProfileSetupPending(true);
       const { error } = await startSignUp(email, password, fullPhone);
       if (error) {
         setProfileSetupPending(false);
@@ -212,8 +247,8 @@ export default function SignUpScreen() {
         if (msg.includes('already registered') || msg.includes('user already')) {
           Alert.alert(
             'Email already registered',
-            'This email is already registered — sign in instead?',
-            [{ text: 'Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
+            'This email is already in our records. If you started signing up but did not finish verifying your email, go to Sign In and tap "Send verification code" — you can finish from there.',
+            [{ text: 'Go to Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
           );
         } else {
           Alert.alert('Sign up failed', error.message);

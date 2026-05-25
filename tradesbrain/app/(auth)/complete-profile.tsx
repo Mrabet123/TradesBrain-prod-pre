@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, Alert } from 'react-native';
 import { supabase } from '../../services/supabase';
-import { createUserProfile, type SignUpInput } from '../../services/auth';
+import { createUserProfile, deleteAccountFully, type SignUpInput } from '../../services/auth';
 import { useAuthContext } from '../../context/AuthContext';
 import TermsOverlay from '../../components/shared/TermsOverlay';
 import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
@@ -121,12 +121,29 @@ export default function CompleteProfileScreen() {
 
   if (loading) return <View className="flex-1 bg-white" />;
 
+  const hasVerifiedChannels = emailLocked || phoneLocked;
+
   return (
     <KeyboardAwareScreen bottomInset={96}>
       <Text className="text-2xl font-bold text-gray-900 mb-1">Finish setting up</Text>
-      <Text className="text-sm text-gray-500 mb-5">
+      <Text className="text-sm text-gray-500 mb-3">
         A few more details before you can start using TradesBrain.
       </Text>
+
+      {hasVerifiedChannels && (
+        <View className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+          <Text className="text-green-800 text-sm font-semibold mb-1">
+            ✓ Your account is already verified
+          </Text>
+          <Text className="text-green-700 text-xs">
+            {emailLocked && phoneLocked
+              ? 'Email and phone are both verified — no more codes needed. Fill in your trade details below to finish.'
+              : emailLocked
+              ? 'Email is already verified. Fill in your trade details to finish setting up.'
+              : 'Phone is already verified. Fill in your trade details to finish setting up.'}
+          </Text>
+        </View>
+      )}
 
       <Field
         label="Full name"
@@ -244,7 +261,41 @@ export default function CompleteProfileScreen() {
       </Pressable>
 
       <Pressable onPress={signOut} disabled={submitting} className="py-4 rounded-xl mt-2">
-        <Text className="text-center text-gray-500 font-medium">Cancel and sign out</Text>
+        <Text className="text-center text-gray-500 font-medium">
+          Sign out — use a different email/phone
+        </Text>
+      </Pressable>
+
+      <Pressable
+        disabled={submitting}
+        onPress={() => {
+          Alert.alert(
+            'Permanently delete this account?',
+            'This wipes the auth record, photos, and any partial data for this email/phone — you can re-use the same details to sign up fresh.',
+            [
+              { text: 'Cancel' },
+              {
+                text: 'Delete forever',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await deleteAccountFully();
+                    Alert.alert('Account deleted', 'You can now sign up with the same details.', [
+                      { text: 'OK', onPress: () => signOut() },
+                    ]);
+                  } catch (e: any) {
+                    Alert.alert('Could not delete', e?.message ?? 'Try again later.');
+                  }
+                },
+              },
+            ],
+          );
+        }}
+        className="py-2 mt-1"
+      >
+        <Text className="text-center text-xs text-red-600 underline">
+          Permanently delete this account
+        </Text>
       </Pressable>
 
       <TermsOverlay

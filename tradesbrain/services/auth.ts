@@ -9,8 +9,25 @@ import {
   GoogleSignin,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
+// Legacy entrypoint keeps the readAsStringAsync + EncodingType API we use
+// here (same pattern as services/share.ts).
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
 import { checkKycStatus } from './stripe';
+
+// Decode a base64 string into a Uint8Array using Hermes' global atob. We
+// avoid `fetch(file://...).blob()` because that pattern is unreliable on
+// Android (blob is often empty / "Network request failed") which manifested
+// as the user being unable to finish sign-up.
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = global.atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 // Configure once at module load. The webClientId is what Supabase verifies the
 // returned ID token against — it must also be added to the Supabase dashboard
@@ -38,6 +55,29 @@ export interface SignUpInput {
   nationalIdUri: string;
   companyName?: string;
   companyLogoUri?: string;
+}
+
+// Pre-signup availability check (D2 Step 3). Runs against a SECURITY DEFINER
+// SQL function so we hit auth.users + public.users in one round-trip without
+// loosening RLS. Supabase enforces email uniqueness at the auth layer but
+// NOT phone — so without this, a duplicate phone would silently create a
+// second account that collides with the first downstream.
+export async function checkSignupAvailability(
+  email: string,
+  phone: string,
+): Promise<{ emailTaken: boolean; phoneTaken: boolean; error?: string }> {
+  const { data, error } = await supabase.rpc('check_signup_availability', {
+    p_email: email,
+    p_phone: phone,
+  });
+  if (error) {
+    return { emailTaken: false, phoneTaken: false, error: error.message };
+  }
+  const raw = (data ?? {}) as { email_taken?: boolean; phone_taken?: boolean };
+  return {
+    emailTaken: !!raw.email_taken,
+    phoneTaken: !!raw.phone_taken,
+  };
 }
 
 export async function startSignUp(email: string, password: string, phone: string) {
@@ -74,18 +114,46 @@ export async function uploadKycPhoto(
   kind: 'license' | 'national_id' | 'company_logo',
   localUri: string,
 ): Promise<string> {
-  const ext = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+  // Pull a clean extension off the path (strip query strings, e.g.
+  // "file:///.../image.jpg?123"). Default to jpg if the picker handed us a
+  // URI without an extension (some Android galleries do this).
+  const rawExt = localUri.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
+  const ext = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(rawExt) ? rawExt : 'jpg';
   const path = `${userId}/${kind}-${Date.now()}.${ext}`;
-  const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+  const contentType =
+    ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+    : ext === 'png' ? 'image/png'
+    : ext === 'webp' ? 'image/webp'
+    : ext === 'heic' || ext === 'heif' ? 'image/heic'
+    : 'image/jpeg';
 
-  const res = await fetch(localUri);
-  const blob = await res.blob();
+  // Read via expo-file-system. The previous fetch(uri).blob() pattern is
+  // unreliable on Android — fetch() of a file:// URI often returns an empty
+  // blob or throws "Network request failed", which surfaced to the worker
+  // as "Could not finish sign up" right after they tapped I Agree.
+  let base64: string;
+  try {
+    base64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } catch (e: any) {
+    throw new Error(`Could not read ${kind} photo from device: ${e?.message ?? e}`);
+  }
+  const bytes = base64ToUint8Array(base64);
 
   const { error } = await supabase.storage
     .from('kyc-documents')
-    .upload(path, blob, { contentType, upsert: false });
+    .upload(path, bytes, { contentType, upsert: false });
 
-  if (error) throw error;
+  if (error) {
+    // Surface a friendlier message for the network case so the user knows
+    // it's worth retrying with a connection.
+    const msg = String(error.message ?? '').toLowerCase();
+    if (msg.includes('network') || msg.includes('fetch')) {
+      throw new Error('Could not upload your photos — check your connection and try again.');
+    }
+    throw error;
+  }
   return path;
 }
 
@@ -136,7 +204,13 @@ export async function createUserProfile(input: SignUpInput): Promise<void> {
     terms_version: TERMS_VERSION,
   });
 
-  if (error) throw error;
+  if (error) {
+    const msg = String(error.message ?? '').toLowerCase();
+    if (msg.includes('network') || msg.includes('fetch')) {
+      throw new Error('Could not save your profile — check your connection and try again.');
+    }
+    throw error;
+  }
 
   // CC-1 (D1 §6) — kick off both Stripe Identity verification sessions now.
   // Fire-and-forget: this must never block the worker reaching Home. If a call
@@ -210,14 +284,23 @@ export async function signInWithGoogle(): Promise<{
 
 // True when the signed-in auth user already has a row in public.users (i.e. they
 // finished the trade + KYC profile). Drives the RootLayout onboarding gate.
-export async function profileExists(): Promise<boolean> {
-  const { data: authData } = await supabase.auth.getUser();
-  const user = authData.user;
-  if (!user) return false;
+//
+// IMPORTANT: pass `userId` explicitly when calling from within an
+// onAuthStateChange listener (or any context that runs while a supabase auth
+// operation is in flight). `supabase.auth.getUser()` acquires the same internal
+// session lock that `verifyOtp` / `signIn*` hold, so calling it from a listener
+// deadlocks the auth flow. The explicit-id path skips that call entirely.
+export async function profileExists(userId?: string): Promise<boolean> {
+  let uid = userId;
+  if (!uid) {
+    const { data: authData } = await supabase.auth.getUser();
+    uid = authData.user?.id;
+    if (!uid) return false;
+  }
   const { data, error } = await supabase
     .from('users')
     .select('id')
-    .eq('id', user.id)
+    .eq('id', uid)
     .maybeSingle();
   return !error && !!data;
 }
@@ -231,6 +314,20 @@ export async function signInWithPhoneStart(phone: string) {
 
 export async function signInWithPhoneVerify(phone: string, token: string) {
   return supabase.auth.verifyOtp({ phone, token, type: 'sms' });
+}
+
+// Calls the delete-account Edge Function which:
+//   • wipes the caller's storage in kyc-documents / job-documents / job-photos /
+//     profile-assets
+//   • DELETE public.users (FK cascade drops job_sessions, messages, job_reports,
+//     quotes, team_members, worker_preferences, subscriptions, billing_history)
+//   • admin.deleteUser on auth.users
+// Caller MUST be authenticated. Throws on failure so callers can surface a
+// recovery message. Use from Settings (post-signup) and from the VerifyPending /
+// CompleteProfile recovery screens so stuck users can wipe their account too.
+export async function deleteAccountFully(): Promise<void> {
+  const { error } = await supabase.functions.invoke('delete-account', {});
+  if (error) throw error;
 }
 
 export async function sendPasswordReset(email: string) {

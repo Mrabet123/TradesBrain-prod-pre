@@ -12,6 +12,7 @@ import type { RootStackParamList } from '../_layout';
 import { useAuthContext } from '../../context/AuthContext';
 import { useSubscriptionContext } from '../../context/SubscriptionContext';
 import { supabase } from '../../services/supabase';
+import { deleteAccountFully } from '../../services/auth';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -95,8 +96,7 @@ export default function SettingsScreen() {
     if (deleteText !== 'DELETE') return;
     setDeleting(true);
     try {
-      const { error } = await supabase.functions.invoke('delete-account', {});
-      if (error) throw error;
+      await deleteAccountFully();
       Alert.alert(
         'Account deleted',
         'All your data has been permanently removed.',

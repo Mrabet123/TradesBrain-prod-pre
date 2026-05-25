@@ -82,12 +82,17 @@ function deriveVerification(user: User | null) {
   }
   const provider = classifyProvider(user);
   const emailVerified = !!user.email_confirmed_at;
-  const phoneVerified = !!user.phone_confirmed_at || !user.phone;
+  // STRICT: do NOT auto-pass when user.phone is empty for email signups —
+  // that's how worker reports of "only email was verified, app took me to
+  // home anyway" happened (user.phone was unexpectedly empty so the old
+  // short-circuit returned phoneVerified=true). For OAuth users we ignore
+  // phone entirely below, so it's safe to compute strictly here.
+  const phoneVerified = !!user.phone_confirmed_at;
   let fully: boolean;
   if (provider === 'oauth') {
-    // OAuth accounts trust the provider for the email and don't carry a phone
-    // until the user adds it in CompleteProfile / Settings → Profile.
-    fully = true;
+    // OAuth accounts trust the provider for the email and don't carry a
+    // phone until the user adds it via CompleteProfile / Settings → Profile.
+    fully = emailVerified;
   } else if (provider === 'phone') {
     fully = phoneVerified;
   } else {
@@ -107,7 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileSetupPending, setProfileSetupPending] = useState(false);
 
   const refreshProfileStatus = useCallback(async () => {
-    const exists = await profileExists();
+    const { data } = await supabase.auth.getUser();
+    const uid = data.user?.id;
+    if (!uid) {
+      setProfileComplete(false);
+      setProfileChecked(true);
+      return;
+    }
+    const exists = await profileExists(uid);
     setProfileComplete(exists);
     setProfileChecked(true);
     if (exists) setProfileSetupPending(false);
@@ -123,50 +135,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // Defensive timeout — if getSession hangs (slow keychain read, supabase
+    // refresh stalling on a flaky network), the splash would otherwise stay
+    // on screen forever. After 6s we drop into "no session" mode so the user
+    // at least lands on the Welcome screen and can act.
+    const failsafe = setTimeout(() => {
       if (!active) return;
-      let exists = false;
-      if (session?.user) {
-        exists = await profileExists();
-        if (!active) return;
-      }
-      setSession(session);
-      setUser(session?.user ?? null);
-      setProfileComplete(exists);
       setProfileChecked(true);
       setIsLoading(false);
-    });
+    }, 6000);
+
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!active) return;
+        let exists = false;
+        if (session?.user) {
+          exists = await profileExists(session.user.id).catch(() => false);
+          if (!active) return;
+        }
+        setSession(session);
+        setUser(session?.user ?? null);
+        setProfileComplete(exists);
+        setProfileChecked(true);
+        setIsLoading(false);
+        clearTimeout(failsafe);
+      } catch {
+        if (!active) return;
+        setSession(null);
+        setUser(null);
+        setProfileComplete(false);
+        setProfileChecked(true);
+        setIsLoading(false);
+        clearTimeout(failsafe);
+      }
+    })();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      // CRITICAL: do NOT flip profileChecked to false here. The RootLayout
-      // gate would briefly render the SplashScreen, unmount the Stack
-      // navigator, and reset the user back to Welcome — losing the OtpVerify
-      // route params mid-verification. We also resolve profileExists BEFORE
-      // calling setSession/setUser so the gate never transitions through an
-      // "authenticated but profile-state stale" frame (which would flicker
-      // into CompleteProfile right after sign-in).
-      if (session?.user) {
-        const exists = await profileExists();
-        setSession(session);
-        setUser(session.user);
-        setProfileComplete(exists);
-        if (exists) setProfileSetupPending(false);
-      } else {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      // CRITICAL: this listener MUST be synchronous (no awaits, no
+      // supabase.* calls). supabase-js awaits all listeners before
+      // verifyOtp/signIn resolve, and any I/O here that touches the auth
+      // lock deadlocks the entire auth flow — symptom: tapping Verify
+      // hangs on "Working…" forever. The profile-check runs in the
+      // separate effect below, OUTSIDE the listener, where the auth lock
+      // has already been released.
+      if (!session?.user) {
         setSession(null);
         setUser(null);
         setProfileComplete(false);
         setProfileSetupPending(false);
+        return;
       }
+      setSession(session);
+      setUser(session.user);
     });
 
     return () => {
       active = false;
+      clearTimeout(failsafe);
       subscription.unsubscribe();
     };
   }, []);
+
+  // Background profile check — fires whenever the auth user ID changes (i.e.
+  // sign-in, post-signup OTP verify, etc.). Lives OUTSIDE the supabase auth
+  // listener so it can't deadlock supabase-js's session lock.
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    let active = true;
+    profileExists(uid)
+      .then((exists) => {
+        if (!active) return;
+        setProfileComplete(exists);
+        if (exists) setProfileSetupPending(false);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

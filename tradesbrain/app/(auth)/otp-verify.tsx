@@ -1,8 +1,9 @@
 // D2 Sign Up Step 5 → Step 6, D6 Flow01 S5 — Sequential dual OTP verification.
-// Step 1: enter and verify the EMAIL code. Until that is confirmed at the
-//         Supabase level (user.email_confirmed_at) the SMS field is hidden.
-// Step 2: enter and verify the SMS code. The screen confirms BOTH channels
-//         against the fresh auth user before opening the Terms overlay.
+// Step 1: enter and verify the EMAIL code. The SMS field is hidden until the
+//         email verifyOtp call returns success.
+// Step 2: enter and verify the SMS code. Each verifyOtp call validates the
+//         channel server-side, so a successful result means the channel is
+//         confirmed — no extra round-trip required before opening Terms.
 // Step 3: Terms acceptance → createUserProfile → Home tabs.
 //
 // Wrong OTP × 3 → lock OTP input 5 min with countdown.
@@ -16,7 +17,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import TermsOverlay from '../../components/shared/TermsOverlay';
 import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useAuthContext } from '../../context/AuthContext';
-import { supabase } from '../../services/supabase';
 import {
   verifyEmailOtp,
   verifyPhoneOtp,
@@ -153,37 +153,16 @@ export default function OtpVerifyScreen() {
     await refreshUser();
   }
 
-  // D2 Step 5 → Step 6 — both OTPs verified locally; double-check against the
-  // fresh auth user before presenting Terms. The extra check defends against a
-  // race where local state thinks both are confirmed but Supabase hasn't yet
-  // stamped phone_confirmed_at.
+  // D2 Step 5 → Step 6 — both OTPs verified locally. Each verifyOtp call
+  // already validates server-side, so a successful result means the channel
+  // is confirmed; no extra round-trip needed. We previously double-checked
+  // against supabase.auth.getUser() here, but that returned an inconsistent
+  // user object right after type='sms' verify (email_confirmed_at appeared
+  // null) and the rollback bounced the worker back to the email step.
   useEffect(() => {
     if (!emailVerified || !phoneVerified || showTerms) return;
-    let cancelled = false;
-    (async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const u = authData.user;
-      const okEmail = !!u?.email_confirmed_at;
-      const okPhone = !!u?.phone_confirmed_at;
-      if (cancelled) return;
-      if (!okEmail || !okPhone) {
-        // Roll back the local flag so the user can re-enter the missing code.
-        if (!okEmail) setEmailVerified(false);
-        if (!okPhone) setPhoneVerified(false);
-        Alert.alert(
-          'Verification incomplete',
-          !okEmail
-            ? 'Email is not confirmed yet — try the email code again.'
-            : 'Phone is not confirmed yet — try the SMS code again.',
-        );
-        return;
-      }
-      AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
-      setShowTerms(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
+    AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
+    setShowTerms(true);
   }, [emailVerified, phoneVerified, showTerms]);
 
   async function onAgreeTerms() {
@@ -204,13 +183,50 @@ export default function OtpVerifyScreen() {
     if (emailCooldown > 0) return;
     setEmailCooldown(RESEND_COOLDOWN_S);
     const { error } = await resendEmailOtp(data.email);
-    if (error) Alert.alert('Resend failed', error.message);
+    if (error) {
+      const msg = (error.message ?? '').toLowerCase();
+      // Supabase rate-limits resends to ~60s. Surface that clearly so the
+      // worker doesn't think Resend is silently broken.
+      if (msg.includes('rate') || msg.includes('too many') || msg.includes('seconds')) {
+        Alert.alert(
+          'Wait a moment',
+          'Supabase only allows one code per minute per email. Wait until the timer below the input runs out, then tap Resend again.',
+        );
+      } else if (msg.includes('already') && msg.includes('confirm')) {
+        // Email is already verified server-side. Mark locally and move on.
+        setEmailVerified(true);
+        Alert.alert('Already verified', 'Your email is already verified — moving on to the SMS code.');
+      } else {
+        Alert.alert('Resend failed', error.message);
+      }
+      // Reset cooldown so the user can try again immediately for non-rate
+      // errors (rate-limit cooldown is already tracked locally).
+      if (!msg.includes('rate') && !msg.includes('too many') && !msg.includes('seconds')) {
+        setEmailCooldown(0);
+      }
+    }
   }
   async function resendPhone() {
     if (phoneCooldown > 0) return;
     setPhoneCooldown(RESEND_COOLDOWN_S);
     const { error } = await resendPhoneOtp(data.phone);
-    if (error) Alert.alert('Resend failed', error.message);
+    if (error) {
+      const msg = (error.message ?? '').toLowerCase();
+      if (msg.includes('rate') || msg.includes('too many') || msg.includes('seconds')) {
+        Alert.alert(
+          'Wait a moment',
+          'Supabase only allows one SMS per minute per number. Wait until the timer below the input runs out, then tap Resend again.',
+        );
+      } else if (msg.includes('already') && msg.includes('confirm')) {
+        setPhoneVerified(true);
+        Alert.alert('Already verified', 'Your phone is already verified.');
+      } else {
+        Alert.alert('Resend failed', error.message);
+      }
+      if (!msg.includes('rate') && !msg.includes('too many') && !msg.includes('seconds')) {
+        setPhoneCooldown(0);
+      }
+    }
   }
 
   // Sequential: only show the SMS row once email has been confirmed.

@@ -19,7 +19,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { signInWithPassword, signInWithGoogle } from '../../services/auth';
+import {
+  signInWithPassword,
+  signInWithGoogle,
+  resendEmailOtp,
+  verifyEmailOtp,
+} from '../../services/auth';
 import {
   saveCredentials,
   loadCredentials,
@@ -45,8 +50,24 @@ export default function SignInScreen() {
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   // ISS-M4 (AU-3): inline error banner (D6 Flow02 S10) — replaces modal Alerts.
   const [signInError, setSignInError] = useState<
-    { message: string; action?: 'reset' | 'create' } | null
+    { message: string; action?: 'reset' | 'create' | 'verify_email' } | null
   >(null);
+  // Recovery mode for accounts that exist in auth.users but never finished
+  // email confirmation (signup interrupted). User enters the OTP we just
+  // re-sent; verifyOtp establishes a session and the gate routes them onward
+  // (VerifyPending for phone, CompleteProfile for trade/KYC, etc.).
+  const [verifyEmailMode, setVerifyEmailMode] = useState(false);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyInfo, setVerifyInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (verifyCooldown <= 0) return;
+    const t = setInterval(() => setVerifyCooldown((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [verifyCooldown]);
 
   useEffect(() => {
     loadCredentials().then((c) => {
@@ -149,7 +170,8 @@ export default function SignInScreen() {
         setFailed(failed);
         setSignInError({
           message:
-            'Your email is not verified yet. Check your inbox for the verification code, then sign in again.',
+            'Your email is not verified yet. Resend the verification code and verify it here to finish signing up.',
+          action: 'verify_email',
         });
       } else {
         setSignInError({
@@ -170,6 +192,65 @@ export default function SignInScreen() {
     else await clearCredentials();
     // Session established → onAuthStateChange in AuthContext fires → RootLayout
     // routes into the app once the profile check resolves.
+  }
+
+  async function onStartEmailVerify() {
+    if (!email.trim()) {
+      setSignInError({ message: 'Enter your email above first.' });
+      return;
+    }
+    setVerifyEmailMode(true);
+    setVerifyError(null);
+    setVerifyInfo(null);
+    setVerifyCode('');
+    if (verifyCooldown > 0) return;
+    setVerifyCooldown(60);
+    const { error } = await resendEmailOtp(email.trim());
+    if (error) {
+      setVerifyError(error.message);
+      setVerifyCooldown(0);
+      return;
+    }
+    setVerifyInfo(`Sent a 6-digit code to ${email.trim()}.`);
+  }
+
+  async function onResendVerifyCode() {
+    if (verifyCooldown > 0 || verifyBusy) return;
+    setVerifyError(null);
+    setVerifyCooldown(60);
+    const { error } = await resendEmailOtp(email.trim());
+    if (error) {
+      setVerifyError(error.message);
+      setVerifyCooldown(0);
+      return;
+    }
+    setVerifyInfo(`New code sent to ${email.trim()}.`);
+  }
+
+  async function onSubmitVerifyCode() {
+    if (verifyCode.length < 6) {
+      setVerifyError('Enter the 6-digit code from your email.');
+      return;
+    }
+    setVerifyBusy(true);
+    setVerifyError(null);
+    setVerifyInfo(null);
+    const { error } = await verifyEmailOtp(email.trim(), verifyCode.trim());
+    setVerifyBusy(false);
+    if (error) {
+      const msg = (error.message ?? '').toLowerCase();
+      setVerifyError(
+        msg.includes('expired')
+          ? 'That code expired — tap "Resend code".'
+          : 'Code is incorrect. Check your inbox and try again.',
+      );
+      return;
+    }
+    // Session is now established with email_confirmed_at set. AuthContext's
+    // listener picks it up, the RootLayout gate routes onward — VerifyPending
+    // if the phone is still unconfirmed, CompleteProfile if no users row yet.
+    setVerifyEmailMode(false);
+    setSignInError(null);
   }
 
   async function onGoogleSignIn() {
@@ -238,6 +319,67 @@ export default function SignInScreen() {
               </Text>
             </Pressable>
           )}
+          {signInError.action === 'verify_email' && !verifyEmailMode && (
+            <Pressable onPress={onStartEmailVerify} className="mt-2 self-start">
+              <Text className="text-red-700 font-semibold text-sm underline">
+                Send verification code
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {verifyEmailMode && !isLocked && (
+        <View className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <Text className="text-amber-800 font-semibold mb-1">Verify your email</Text>
+          {verifyInfo && (
+            <Text className="text-amber-700 text-xs mb-2">{verifyInfo}</Text>
+          )}
+          {verifyError && (
+            <Text className="text-red-700 text-xs mb-2">{verifyError}</Text>
+          )}
+          <TextInput
+            value={verifyCode}
+            onChangeText={(t) => {
+              setVerifyCode(t.replace(/\D/g, ''));
+              setVerifyError(null);
+            }}
+            placeholder="123456"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="number-pad"
+            maxLength={6}
+            editable={!verifyBusy}
+            className="border border-amber-300 rounded-lg px-3 py-3 text-base text-gray-900 tracking-widest mb-2 bg-white"
+          />
+          <Pressable
+            onPress={onSubmitVerifyCode}
+            disabled={verifyBusy || verifyCode.length < 6}
+            className={`py-3 rounded-lg ${
+              verifyBusy || verifyCode.length < 6 ? 'bg-gray-300' : 'bg-brand'
+            }`}
+          >
+            <Text className="text-center text-white font-semibold text-sm">
+              {verifyBusy ? 'Verifying…' : 'Verify email'}
+            </Text>
+          </Pressable>
+          <View className="flex-row justify-between items-center mt-2">
+            <Pressable onPress={onResendVerifyCode} disabled={verifyCooldown > 0 || verifyBusy}>
+              <Text className={`text-xs ${verifyCooldown > 0 ? 'text-gray-400' : 'text-brand font-semibold'}`}>
+                {verifyCooldown > 0 ? `Resend in ${verifyCooldown}s` : 'Resend code'}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setVerifyEmailMode(false);
+                setVerifyCode('');
+                setVerifyError(null);
+                setVerifyInfo(null);
+              }}
+              disabled={verifyBusy}
+            >
+              <Text className="text-xs text-gray-600">Cancel</Text>
+            </Pressable>
+          </View>
         </View>
       )}
 

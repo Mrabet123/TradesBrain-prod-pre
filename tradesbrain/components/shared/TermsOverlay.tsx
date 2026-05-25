@@ -3,7 +3,7 @@
 // Acceptance timestamp + version are persisted in users.terms_accepted_at /
 // users.terms_version when createUserProfile() runs.
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -12,6 +12,7 @@ import {
   Pressable,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { TERMS_VERSION } from '../../services/auth';
 
@@ -54,12 +55,41 @@ interface Props {
 
 export default function TermsOverlay({ visible, onAgree, onClose }: Props) {
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
+  const viewportHeight = useRef(0);
+  const contentHeight = useRef(0);
+
+  // Reset when the overlay re-opens so a fresh acceptance is required.
+  useEffect(() => {
+    if (visible) setScrolledToEnd(false);
+  }, [visible]);
+
+  // If the terms body is short enough to fit on screen, the user can't
+  // scroll — onScroll never fires and the button would never enable. Whenever
+  // we learn both the viewport height and the content height, check if
+  // scrolling is even necessary.
+  function maybeAutoEnable() {
+    const v = viewportHeight.current;
+    const c = contentHeight.current;
+    if (v > 0 && c > 0 && c <= v + 4) {
+      setScrolledToEnd(true);
+    }
+  }
 
   function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
     if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 20) {
       setScrolledToEnd(true);
     }
+  }
+
+  function onScrollViewLayout(e: LayoutChangeEvent) {
+    viewportHeight.current = e.nativeEvent.layout.height;
+    maybeAutoEnable();
+  }
+
+  function onContentSizeChange(_w: number, h: number) {
+    contentHeight.current = h;
+    maybeAutoEnable();
   }
 
   return (
@@ -70,7 +100,9 @@ export default function TermsOverlay({ visible, onAgree, onClose }: Props) {
         <ScrollView
           className="flex-1 border border-gray-200 rounded-lg p-3"
           onScroll={onScroll}
-          scrollEventThrottle={64}
+          onLayout={onScrollViewLayout}
+          onContentSizeChange={onContentSizeChange}
+          scrollEventThrottle={16}
         >
           <Text className="text-sm text-gray-800 leading-5">{TERMS_BODY}</Text>
         </ScrollView>
