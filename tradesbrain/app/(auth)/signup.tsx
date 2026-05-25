@@ -198,9 +198,16 @@ export default function SignUpScreen() {
 
   async function onCreateAccount() {
     setSubmitting(true);
+    // CRITICAL: set the gate-holding flag BEFORE startSignUp resolves.
+    // supabase.auth.signUp synchronously establishes a session and fires
+    // onAuthStateChange, which would otherwise see profileSetupPending=false
+    // and let RootLayout route the user to VerifyPending — losing the
+    // OtpVerify route params before we get a chance to navigate.
+    setProfileSetupPending(true);
     try {
       const { error } = await startSignUp(email, password, fullPhone);
       if (error) {
+        setProfileSetupPending(false);
         const msg = error.message.toLowerCase();
         if (msg.includes('already registered') || msg.includes('user already')) {
           Alert.alert(
@@ -215,11 +222,9 @@ export default function SignUpScreen() {
       }
       // Account created — drop the persisted draft so it doesn't reappear.
       await AsyncStorage.removeItem(DRAFT_KEY);
-      // Hold the RootLayout onboarding gate — OtpVerify creates the profile
-      // right after the session is established.
-      setProfileSetupPending(true);
       nav.navigate('OtpVerify', { signUpData: formSnapshot } as any);
     } catch (e: any) {
+      setProfileSetupPending(false);
       Alert.alert('Sign up failed', e?.message ?? 'Unknown error');
     } finally {
       setSubmitting(false);

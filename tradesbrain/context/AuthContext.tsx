@@ -126,13 +126,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!active) return;
+      let exists = false;
+      if (session?.user) {
+        exists = await profileExists();
+        if (!active) return;
+      }
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        const exists = await profileExists();
-        if (!active) return;
-        setProfileComplete(exists);
-      }
+      setProfileComplete(exists);
       setProfileChecked(true);
       setIsLoading(false);
     });
@@ -140,17 +141,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      // CRITICAL: do NOT flip profileChecked to false here. The RootLayout
+      // gate would briefly render the SplashScreen, unmount the Stack
+      // navigator, and reset the user back to Welcome — losing the OtpVerify
+      // route params mid-verification. We also resolve profileExists BEFORE
+      // calling setSession/setUser so the gate never transitions through an
+      // "authenticated but profile-state stale" frame (which would flicker
+      // into CompleteProfile right after sign-in).
       if (session?.user) {
-        setProfileChecked(false);
         const exists = await profileExists();
+        setSession(session);
+        setUser(session.user);
         setProfileComplete(exists);
-        setProfileChecked(true);
         if (exists) setProfileSetupPending(false);
       } else {
+        setSession(null);
+        setUser(null);
         setProfileComplete(false);
-        setProfileChecked(true);
         setProfileSetupPending(false);
       }
     });

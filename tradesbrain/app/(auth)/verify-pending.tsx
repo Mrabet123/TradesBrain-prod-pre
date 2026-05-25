@@ -45,6 +45,25 @@ export default function VerifyPendingScreen() {
     return () => clearInterval(t);
   }, [emailCooldown, phoneCooldown]);
 
+  // Auto-send the missing OTP(s) on mount so the user doesn't have to tap
+  // Resend before the first code arrives. We only do this once per mount, and
+  // we set the resend cooldown immediately so we never spam Supabase.
+  const autoSentRef = React.useRef(false);
+  useEffect(() => {
+    if (autoSentRef.current || !user) return;
+    autoSentRef.current = true;
+    (async () => {
+      if (!emailVerified && user.email) {
+        setEmailCooldown(RESEND_COOLDOWN_S);
+        await resendEmailOtp(user.email).catch(() => {});
+      }
+      if (!phoneVerified && user.phone) {
+        setPhoneCooldown(RESEND_COOLDOWN_S);
+        await resendPhoneOtp(user.phone.startsWith('+') ? user.phone : `+${user.phone}`).catch(() => {});
+      }
+    })();
+  }, [user, emailVerified, phoneVerified]);
+
   const needEmail = !emailVerified && !!user?.email;
   const needPhone = !phoneVerified && !!user?.phone;
 
