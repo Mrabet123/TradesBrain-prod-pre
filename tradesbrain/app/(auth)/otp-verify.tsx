@@ -19,9 +19,9 @@ import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   verifyEmailOtp,
-  verifyPhoneOtp,
+  verifyPhoneChangeOtp,
   resendEmailOtp,
-  resendPhoneOtp,
+  sendPhoneChangeOtp,
   createUserProfile,
   type SignUpInput,
 } from '../../services/auth';
@@ -117,21 +117,17 @@ export default function OtpVerifyScreen() {
     }
     setEmailVerified(true);
     setEmailCode('');
-    // Refresh the auth user so email_confirmed_at flows into the gate, and
-    // (re)send the SMS OTP now that we are advancing to step 2. The signup
-    // flow already triggered the first SMS, but resending here gives the
-    // worker an obvious "code on the way" beat at the moment they need it.
+    // Email is confirmed, so we now have a session. Attach the phone via
+    // updateUser({ phone }) — this is what actually dispatches the SMS through
+    // Twilio. The phone was intentionally NOT attached at signUp (see
+    // services/auth.ts: a combined email+phone signUp leaves the phone in a
+    // state where resend(type:'sms') silently no-ops). refreshUser first so
+    // email_confirmed_at flows into the gate.
     await refreshUser();
     if (data.phone) {
-      // DIAG: surface the SMS resend result instead of swallowing it. A "completed"
-      // GoTrue response with no SMS at Twilio means the send was short-circuited
-      // (combined email+phone signup leaves the phone in a state where resend is a
-      // no-op). If this consistently returns no error yet no SMS arrives, switch the
-      // phone to the updateUser({ phone }) -> verifyOtp(type:'phone_change') flow.
-      const { data: resendData, error: resendErr } = await resendPhoneOtp(data.phone);
-      console.log('[DIAG] resendPhoneOtp ->', JSON.stringify({ resendData, resendErr }));
-      if (resendErr) {
-        Alert.alert('SMS send issue', `GoTrue: ${resendErr.message} (code: ${resendErr.code ?? 'none'})`);
+      const { error: phoneErr } = await sendPhoneChangeOtp(data.phone);
+      if (phoneErr) {
+        Alert.alert('Could not send SMS code', phoneErr.message);
       } else {
         setPhoneCooldown(RESEND_COOLDOWN_S);
       }
@@ -141,7 +137,7 @@ export default function OtpVerifyScreen() {
   async function tryVerifyPhone() {
     if (isLocked || phoneVerified || phoneCode.length < 4) return;
     setBusy(true);
-    const { error } = await verifyPhoneOtp(data.phone, phoneCode);
+    const { error } = await verifyPhoneChangeOtp(data.phone, phoneCode);
     setBusy(false);
     if (error) {
       if (isExpiredOtpError(error)) {
@@ -219,7 +215,9 @@ export default function OtpVerifyScreen() {
   async function resendPhone() {
     if (phoneCooldown > 0) return;
     setPhoneCooldown(RESEND_COOLDOWN_S);
-    const { error } = await resendPhoneOtp(data.phone);
+    // Re-trigger the phone_change SMS via updateUser (NOT resend(type:'sms'),
+    // which no-ops). Re-issuing with the same pending phone sends a fresh OTP.
+    const { error } = await sendPhoneChangeOtp(data.phone);
     if (error) {
       const msg = (error.message ?? '').toLowerCase();
       if (msg.includes('rate') || msg.includes('too many') || msg.includes('seconds')) {

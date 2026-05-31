@@ -81,7 +81,9 @@ export default function SignUpScreen() {
   const [companyName, setCompanyName] = useState('');
   const [companyLogoUri, setCompanyLogoUri] = useState<string | null>(null);
 
-  const fullPhone = `${countryCode}${phoneLocal}`;
+  // Normalise to clean E.164 (digits + leading '+') — the phone-pad keyboard and
+  // the "555 123 4567" placeholder mean users type spaces, which Twilio rejects.
+  const fullPhone = `${countryCode}${phoneLocal}`.replace(/[^\d+]/g, '');
   const pwInfo = passwordStrength(password);
 
   // Per-field "touched" tracking — an error only shows once a field has been
@@ -240,7 +242,7 @@ export default function SignUpScreen() {
       // and let RootLayout route the user to VerifyPending — losing the
       // OtpVerify route params before we get a chance to navigate.
       setProfileSetupPending(true);
-      const { error } = await startSignUp(email, password, fullPhone);
+      const { error } = await startSignUp(email, password);
       if (error) {
         setProfileSetupPending(false);
         const msg = error.message.toLowerCase();

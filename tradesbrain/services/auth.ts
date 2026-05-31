@@ -80,17 +80,18 @@ export async function checkSignupAvailability(
   };
 }
 
-export async function startSignUp(email: string, password: string, phone: string) {
-  // Supabase signUp with both email and phone triggers email confirmation
-  // and SMS OTP simultaneously when phone provider is configured.
-  return supabase.auth.signUp({
-    email,
-    password,
-    phone,
-    options: {
-      channel: 'sms',
-    },
-  });
+export async function startSignUp(email: string, password: string) {
+  // Email-only signup. The phone is deliberately NOT attached here.
+  //
+  // A combined email+phone signUp makes EMAIL the primary channel and leaves the
+  // phone in a state where GoTrue reports the SMS resend "completed" but never
+  // dispatches it to Twilio — confirmed empirically: resend(type:'sms') returns
+  // { resendData: { user: null, session: null }, resendErr: null } yet Twilio logs
+  // nothing. The phone is instead added and confirmed as an explicit step AFTER
+  // email verification, via sendPhoneChangeOtp() -> verifyPhoneChangeOtp(), which
+  // forces a real Twilio send. This mirrors the working "Add and verify phone"
+  // path already used by verify-pending.tsx.
+  return supabase.auth.signUp({ email, password });
 }
 
 export async function verifyEmailOtp(email: string, token: string) {
@@ -107,6 +108,22 @@ export async function resendEmailOtp(email: string) {
 
 export async function resendPhoneOtp(phone: string) {
   return supabase.auth.resend({ type: 'sms', phone });
+}
+
+// Attaches the phone to the now-authenticated user and triggers an SMS OTP via
+// Twilio to confirm it. REQUIRES an active session — call only AFTER the email
+// OTP has been verified (that step establishes the session). Unlike
+// resend(type:'sms') on a phone attached during signUp (a silent no-op),
+// updateUser({ phone }) reliably dispatches the SMS. Confirm with
+// verifyPhoneChangeOtp(). Same mechanism verify-pending.tsx uses successfully.
+export async function sendPhoneChangeOtp(phone: string) {
+  return supabase.auth.updateUser({ phone });
+}
+
+// Confirms the SMS OTP sent by sendPhoneChangeOtp(). GoTrue emits the code under
+// type 'phone_change' when a phone is attached to an already-authenticated user.
+export async function verifyPhoneChangeOtp(phone: string, token: string) {
+  return supabase.auth.verifyOtp({ phone, token, type: 'phone_change' });
 }
 
 export async function uploadKycPhoto(
