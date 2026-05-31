@@ -222,7 +222,8 @@ function Field(props: {
         keyboardType={props.keyboardType}
         autoCapitalize={props.autoCapitalize}
         placeholder={props.placeholder}
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900"
       />
     </View>
   );

@@ -52,3 +52,9 @@ export async function checkKycStatus(verifyDocument?: 'national_id' | 'license')
 export async function calculateDaysRemaining() {
   return callEdgeFunction('calculate-days-remaining', {});
 }
+
+// M6 — Stripe Customer Portal. Returns a short-lived URL the mobile app opens
+// in an in-app browser so the user can update card / view Stripe invoices.
+export async function createBillingPortalSession() {
+  return callEdgeFunction('stripe-portal-session', {});
+}

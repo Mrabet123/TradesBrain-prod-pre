@@ -17,10 +17,12 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 
+import * as WebBrowser from 'expo-web-browser';
+
 import { useAuthContext } from '../../context/AuthContext';
 import { useSubscriptionContext } from '../../context/SubscriptionContext';
 import { supabase } from '../../services/supabase';
-import { calculateDaysRemaining } from '../../services/stripe';
+import { calculateDaysRemaining, createBillingPortalSession } from '../../services/stripe';
 import {
   switchBillingCycle,
   changePlan,
@@ -69,6 +71,7 @@ export default function SubscriptionSettingsScreen() {
   const [days, setDays] = useState<DaysRemaining>({ days: null, endDate: null });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [openingPortal, setOpeningPortal] = useState(false);
 
   const reload = useCallback(async () => {
     if (!user) return;
@@ -207,6 +210,30 @@ export default function SubscriptionSettingsScreen() {
     ]);
   }
 
+  // M6 — Manage payment method. Mints a Stripe Customer Portal session URL
+  // server-side and opens it in an in-app browser. Card updates, invoice
+  // downloads and Stripe-managed details all happen on Stripe's hosted page;
+  // we re-read the local subscription row when the user returns in case the
+  // webhook landed while the portal was open.
+  async function onManagePaymentMethod() {
+    if (openingPortal) return;
+    setOpeningPortal(true);
+    try {
+      const res = await createBillingPortalSession();
+      if (!res.success || !res.data?.url) {
+        Alert.alert(
+          'Could not open billing portal',
+          res.error ?? 'Try again in a moment.',
+        );
+        return;
+      }
+      await WebBrowser.openBrowserAsync(res.data.url);
+      await reload();
+    } finally {
+      setOpeningPortal(false);
+    }
+  }
+
   async function onChangePlan(target: 'solo' | 'pro' | 'team') {
     if (!sub || target === sub.plan_type) return;
     Alert.alert(
@@ -281,15 +308,26 @@ export default function SubscriptionSettingsScreen() {
           </Text>
 
           {sub.cancelled_at ? (
-            <Pressable
-              onPress={onRestore}
-              disabled={busy}
-              className={`py-3 rounded-lg ${busy ? 'bg-gray-300' : 'bg-brand'}`}
-            >
-              <Text className="text-center text-white font-semibold">
-                {busy ? 'Working…' : 'Restore subscription'}
-              </Text>
-            </Pressable>
+            <View className="gap-2">
+              <Pressable
+                onPress={onRestore}
+                disabled={busy}
+                className={`py-3 rounded-lg ${busy ? 'bg-gray-300' : 'bg-brand'}`}
+              >
+                <Text className="text-center text-white font-semibold">
+                  {busy ? 'Working…' : 'Restore subscription'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onManagePaymentMethod}
+                disabled={openingPortal}
+                className="py-3 rounded-lg border border-gray-300"
+              >
+                <Text className="text-center text-gray-700 font-semibold">
+                  {openingPortal ? 'Opening…' : 'Manage payment method'}
+                </Text>
+              </Pressable>
+            </View>
           ) : (
             <View className="gap-2">
               <Pressable
@@ -301,6 +339,15 @@ export default function SubscriptionSettingsScreen() {
                   {sub.billing_cycle === 'monthly'
                     ? 'Switch to annual (save 20%)'
                     : 'Switch to monthly'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onManagePaymentMethod}
+                disabled={openingPortal}
+                className="py-3 rounded-lg border border-gray-300"
+              >
+                <Text className="text-center text-gray-700 font-semibold">
+                  {openingPortal ? 'Opening…' : 'Manage payment method'}
                 </Text>
               </Pressable>
               <Pressable

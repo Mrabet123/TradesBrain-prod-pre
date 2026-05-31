@@ -1421,6 +1421,7 @@ import ForceUpgradeScreen from '../components/shared/ForceUpgradeScreen';
 import SplashScreen from '../components/shared/SplashScreen';
 import { useMinVersion } from '../hooks/useMinVersion';
 import { registerPushToken } from '../services/pushNotifications';
+import { markMemberActivated } from '../services/team';
 import VerifyPendingScreen from './(auth)/verify-pending';
 
 export type RootStackParamList = {
@@ -1528,11 +1529,14 @@ export default function RootLayout() {
   const minVersion = useMinVersion();
 
   // Register this device for push notifications once signed in with a profile.
+  // Also fire the team-member "first login complete" hook — the Edge Function
+  // is idempotent and short-circuits cleanly for non-members.
   useEffect(() => {
-    if (isAuthenticated && profileComplete && user?.id) {
+    if (isAuthenticated && profileComplete && fullyVerified && user?.id) {
       registerPushToken(user.id);
+      markMemberActivated();
     }
-  }, [isAuthenticated, profileComplete, user?.id]);
+  }, [isAuthenticated, profileComplete, fullyVerified, user?.id]);
 
   if (isLoading) return <SplashScreen />;
   // Force-upgrade gate (D6 Flow12 S19) — blocks the whole app when the bundled

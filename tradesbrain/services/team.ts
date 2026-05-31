@@ -191,6 +191,19 @@ export async function fetchTeamKpis(
   return { perMember, total };
 }
 
+// M8 #15 — best-effort. Called by RootLayout once the team member has finished
+// first login (set their password via the recovery link AND verified the phone
+// OTP). The Edge Function is idempotent: solopreneurs / owners hit the
+// "not_team_member" branch and exit cleanly, so callers can fire this
+// unconditionally without inspecting account_type first.
+export async function markMemberActivated(): Promise<void> {
+  try {
+    await supabase.functions.invoke('mark-member-activated', { body: {} });
+  } catch {
+    // Best-effort — never throw.
+  }
+}
+
 export function generateTempPassword(): string {
   // 12-char temp password: 4 lower, 4 upper, 2 digits, 2 symbols — shuffled.
   const pick = (chars: string, n: number) =>

@@ -123,8 +123,18 @@ export default function OtpVerifyScreen() {
     // worker an obvious "code on the way" beat at the moment they need it.
     await refreshUser();
     if (data.phone) {
-      const { error: resendErr } = await resendPhoneOtp(data.phone);
-      if (!resendErr) setPhoneCooldown(RESEND_COOLDOWN_S);
+      // DIAG: surface the SMS resend result instead of swallowing it. A "completed"
+      // GoTrue response with no SMS at Twilio means the send was short-circuited
+      // (combined email+phone signup leaves the phone in a state where resend is a
+      // no-op). If this consistently returns no error yet no SMS arrives, switch the
+      // phone to the updateUser({ phone }) -> verifyOtp(type:'phone_change') flow.
+      const { data: resendData, error: resendErr } = await resendPhoneOtp(data.phone);
+      console.log('[DIAG] resendPhoneOtp ->', JSON.stringify({ resendData, resendErr }));
+      if (resendErr) {
+        Alert.alert('SMS send issue', `GoTrue: ${resendErr.message} (code: ${resendErr.code ?? 'none'})`);
+      } else {
+        setPhoneCooldown(RESEND_COOLDOWN_S);
+      }
     }
   }
 
