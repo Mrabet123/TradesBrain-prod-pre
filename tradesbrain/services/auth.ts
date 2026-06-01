@@ -45,7 +45,10 @@ export interface SignUpInput {
   fullName: string;
   email: string;
   password: string;
-  phone: string;
+  // Optional: no longer collected during email sign-up (phone is added later
+  // via Settings → Profile). Still passed by the OAuth/phone-OTP onboarding
+  // flow in complete-profile.tsx.
+  phone?: string;
   tradeType: 'plumber' | 'electrician' | 'hvac' | 'roofer' | 'other';
   accountType: 'solopreneur' | 'team_owner';
   hourlyRate: number;
@@ -201,7 +204,10 @@ export async function createUserProfile(input: SignUpInput): Promise<void> {
     id: user.id,
     full_name: input.fullName,
     email: input.email,
-    phone_number: input.phone,
+    // phone_number is NOT NULL in the schema; email sign-ups no longer collect
+    // a phone, so store an empty string until the user adds one in Settings →
+    // Profile. OAuth/phone-OTP onboarding still passes a real value.
+    phone_number: input.phone ?? '',
     trade_type: input.tradeType,
     account_type: input.accountType,
     hourly_rate: input.hourlyRate,

@@ -96,9 +96,11 @@ function deriveVerification(user: User | null) {
   } else if (provider === 'phone') {
     fully = phoneVerified;
   } else {
-    // Email sign-up. TradesBrain collects both at signup so both must be
-    // verified before we let the user past the gate.
-    fully = emailVerified && phoneVerified;
+    // Email sign-up. Phone is no longer collected at signup (it becomes a
+    // Settings → Profile feature), so only the email channel must be
+    // confirmed before the gate opens. phoneVerified is still computed above
+    // for the future "add phone in profile" flow.
+    fully = emailVerified;
   }
   return { emailVerified, phoneVerified, provider, fullyVerified: fully };
 }

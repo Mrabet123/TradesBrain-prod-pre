@@ -1,11 +1,12 @@
 // D1 §7, D2 Sign Up Flow, D6 Flow01 — 3-step sign-up form.
-// Step 1: full name, email, password (≥8 chars + strength), phone (country code).
+// Step 1: full name, email, password (≥8 chars + strength).
 // Step 2: trade type, account type, hourly rate, VAT number.
 // Step 3: license proof photo + number, national ID photo, optional company name + logo.
 // Create Account button disabled until all required fields valid.
 // On Create Account: startSignUp() → OtpVerify. The Terms overlay is shown on
-// the OtpVerify screen AFTER both OTPs are verified (D2 Step 5 OTP → Step 6
-// Terms), then createUserProfile() persists the acceptance.
+// the OtpVerify screen AFTER the email OTP is verified (D2 Step 5 OTP → Step 6
+// Terms), then createUserProfile() persists the acceptance. Phone is no longer
+// collected at sign-up — it becomes a Settings → Profile feature.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -65,8 +66,6 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [countryCode, setCountryCode] = useState('+1');
-  const [phoneLocal, setPhoneLocal] = useState('');
 
   // Step 2
   const [tradeType, setTradeType] = useState<TradeType | ''>('');
@@ -81,9 +80,6 @@ export default function SignUpScreen() {
   const [companyName, setCompanyName] = useState('');
   const [companyLogoUri, setCompanyLogoUri] = useState<string | null>(null);
 
-  // Normalise to clean E.164 (digits + leading '+') — the phone-pad keyboard and
-  // the "555 123 4567" placeholder mean users type spaces, which Twilio rejects.
-  const fullPhone = `${countryCode}${phoneLocal}`.replace(/[^\d+]/g, '');
   const pwInfo = passwordStrength(password);
 
   // Per-field "touched" tracking — an error only shows once a field has been
@@ -103,10 +99,6 @@ export default function SignUpScreen() {
         : confirmPassword !== password
         ? 'Passwords do not match.'
         : '',
-    phone:
-      phoneLocal.replace(/\D/g, '').length >= 7
-        ? ''
-        : 'Enter a valid phone number (min 7 digits).',
   };
 
   // ── Restore in-progress draft on mount (password is never persisted) ──────
@@ -119,8 +111,6 @@ export default function SignUpScreen() {
             const d = JSON.parse(raw);
             if (typeof d.fullName === 'string') setFullName(d.fullName);
             if (typeof d.email === 'string') setEmail(d.email);
-            if (typeof d.countryCode === 'string') setCountryCode(d.countryCode);
-            if (typeof d.phoneLocal === 'string') setPhoneLocal(d.phoneLocal);
             if (typeof d.tradeType === 'string') setTradeType(d.tradeType);
             if (typeof d.accountType === 'string') setAccountType(d.accountType);
             if (typeof d.hourlyRate === 'string') setHourlyRate(d.hourlyRate);
@@ -145,8 +135,6 @@ export default function SignUpScreen() {
       JSON.stringify({
         fullName,
         email,
-        countryCode,
-        phoneLocal,
         tradeType,
         accountType,
         hourlyRate,
@@ -156,7 +144,7 @@ export default function SignUpScreen() {
       }),
     ).catch(() => {});
   }, [
-    fullName, email, countryCode, phoneLocal, tradeType, accountType,
+    fullName, email, tradeType, accountType,
     hourlyRate, vatNumber, licenseNumber, companyName,
   ]);
 
@@ -164,8 +152,7 @@ export default function SignUpScreen() {
     fullName.trim().length > 1 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
     password.length >= 8 &&
-    confirmPassword === password &&
-    phoneLocal.replace(/\D/g, '').length >= 7;
+    confirmPassword === password;
 
   const step2Valid =
     tradeType !== '' &&
@@ -185,7 +172,6 @@ export default function SignUpScreen() {
       fullName,
       email,
       password,
-      phone: fullPhone,
       tradeType: tradeType as TradeType,
       accountType: accountType as AccountType,
       hourlyRate: parseFloat(hourlyRate || '0'),
@@ -197,7 +183,7 @@ export default function SignUpScreen() {
       companyLogoUri: companyLogoUri ?? undefined,
     }),
     [
-      fullName, email, password, fullPhone, tradeType, accountType, hourlyRate,
+      fullName, email, password, tradeType, accountType, hourlyRate,
       vatNumber, licenseNumber, licenseProofUri, nationalIdUri, companyName, companyLogoUri,
     ],
   );
@@ -205,32 +191,15 @@ export default function SignUpScreen() {
   async function onCreateAccount() {
     setSubmitting(true);
     try {
-      // Pre-flight duplicate check — runs BEFORE supabase.auth.signUp so a
-      // duplicate phone (which Supabase Auth doesn't enforce uniqueness on)
-      // gets caught at the form instead of silently creating a second
-      // account. Email duplicates are caught here too — Supabase would
-      // catch them server-side but surfacing the error upfront is friendlier.
-      const availability = await checkSignupAvailability(email.trim(), fullPhone);
-      if (availability.emailTaken && availability.phoneTaken) {
-        Alert.alert(
-          'Already registered',
-          'Both this email and phone number are already in use. Sign in instead, or use different details.',
-          [{ text: 'Go to Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
-        );
-        return;
-      }
+      // Pre-flight duplicate check — runs BEFORE supabase.auth.signUp so an
+      // email already in use is caught at the form. Supabase would catch it
+      // server-side too, but surfacing it upfront is friendlier. Phone is no
+      // longer collected at sign-up, so only the email is checked.
+      const availability = await checkSignupAvailability(email.trim(), '');
       if (availability.emailTaken) {
         Alert.alert(
           'Email already registered',
           'This email is already in use. Sign in instead, or use a different email.',
-          [{ text: 'Go to Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
-        );
-        return;
-      }
-      if (availability.phoneTaken) {
-        Alert.alert(
-          'Phone already in use',
-          'This phone number is already attached to another account. Use a different number, or sign in with the original account.',
           [{ text: 'Go to Sign In', onPress: () => nav.navigate('SignIn') }, { text: 'Cancel' }],
         );
         return;
@@ -339,35 +308,11 @@ export default function SignUpScreen() {
             </View>
           )}
 
-          <Text className="text-sm font-medium text-gray-700 mb-1">Phone number</Text>
-          <View className="flex-row gap-2 mb-1">
-            <TextInput
-              value={countryCode}
-              onChangeText={setCountryCode}
-              placeholderTextColor="#9CA3AF"
-              className="border border-gray-300 rounded-lg px-3 py-3 w-20 text-base text-gray-900"
-              keyboardType="phone-pad"
-            />
-            <TextInput
-              value={phoneLocal}
-              onChangeText={setPhoneLocal}
-              onBlur={() => markTouched('phone')}
-              placeholder="555 123 4567"
-              placeholderTextColor="#9CA3AF"
-              className={`flex-1 border rounded-lg px-3 py-3 text-base text-gray-900 ${
-                touched.phone && fieldErrors.phone ? 'border-red-400' : 'border-gray-300'
-              }`}
-              keyboardType="phone-pad"
-            />
-          </View>
-          {touched.phone && !!fieldErrors.phone && (
-            <Text className="text-xs text-red-600 mb-3">{fieldErrors.phone}</Text>
-          )}
           <View className="mb-1" />
 
-          {/* Social / phone sign-up — same providers as the Sign In screen.
-              Both authenticate first, then RootLayout's gate routes the new
-              user to the complete-profile screen for trade type + KYC. */}
+          {/* Social sign-up — same Google provider as the Sign In screen.
+              Authenticates first, then RootLayout's gate routes the new user
+              to the complete-profile screen for trade type + KYC. */}
           <View className="flex-row items-center my-1">
             <View className="flex-1 h-px bg-gray-200" />
             <Text className="mx-3 text-xs text-gray-400">OR SIGN UP WITH</Text>
@@ -376,19 +321,10 @@ export default function SignUpScreen() {
           <Pressable
             onPress={onGoogleSignup}
             disabled={authBusy}
-            className="py-4 rounded-xl border border-gray-300 mb-3 mt-2"
+            className="py-4 rounded-xl border border-gray-300 mt-2"
           >
             <Text className="text-center text-gray-800 font-semibold">
               Continue with Google
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => nav.navigate('PhoneSignIn')}
-            disabled={authBusy}
-            className="py-4 rounded-xl border border-gray-300"
-          >
-            <Text className="text-center text-gray-800 font-semibold">
-              Sign up with phone OTP
             </Text>
           </Pressable>
           {authBusy && (
@@ -449,7 +385,6 @@ export default function SignUpScreen() {
             <Text className="text-sm font-semibold text-gray-800 mb-3">Review your details</Text>
             <ReviewRow label="Full name" value={fullName} />
             <ReviewRow label="Email" value={email} />
-            <ReviewRow label="Phone" value={fullPhone} />
             <ReviewRow
               label="Trade type"
               value={TRADES.find((t) => t.value === tradeType)?.label ?? '—'}

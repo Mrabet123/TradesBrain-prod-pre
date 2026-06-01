@@ -1,10 +1,9 @@
-// D2 Sign Up Step 5 → Step 6, D6 Flow01 S5 — Sequential dual OTP verification.
-// Step 1: enter and verify the EMAIL code. The SMS field is hidden until the
-//         email verifyOtp call returns success.
-// Step 2: enter and verify the SMS code. Each verifyOtp call validates the
-//         channel server-side, so a successful result means the channel is
-//         confirmed — no extra round-trip required before opening Terms.
-// Step 3: Terms acceptance → createUserProfile → Home tabs.
+// D2 Sign Up Step 5 → Step 6, D6 Flow01 S5 — Email OTP verification.
+// Step 1: enter and verify the EMAIL code.
+// Step 2: Terms acceptance → createUserProfile → Home tabs.
+//
+// Phone OTP was removed from the sign-up flow — phone becomes a
+// Settings → Profile feature. Only the email channel is confirmed here.
 //
 // Wrong OTP × 3 → lock OTP input 5 min with countdown.
 // The OtpVerify screen never navigates the user away on its own — RootLayout's
@@ -19,9 +18,7 @@ import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useAuthContext } from '../../context/AuthContext';
 import {
   verifyEmailOtp,
-  verifyPhoneChangeOtp,
   resendEmailOtp,
-  sendPhoneChangeOtp,
   createUserProfile,
   type SignUpInput,
 } from '../../services/auth';
@@ -45,16 +42,12 @@ export default function OtpVerifyScreen() {
   const data = route.params.signUpData;
 
   const [emailCode, setEmailCode] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
 
   const [emailWrong, setEmailWrong] = useState(0);
-  const [phoneWrong, setPhoneWrong] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
   const [emailCooldown, setEmailCooldown] = useState(0);
-  const [phoneCooldown, setPhoneCooldown] = useState(0);
 
   const [busy, setBusy] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
@@ -63,7 +56,6 @@ export default function OtpVerifyScreen() {
   useEffect(() => {
     const t = setInterval(() => {
       setEmailCooldown((s) => (s > 0 ? s - 1 : 0));
-      setPhoneCooldown((s) => (s > 0 ? s - 1 : 0));
       setNow(Date.now());
     }, 1000);
     return () => clearInterval(t);
@@ -90,7 +82,6 @@ export default function OtpVerifyScreen() {
     if (lockedUntil && now >= lockedUntil) {
       setLockedUntil(null);
       setEmailWrong(0);
-      setPhoneWrong(0);
       AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
     }
   }, [now, lockedUntil]);
@@ -117,59 +108,18 @@ export default function OtpVerifyScreen() {
     }
     setEmailVerified(true);
     setEmailCode('');
-    // Email is confirmed, so we now have a session. Attach the phone via
-    // updateUser({ phone }) — this is what actually dispatches the SMS through
-    // Twilio. The phone was intentionally NOT attached at signUp (see
-    // services/auth.ts: a combined email+phone signUp leaves the phone in a
-    // state where resend(type:'sms') silently no-ops). refreshUser first so
-    // email_confirmed_at flows into the gate.
-    await refreshUser();
-    if (data.phone) {
-      const { error: phoneErr } = await sendPhoneChangeOtp(data.phone);
-      if (phoneErr) {
-        Alert.alert('Could not send SMS code', phoneErr.message);
-      } else {
-        setPhoneCooldown(RESEND_COOLDOWN_S);
-      }
-    }
-  }
-
-  async function tryVerifyPhone() {
-    if (isLocked || phoneVerified || phoneCode.length < 4) return;
-    setBusy(true);
-    const { error } = await verifyPhoneChangeOtp(data.phone, phoneCode);
-    setBusy(false);
-    if (error) {
-      if (isExpiredOtpError(error)) {
-        Alert.alert('Code expired', 'That SMS code has expired — tap "Resend code" for a new one.');
-        return;
-      }
-      const next = phoneWrong + 1;
-      setPhoneWrong(next);
-      if (next >= MAX_WRONG) {
-        const until = Date.now() + LOCKOUT_S * 1000;
-        setLockedUntil(until);
-        AsyncStorage.setItem(LOCKOUT_KEY, String(until)).catch(() => {});
-      }
-      Alert.alert('Wrong code', 'SMS code is incorrect.');
-      return;
-    }
-    setPhoneVerified(true);
-    setPhoneCode('');
+    // Email confirmed — refresh so email_confirmed_at flows into the gate.
     await refreshUser();
   }
 
-  // D2 Step 5 → Step 6 — both OTPs verified locally. Each verifyOtp call
-  // already validates server-side, so a successful result means the channel
-  // is confirmed; no extra round-trip needed. We previously double-checked
-  // against supabase.auth.getUser() here, but that returned an inconsistent
-  // user object right after type='sms' verify (email_confirmed_at appeared
-  // null) and the rollback bounced the worker back to the email step.
+  // D2 Step 5 → Step 6 — email verified locally. verifyOtp already validates
+  // server-side, so a successful result means the channel is confirmed; open
+  // the Terms overlay to finish account creation.
   useEffect(() => {
-    if (!emailVerified || !phoneVerified || showTerms) return;
+    if (!emailVerified || showTerms) return;
     AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
     setShowTerms(true);
-  }, [emailVerified, phoneVerified, showTerms]);
+  }, [emailVerified, showTerms]);
 
   async function onAgreeTerms() {
     setShowTerms(false);
@@ -201,7 +151,7 @@ export default function OtpVerifyScreen() {
       } else if (msg.includes('already') && msg.includes('confirm')) {
         // Email is already verified server-side. Mark locally and move on.
         setEmailVerified(true);
-        Alert.alert('Already verified', 'Your email is already verified — moving on to the SMS code.');
+        Alert.alert('Already verified', 'Your email is already verified — finishing up.');
       } else {
         Alert.alert('Resend failed', error.message);
       }
@@ -212,66 +162,13 @@ export default function OtpVerifyScreen() {
       }
     }
   }
-  async function resendPhone() {
-    if (phoneCooldown > 0) return;
-    setPhoneCooldown(RESEND_COOLDOWN_S);
-    // Re-trigger the phone_change SMS via updateUser (NOT resend(type:'sms'),
-    // which no-ops). Re-issuing with the same pending phone sends a fresh OTP.
-    const { error } = await sendPhoneChangeOtp(data.phone);
-    if (error) {
-      const msg = (error.message ?? '').toLowerCase();
-      if (msg.includes('rate') || msg.includes('too many') || msg.includes('seconds')) {
-        Alert.alert(
-          'Wait a moment',
-          'Supabase only allows one SMS per minute per number. Wait until the timer below the input runs out, then tap Resend again.',
-        );
-      } else if (msg.includes('already') && msg.includes('confirm')) {
-        setPhoneVerified(true);
-        Alert.alert('Already verified', 'Your phone is already verified.');
-      } else {
-        Alert.alert('Resend failed', error.message);
-      }
-      if (!msg.includes('rate') && !msg.includes('too many') && !msg.includes('seconds')) {
-        setPhoneCooldown(0);
-      }
-    }
-  }
-
-  // Sequential: only show the SMS row once email has been confirmed.
-  const showPhoneRow = emailVerified;
-  const bothVerified = emailVerified && phoneVerified;
 
   return (
     <KeyboardAwareScreen>
-      <Text className="text-2xl font-bold text-gray-900 mb-1">Verify your identity</Text>
-      <Text className="text-sm text-gray-600 mb-2">
-        {emailVerified
-          ? 'Email confirmed. Now enter the code we sent to your phone.'
-          : 'First, enter the 6-digit code we sent to your email.'}
+      <Text className="text-2xl font-bold text-gray-900 mb-1">Verify your email</Text>
+      <Text className="text-sm text-gray-600 mb-6">
+        Enter the 6-digit code we sent to your email to finish creating your account.
       </Text>
-
-      {/* Progress strip */}
-      <View className="flex-row items-center mb-6">
-        <View className="flex-1 flex-row items-center">
-          <View
-            className={`w-6 h-6 rounded-full items-center justify-center ${
-              emailVerified ? 'bg-green-600' : 'bg-brand'
-            }`}
-          >
-            <Text className="text-white text-xs font-bold">{emailVerified ? '✓' : '1'}</Text>
-          </View>
-          <Text className="ml-2 text-xs text-gray-700">Email</Text>
-          <View className={`flex-1 h-0.5 mx-2 ${emailVerified ? 'bg-green-600' : 'bg-gray-200'}`} />
-          <View
-            className={`w-6 h-6 rounded-full items-center justify-center ${
-              phoneVerified ? 'bg-green-600' : emailVerified ? 'bg-brand' : 'bg-gray-300'
-            }`}
-          >
-            <Text className="text-white text-xs font-bold">{phoneVerified ? '✓' : '2'}</Text>
-          </View>
-          <Text className="ml-2 text-xs text-gray-700">Phone</Text>
-        </View>
-      </View>
 
       {isLocked && (
         <View className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
@@ -294,26 +191,6 @@ export default function OtpVerifyScreen() {
         disabled={isLocked || busy || emailVerified}
       />
 
-      {showPhoneRow ? (
-        <OtpRow
-          label="SMS code"
-          target={data.phone}
-          value={phoneCode}
-          onChangeText={setPhoneCode}
-          onVerify={tryVerifyPhone}
-          onResend={resendPhone}
-          verified={phoneVerified}
-          cooldown={phoneCooldown}
-          disabled={isLocked || busy || phoneVerified}
-        />
-      ) : (
-        <View className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-5">
-          <Text className="text-sm text-gray-500">
-            We'll ask for your SMS code right after your email is verified.
-          </Text>
-        </View>
-      )}
-
       {busy && (
         <View className="mt-6 items-center">
           <ActivityIndicator />
@@ -321,7 +198,7 @@ export default function OtpVerifyScreen() {
         </View>
       )}
 
-      {bothVerified && !showTerms && !busy && (
+      {emailVerified && !showTerms && !busy && (
         <View className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-3">
           <Text className="text-amber-800 text-sm mb-2">
             One last step — review and accept the Terms to finish creating your
