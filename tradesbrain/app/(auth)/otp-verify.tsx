@@ -9,7 +9,7 @@
 // The OtpVerify screen never navigates the user away on its own — RootLayout's
 // gate keeps them here while profileSetupPending is true.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -52,6 +52,11 @@ export default function OtpVerifyScreen() {
   const [busy, setBusy] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [now, setNow] = useState(Date.now());
+  // Once the user has accepted (or acceptance is mid-flight), never auto-reopen
+  // the Terms overlay. Without this guard the effect below re-fires the instant
+  // onAgreeTerms sets showTerms=false and pops the modal straight back up —
+  // which is the "it showed the form again and I had to tap I Agree twice" bug.
+  const termsHandledRef = useRef(false);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -116,18 +121,29 @@ export default function OtpVerifyScreen() {
   // server-side, so a successful result means the channel is confirmed; open
   // the Terms overlay to finish account creation.
   useEffect(() => {
-    if (!emailVerified || showTerms) return;
+    if (!emailVerified || termsHandledRef.current || showTerms) return;
     AsyncStorage.removeItem(LOCKOUT_KEY).catch(() => {});
     setShowTerms(true);
   }, [emailVerified, showTerms]);
 
   async function onAgreeTerms() {
+    // Re-entrancy guard: ignore a second tap (or an effect-triggered reopen)
+    // while the first acceptance is still creating the profile. Prevents the
+    // duplicate createUserProfile() / duplicate users-row insert.
+    if (termsHandledRef.current) return;
+    termsHandledRef.current = true;
     setShowTerms(false);
     setBusy(true);
     try {
       await createUserProfile(data);
       await refreshProfileStatus();
+      // On success refreshProfileStatus flips profileComplete=true and clears
+      // profileSetupPending, so RootLayout swaps to the app stack and this
+      // screen unmounts — no further navigation needed here.
     } catch (e: any) {
+      // Let the user retry (re-open Terms via the amber CTA) on a transient
+      // failure instead of being permanently locked out of finishing.
+      termsHandledRef.current = false;
       setProfileSetupPending(false);
       Alert.alert('Sign up incomplete', e?.message ?? 'Could not create profile.');
     } finally {

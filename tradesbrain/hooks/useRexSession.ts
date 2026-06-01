@@ -491,10 +491,24 @@ export function useRexSession({
   const closeJob = useCallback(
     async (jobName?: string) => {
       if (!state.session) return;
+      const closedAtIso = new Date().toISOString();
       const update: Record<string, unknown> = {
         status: 'completed',
-        closed_at: new Date().toISOString(),
+        closed_at: closedAtIso,
       };
+      // Persist elapsed on-site time (open → close). This column was previously
+      // never written, so M3 quote/report labour-hour seeding always fell back
+      // to a 1h default and the team KPI "hours on site" was always 0. Compute
+      // from the session's created_at; clamp to >= 0 and guard a bad timestamp.
+      const startedMs = state.session.createdAt
+        ? new Date(state.session.createdAt).getTime()
+        : NaN;
+      if (Number.isFinite(startedMs)) {
+        update.time_on_jobsite_seconds = Math.max(
+          0,
+          Math.round((new Date(closedAtIso).getTime() - startedMs) / 1000),
+        );
+      }
       if (jobName && jobName.trim()) update.job_name = jobName.trim();
       const { error } = await supabase
         .from('job_sessions')

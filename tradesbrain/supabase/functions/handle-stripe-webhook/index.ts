@@ -147,6 +147,20 @@ async function handleInvoiceSucceeded(inv: Stripe.Invoice) {
   const { data: sub } = await supabase.from("subscriptions").select("id, plan_type, seat_count").eq("stripe_subscription_id", subId).single();
   if (!sub) { console.error("invoice.payment_succeeded: subscription row not found for", subId); return; }
   await supabase.from("billing_history").insert({ user_id: userId, subscription_id: sub.id, stripe_invoice_id: inv.id, amount_paid: inv.amount_paid / 100, plan_type: sub.plan_type, seat_count: sub.seat_count, billing_period_start: new Date(inv.period_start * 1000).toISOString(), billing_period_end: new Date(inv.period_end * 1000).toISOString(), invoice_pdf_url: inv.invoice_pdf, paid_at: new Date((inv.status_transitions?.paid_at ?? Date.now() / 1000) * 1000).toISOString() });
+
+  // D9 §8 — notify the worker that a recurring charge renewed their plan. Only
+  // for renewal cycles ('subscription_cycle'); the first charge is the
+  // 'subscription_create' case already short-circuited above. Best-effort.
+  if (inv.billing_reason === "subscription_cycle") {
+    await supabase.functions.invoke("send-push-notification", {
+      body: {
+        user_id: userId,
+        type: "subscription_renewed",
+        metadata: { plan_type: sub.plan_type },
+        deep_link: "tradesbrain://settings/subscription",
+      },
+    }).catch((e: unknown) => console.error("subscription_renewed push failed:", e));
+  }
 }
 
 async function handleInvoiceFailed(inv: Stripe.Invoice) {
@@ -159,7 +173,9 @@ serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
-  if (!sig) return new Response("Unauthorized", { status: 401 });
+  // D9 RULE 2 / D8 backend check: a missing signature is a malformed request →
+  // 400 (same as an invalid signature), not 401.
+  if (!sig) return new Response("Missing signature", { status: 400 });
   let event: Stripe.Event;
   try { event = await stripe.webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET); }
   catch { return new Response("Signature verification failed", { status: 400 }); }

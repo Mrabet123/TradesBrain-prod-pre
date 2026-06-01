@@ -14,6 +14,12 @@ import {
   NativeScrollEvent,
   type LayoutChangeEvent,
 } from 'react-native';
+// A React Native <Modal> creates its OWN native view root, so safe-area insets
+// from the app tree don't reach inside it. We wrap the modal body in its own
+// SafeAreaProvider (the documented pattern) so SafeAreaView can pad the bottom
+// past Android's gesture / 3-button nav bar — otherwise the "I Agree" / "Cancel"
+// buttons render underneath it and are nearly impossible to tap.
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { TERMS_VERSION } from '../../services/auth';
 
 const TERMS_BODY = `TRADESBRAIN — TERMS OF USE AND PRIVACY POLICY (${TERMS_VERSION})
@@ -94,41 +100,49 @@ export default function TermsOverlay({ visible, onAgree, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-white pt-12 px-5 pb-6">
-        <Text className="text-2xl font-bold mb-3">Terms of Use & Privacy Policy</Text>
-
-        <ScrollView
-          className="flex-1 border border-gray-200 rounded-lg p-3"
-          onScroll={onScroll}
-          onLayout={onScrollViewLayout}
-          onContentSizeChange={onContentSizeChange}
-          scrollEventThrottle={16}
+      <SafeAreaProvider>
+        {/* edges top+bottom: clears the status bar AND the bottom nav bar. */}
+        <SafeAreaView
+          style={{ flex: 1, backgroundColor: '#ffffff' }}
+          edges={['top', 'bottom']}
         >
-          <Text className="text-sm text-gray-800 leading-5">{TERMS_BODY}</Text>
-        </ScrollView>
+          <View className="flex-1 px-5 pt-4 pb-3">
+            <Text className="text-2xl font-bold mb-3">Terms of Use & Privacy Policy</Text>
 
-        {!scrolledToEnd && (
-          <Text className="text-xs text-gray-500 text-center mt-2">
-            Scroll to the bottom to enable the agree button.
-          </Text>
-        )}
+            <ScrollView
+              className="flex-1 border border-gray-200 rounded-lg p-3"
+              onScroll={onScroll}
+              onLayout={onScrollViewLayout}
+              onContentSizeChange={onContentSizeChange}
+              scrollEventThrottle={16}
+            >
+              <Text className="text-sm text-gray-800 leading-5">{TERMS_BODY}</Text>
+            </ScrollView>
 
-        <View className="flex-row mt-4 gap-3">
-          <Pressable
-            onPress={onClose}
-            className="flex-1 py-3 border border-gray-300 rounded-lg"
-          >
-            <Text className="text-center text-gray-700 font-semibold">Cancel</Text>
-          </Pressable>
-          <Pressable
-            disabled={!scrolledToEnd}
-            onPress={onAgree}
-            className={`flex-1 py-3 rounded-lg ${scrolledToEnd ? 'bg-brand' : 'bg-gray-300'}`}
-          >
-            <Text className="text-center text-white font-semibold">I Agree</Text>
-          </Pressable>
-        </View>
-      </View>
+            {!scrolledToEnd && (
+              <Text className="text-xs text-gray-500 text-center mt-2">
+                Scroll to the bottom to enable the agree button.
+              </Text>
+            )}
+
+            <View className="flex-row mt-4 gap-3">
+              <Pressable
+                onPress={onClose}
+                className="flex-1 py-3 border border-gray-300 rounded-lg"
+              >
+                <Text className="text-center text-gray-700 font-semibold">Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={!scrolledToEnd}
+                onPress={onAgree}
+                className={`flex-1 py-3 rounded-lg ${scrolledToEnd ? 'bg-brand' : 'bg-gray-300'}`}
+              >
+                <Text className="text-center text-white font-semibold">I Agree</Text>
+              </Pressable>
+            </View>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }

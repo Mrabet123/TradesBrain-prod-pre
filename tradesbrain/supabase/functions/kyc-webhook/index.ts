@@ -11,7 +11,8 @@ serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
-  if (!sig) return new Response("Missing signature", { status: 401 });
+  // D9 RULE 2 / D8 backend check: missing signature → 400 (malformed), not 401.
+  if (!sig) return new Response("Missing signature", { status: 400 });
   let event: Stripe.Event;
   try { event = await stripe.webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET); }
   catch { return new Response("Signature failed", { status: 400 }); }

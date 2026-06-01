@@ -23,6 +23,7 @@ import type { RootStackParamList } from '../_layout';
 import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
 import { supabase } from '../../services/supabase';
+import { listMembers, removeMember } from '../../services/team';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -115,10 +116,24 @@ export default function TradeSettingsScreen() {
     if (!user || downgradeText !== 'DELETE') return;
     setBusy(true);
     try {
-      // Destroy all team members linked to this owner. Their auth records
-      // remain (handled by a future admin job) but the team_members link is
-      // removed so the seats are released.
-      await supabase.from('team_members').delete().eq('team_owner_id', user.id);
+      // RULE 3 — fully destroy every team member, not just unlink the seat.
+      // delete-team-member (service-role Edge Function) wipes each member's
+      // auth record, Rex sessions, reports, quotes, photos + storage, removes
+      // the team_members row AND decrements the Stripe seat. We must do this
+      // BEFORE flipping account_type so a partial failure leaves the owner on
+      // the Team plan with the still-present members, not a half-downgraded
+      // account with orphaned member accounts.
+      const members = await listMembers(user.id);
+      const failures: string[] = [];
+      for (const m of members) {
+        const { ok, error } = await removeMember(m.memberId);
+        if (!ok) failures.push(`${m.fullName || m.memberId}: ${error ?? 'failed'}`);
+      }
+      if (failures.length > 0) {
+        throw new Error(
+          `Could not remove ${failures.length} member(s). No changes were made to your account type. ${failures.join('; ')}`,
+        );
+      }
 
       const { error } = await supabase
         .from('users')
@@ -130,7 +145,7 @@ export default function TradeSettingsScreen() {
       setDowngradeText('');
       Alert.alert(
         'Downgraded',
-        'You are now a Solopreneur. All team member links have been removed.',
+        'You are now a Solopreneur. All team members and their data have been permanently deleted.',
       );
     } catch (e: any) {
       Alert.alert('Could not downgrade', e?.message ?? 'Unknown error');
