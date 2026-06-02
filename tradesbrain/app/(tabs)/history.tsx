@@ -7,6 +7,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 
@@ -51,6 +52,7 @@ function bucketLabel(ts: string): string {
 
 export default function HistoryScreen() {
   const nav = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const [jobs, setJobs] = useState<HistoryJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,8 @@ export default function HistoryScreen() {
   return (
     <ScrollView
       className="flex-1 bg-white"
-      contentContainerClassName="px-5 pt-12 pb-10"
+      contentContainerClassName="px-5 pb-10"
+      contentContainerStyle={{ paddingTop: insets.top + 8 }}
       keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl

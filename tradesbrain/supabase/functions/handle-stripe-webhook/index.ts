@@ -179,6 +179,23 @@ serve(async (req) => {
   let event: Stripe.Event;
   try { event = await stripe.webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET); }
   catch { return new Response("Signature verification failed", { status: 400 }); }
+
+  // IDEMPOTENCY (audit Part 4.1): Stripe redelivers the same event id on retry.
+  // Claim the event id first — the PK conflict on a duplicate means we've
+  // already processed it, so skip silently. If processing later fails we roll
+  // this row back (below) so a genuine redelivery can re-attempt.
+  const { error: claimErr } = await supabase
+    .from("stripe_webhook_events")
+    .insert({ event_id: event.id, type: event.type });
+  if (claimErr) {
+    if ((claimErr as { code?: string }).code === "23505") {
+      return new Response(JSON.stringify({ duplicate: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    // Ledger unavailable — log and continue processing rather than blocking
+    // (idempotency degrades to the existing onConflict/unique-constraint guards).
+    console.error("webhook idempotency ledger insert failed:", claimErr);
+  }
+
   try {
     switch (event.type) {
       case "customer.subscription.created": await handleSubscriptionCreated(event.data.object as Stripe.Subscription); break;
@@ -189,6 +206,10 @@ serve(async (req) => {
     }
   } catch (err) {
     console.error(`Error processing ${event.type}:`, err);
+    // Roll back the idempotency claim so a Stripe redelivery of this event id is
+    // re-processed instead of being skipped as a duplicate. We still return 200
+    // (D9 RULE 2 — avoid Stripe's infinite-retry storm on a poison event).
+    await supabase.from("stripe_webhook_events").delete().eq("event_id", event.id);
     return new Response(JSON.stringify({ error: "logged" }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
   return new Response(JSON.stringify({ received: true }), { status: 200, headers: { "Content-Type": "application/json" } });

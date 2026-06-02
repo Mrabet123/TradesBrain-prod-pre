@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 import { useAuthContext } from '../../context/AuthContext';
@@ -19,6 +20,7 @@ interface Acceptance {
 
 export default function LegalScreen() {
   const nav = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const [acceptance, setAcceptance] = useState<Acceptance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,11 @@ export default function LegalScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="pt-12 px-5 pb-10">
+    <ScrollView
+      className="flex-1 bg-white"
+      contentContainerClassName="px-5"
+      contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 40 }}
+    >
       <View className="flex-row items-center justify-between mb-4">
         <Pressable onPress={() => nav.goBack()}>
           <Text className="text-brand text-base">← Back</Text>

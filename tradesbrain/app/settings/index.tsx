@@ -80,7 +80,7 @@ export default function SettingsScreen() {
     profile?.accountType === 'team_owner' || planType === 'team';
 
   function onSignOut() {
-    Alert.alert('Sign out?', 'You can sign back in any time.', [
+    Alert.alert('Are you sure?', 'You will need to sign in again.', [
       { text: 'Cancel' },
       {
         text: 'Sign out',

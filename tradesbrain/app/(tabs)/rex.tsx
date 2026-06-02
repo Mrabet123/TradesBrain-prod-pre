@@ -13,6 +13,7 @@ import type { RootStackParamList } from '../_layout';
 import { supabase } from '../../services/supabase';
 import { useAuthContext } from '../../context/AuthContext';
 import { useSubscriptionContext } from '../../context/SubscriptionContext';
+import Screen from '../../components/shared/Screen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -60,7 +61,7 @@ export default function RexScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white pt-12 px-5">
+    <Screen edges={['top']} className="flex-1 bg-white px-5">
       <View className="flex-row items-center mb-1">
         <Image
           source={require('../../assets/rex-compass.png')}
@@ -99,6 +100,6 @@ export default function RexScreen() {
           Free trial exhausted — subscribe to continue.
         </Text>
       )}
-    </View>
+    </Screen>
   );
 }

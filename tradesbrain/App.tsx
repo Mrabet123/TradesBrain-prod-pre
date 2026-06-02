@@ -8,6 +8,7 @@ import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
 import { StripeProvider } from '@stripe/stripe-react-native';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
@@ -16,6 +17,7 @@ import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import RootLayout from './app/_layout';
 import type { RootStackParamList } from './app/_layout';
+import { navigationRef, flushPendingDeepLink } from './services/deepLinks';
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '';
 
@@ -38,6 +40,12 @@ const linking: LinkingOptions<RootStackParamList> = {
 export default function App() {
   return (
     <ErrorBoundary>
+      {/* SafeAreaProvider must wrap the whole tree so every screen (and the
+          bottom tab bar) can read the real status-bar / navigation-bar insets.
+          Without it the app draws edge-to-edge on Android and content slides
+          under the system bars (e.g. the hold-to-record button hiding behind
+          the 3-button nav bar). */}
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <NetworkProvider>
         <StripeProvider
           publishableKey={STRIPE_PUBLISHABLE_KEY}
@@ -47,7 +55,11 @@ export default function App() {
           <AuthProvider>
             <SubscriptionProvider>
               <TradeProfileProvider>
-                <NavigationContainer linking={linking}>
+                <NavigationContainer
+                  ref={navigationRef}
+                  linking={linking}
+                  onReady={flushPendingDeepLink}
+                >
                   <RootLayout />
                 </NavigationContainer>
                 <StatusBar style="auto" />
@@ -56,6 +68,7 @@ export default function App() {
           </AuthProvider>
         </StripeProvider>
       </NetworkProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

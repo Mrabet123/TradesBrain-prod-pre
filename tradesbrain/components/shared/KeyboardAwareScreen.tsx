@@ -15,6 +15,7 @@ import {
   View,
   type ScrollViewProps,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = {
   children: React.ReactNode;
@@ -42,11 +43,16 @@ export default function KeyboardAwareScreen({
   dismissOnTap = true,
   scrollViewProps,
 }: Props) {
+  // Add the device's bottom inset (Android nav bar / iOS home indicator) on top
+  // of the caller's bottomInset so the final CTA (Create Account / Save / Confirm)
+  // is never hidden behind the system navigation bar on any phone.
+  const insets = useSafeAreaInsets();
+  const paddingBottom = bottomInset + insets.bottom;
   const body = scrollable ? (
     <ScrollView
       className={className}
       contentContainerClassName={contentContainerClassName}
-      contentContainerStyle={{ paddingBottom: bottomInset }}
+      contentContainerStyle={{ paddingBottom }}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       showsVerticalScrollIndicator={false}
@@ -55,7 +61,7 @@ export default function KeyboardAwareScreen({
       {children}
     </ScrollView>
   ) : (
-    <View className={className} style={{ paddingBottom: bottomInset }}>
+    <View className={className} style={{ paddingBottom }}>
       {children}
     </View>
   );

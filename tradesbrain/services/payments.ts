@@ -52,7 +52,9 @@ export async function purchaseSubscription(
     paymentIntentClientSecret: clientSecret,
     allowsDelayedPaymentMethods: false,
     applePay: { merchantCountryCode: 'US' },
-    googlePay: { merchantCountryCode: 'US', testEnv: true },
+    // testEnv must be FALSE in production or Google Pay shows test cards / fails
+    // real charges. Gate on __DEV__ so debug builds keep the Google test env.
+    googlePay: { merchantCountryCode: 'US', testEnv: __DEV__ },
   });
   if (init.error) {
     return { ok: false, reason: 'unknown', message: init.error.message };

@@ -42,6 +42,12 @@ const TIMEOUT_MS = 30000;
 // Rex emits [[STAGE:n]] markers (server STAGE_PROTOCOL_ADDENDUM) — parsed for
 // stage tracking, then stripped before the text is shown or persisted.
 const STAGE_TAG = /\[\[STAGE:([1-5])\]\]/g;
+// Rex wraps safety warnings in [[SAFETY:stop|confirm|note]] … [[/SAFETY]] markers
+// (server SAFETY_BLOCK_ADDENDUM, M10). Unlike STAGE, these are KEPT in fullText
+// so MessageBubble can render them as coloured safety panels; we only strip the
+// bare marker tokens from the live word-by-word reveal so the brackets never
+// flash mid-stream.
+const SAFETY_TOKEN = /\[\[SAFETY:(?:stop|confirm|note)\]\]|\[\[\/SAFETY\]\]/gi;
 
 // Reveal buffered text progressively (~1.1s total regardless of length) so the
 // response appears word-by-word instead of all at once.
@@ -114,9 +120,21 @@ export async function streamRexResponse(
     }
     const cleanText = rawText.replace(STAGE_TAG, '').trim();
 
-    await revealWordByWord(cleanText, onChunk);
+    // Reveal the safety text inline during streaming but without the bracket
+    // tokens; the wrapped block reflows into its coloured panel once the
+    // finished message is persisted and rendered by MessageBubble.
+    const streamText = cleanText.replace(SAFETY_TOKEN, '').replace(/\n{3,}/g, '\n\n').trim();
+    await revealWordByWord(streamText, onChunk);
+    // fullText keeps the SAFETY markers so they persist to the DB and render.
     return { ok: true, fullText: cleanText, modelUsed: model, stage };
   } catch (e: any) {
+    // A timeout fires controller.abort(), which rejects the fetch. The thrown
+    // AbortError's message is inconsistent across engines ("Aborted" / "The
+    // operation was aborted" / empty on Hermes), so detect it from the signal
+    // and return a stable 'timeout' token the caller can match reliably.
+    if (controller.signal.aborted) {
+      return { ok: false, fullText: '', modelUsed: model, error: 'timeout' };
+    }
     return { ok: false, fullText: '', modelUsed: model, error: e?.message ?? String(e) };
   } finally {
     clearTimeout(timer);

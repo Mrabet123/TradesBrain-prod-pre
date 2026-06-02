@@ -15,13 +15,19 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './_layout';
 import { PRICING } from '../constants/pricing';
 import { useSubscriptionContext } from '../context/SubscriptionContext';
 import { useAuthContext } from '../context/AuthContext';
 import { supabase } from '../services/supabase';
-import { purchaseSubscription, type BillingCycle, type PlanType } from '../services/payments';
+import {
+  purchaseSubscription,
+  restoreSubscription,
+  type BillingCycle,
+  type PlanType,
+} from '../services/payments';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -61,6 +67,7 @@ const PLANS: PlanCardSpec[] = [
 export default function PaywallScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteProp<RootStackParamList, 'Paywall'>>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const {
     optimisticActivate,
@@ -71,6 +78,7 @@ export default function PaywallScreen() {
 
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [busyPlan, setBusyPlan] = useState<PlanType | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const [kycReady, setKycReady] = useState<boolean | null>(null);
   const [kycMessage, setKycMessage] = useState<string>('Checking verification status…');
 
@@ -117,6 +125,27 @@ export default function PaywallScreen() {
     })();
   }, [user]);
 
+  // Restore purchase (D3 F6 / 2.1.7) — re-check the Stripe customer and
+  // re-activate a previously-purchased plan (e.g. after reinstall or on a new
+  // device). Reuses the un-cancel/restore path and reconciles from the server.
+  async function onRestore() {
+    if (restoring) return;
+    setRestoring(true);
+    const result = await restoreSubscription();
+    await refreshSubscription();
+    setRestoring(false);
+    if (result.success) {
+      Alert.alert('Purchase restored', 'Your subscription has been restored.', [
+        { text: 'OK', onPress: () => nav.goBack() },
+      ]);
+    } else {
+      Alert.alert(
+        'Nothing to restore',
+        'We could not find an active subscription to restore on this account. If you believe this is an error, contact support.',
+      );
+    }
+  }
+
   async function onSubscribe(plan: PlanType) {
     if (busyPlan) return;
     setBusyPlan(plan);
@@ -143,9 +172,18 @@ export default function PaywallScreen() {
         );
         break;
       case 'already_subscribed':
-        Alert.alert('Already subscribed', 'You already have an active subscription.');
         refreshSubscription();
-        nav.goBack();
+        Alert.alert(
+          'Already subscribed',
+          'You already have an active plan.',
+          [
+            { text: 'Close', style: 'cancel', onPress: () => nav.goBack() },
+            {
+              text: 'Manage plan',
+              onPress: () => nav.navigate('SubscriptionSettings'),
+            },
+          ],
+        );
         break;
       case 'declined':
         Alert.alert(
@@ -168,7 +206,7 @@ export default function PaywallScreen() {
   // "already active" message instead of showing Subscribe buttons.
   if (subscriptionStatus === 'active') {
     return (
-      <View className="flex-1 bg-white pt-12">
+      <View className="flex-1 bg-white" style={{ paddingTop: insets.top + 8 }}>
         <View className="px-5 pb-3 flex-row items-center justify-between">
           <Pressable onPress={() => nav.goBack()}>
             <Text className="text-gray-500 text-base">Close</Text>
@@ -197,7 +235,7 @@ export default function PaywallScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white pt-12">
+    <View className="flex-1 bg-white" style={{ paddingTop: insets.top + 8 }}>
       <View className="px-5 pb-3 flex-row items-center justify-between">
         <Pressable onPress={() => nav.goBack()}>
           <Text className="text-gray-500 text-base">Close</Text>
@@ -206,7 +244,7 @@ export default function PaywallScreen() {
         <View className="w-12" />
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 + insets.bottom }}>
         {/* Billing cycle toggle — inline styles to avoid NativeWind shadow-sm crash on new arch */}
         <View
           style={{
@@ -272,7 +310,9 @@ export default function PaywallScreen() {
             cycle === 'annual' ? `Billed $${price.annual.toFixed(2)}/year` : null;
           const busy = busyPlan === p.value;
           const disabled = !kycReady || busy;
-          const highlighted = preselectedPlan === p.value;
+          // 2.1.4 — Solo is the default highlighted plan when nothing was
+          // explicitly pre-selected (e.g. the Team upgrade path passes 'team').
+          const highlighted = (preselectedPlan ?? 'solo') === p.value;
           return (
             <View
               key={p.value}
@@ -316,6 +356,21 @@ export default function PaywallScreen() {
           Apple Pay and Google Pay available at checkout. Cancel any time — access
           continues until the end of the period.
         </Text>
+
+        {/* 2.1.7 — Restore purchase */}
+        <Pressable onPress={onRestore} disabled={restoring} className="mt-6">
+          <Text className="text-center text-sm text-brand font-semibold">
+            {restoring ? 'Restoring…' : 'Restore purchase'}
+          </Text>
+        </Pressable>
+
+        {/* 2.1.6 — Browse the app in read-only mode (History stays accessible;
+            features remain gated). Dismissing the modal returns to the app. */}
+        <Pressable onPress={() => nav.goBack()} className="mt-3 mb-2">
+          <Text className="text-center text-sm text-gray-500 underline">
+            Browse app in read-only mode
+          </Text>
+        </Pressable>
       </ScrollView>
     </View>
   );

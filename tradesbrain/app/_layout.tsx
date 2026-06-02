@@ -1381,7 +1381,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { AppState, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuthContext } from '../context/AuthContext';
@@ -1422,6 +1422,7 @@ import SplashScreen from '../components/shared/SplashScreen';
 import { useMinVersion } from '../hooks/useMinVersion';
 import { registerPushToken } from '../services/pushNotifications';
 import { markMemberActivated } from '../services/team';
+import { useNotificationDeepLinks } from '../hooks/useNotificationDeepLinks';
 import VerifyPendingScreen from './(auth)/verify-pending';
 
 export type RootStackParamList = {
@@ -1498,7 +1499,7 @@ function useSuspended(isAuthenticated: boolean) {
       return;
     }
     let cancelled = false;
-    (async () => {
+    const check = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data } = await supabase
@@ -1507,9 +1508,17 @@ function useSuspended(isAuthenticated: boolean) {
         .eq('id', user.id)
         .maybeSingle();
       if (!cancelled) setSuspended(data?.is_suspended === true);
-    })();
+    };
+    check();
+    // D6 Flow12 S20 — re-check whenever the app returns to the foreground so a
+    // suspension applied while the app was backgrounded is honoured on resume
+    // (previously only checked once on auth change).
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') check();
+    });
     return () => {
       cancelled = true;
+      sub.remove();
     };
   }, [isAuthenticated]);
   return suspended;
@@ -1527,6 +1536,10 @@ export default function RootLayout() {
   } = useAuthContext();
   const suspended = useSuspended(isAuthenticated);
   const minVersion = useMinVersion();
+
+  // Route push-notification taps to the right screen (foreground handler +
+  // warm-tap + cold-start). Deep links resolve via services/deepLinks.ts.
+  useNotificationDeepLinks();
 
   // Register this device for push notifications once signed in with a profile.
   // Also fire the team-member "first login complete" hook — the Edge Function

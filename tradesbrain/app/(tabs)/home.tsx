@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
@@ -23,6 +24,7 @@ interface ActiveSession {
 
 export default function HomeScreen() {
   const nav = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
   const [active, setActive] = useState<ActiveSession | null>(null);
@@ -58,7 +60,18 @@ export default function HomeScreen() {
 
   return (
     <ScrollView className="flex-1 bg-white">
-      <View className="pt-12 px-5 pb-6">
+      <View className="px-5 pb-6" style={{ paddingTop: insets.top + 8 }}>
+        {/* 3.1.2 — Settings reachable from a profile icon top-right on Home. */}
+        <View className="flex-row justify-end mb-2">
+          <Pressable
+            onPress={() => nav.navigate('Settings')}
+            accessibilityLabel="Open settings"
+            className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center"
+          >
+            <Text style={{ fontSize: 18 }}>⚙️</Text>
+          </Pressable>
+        </View>
+
         <TrialBanner />
 
         {!loading && active && (

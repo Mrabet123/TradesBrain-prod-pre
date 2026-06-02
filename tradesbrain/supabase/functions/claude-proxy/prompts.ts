@@ -544,6 +544,46 @@ where n is a single digit 1-5. The app strips this marker — the worker never
 sees it. Output it on every message without exception.
 `;
 
+// Appended in diagnosis/confirmation mode (M10 / D6 Flow12 S22-S25). Instructs
+// Rex to wrap a safety warning in a marker so the app renders it as a coloured
+// safety panel. This is an ADDENDUM — the locked D7 trade prompts are unchanged;
+// the safety CONTENT and its ordering are still governed by each prompt's
+// "SAFETY RULES" + "SAFETY FORMAT". The marker only controls presentation.
+export const SAFETY_BLOCK_ADDENDUM = `
+
+---
+SAFETY BLOCK PROTOCOL — INTERNAL
+
+When your response contains a safety warning that your SAFETY RULES require,
+wrap ONLY that warning in safety markers so the app can render it as a
+high-visibility panel. Pick exactly one type and wrap it like this, with each
+marker on its own line:
+
+[[SAFETY:stop]]
+<warning text — keep your usual wording, e.g. "STOP — POTENTIAL GAS PRESENCE" and the numbered actions>
+[[/SAFETY]]
+
+Types and placement:
+- stop    — an IMMEDIATE life-threatening hazard: gas leak / potential gas
+            presence, carbon monoxide or cracked heat exchanger, water near
+            energised electrical, or an active fall-from-height hazard. Place
+            this block FIRST, before any diagnosis.
+- confirm — a safety CONFIRMATION the worker must give before you deliver
+            at-height or live-circuit guidance (e.g. confirm fall protection
+            before on-roof steps). Place this block BEFORE the guidance.
+- note    — a NON-immediate safety note such as lockout/tagout or a PPE
+            reminder. Place this block LAST, after the full diagnosis,
+            solution, and code.
+
+Rules:
+- Use a safety block ONLY when one of your SAFETY RULES applies. Never wrap
+  ordinary diagnosis, code, or conversational text.
+- The app strips the marker lines and renders the wrapped text inside a coloured
+  safety panel — write the warning exactly as your safety rules require.
+- At most one stop OR one confirm block per message. A note block may accompany
+  a normal diagnosis.
+`;
+
 export function buildSystemPrompt(opts: {
   tradeType: string;
   mode: string;
@@ -554,6 +594,7 @@ export function buildSystemPrompt(opts: {
     prompt += CODE_LOOKUP_ADDENDUM;
   } else if (opts.mode === 'diagnosis' || opts.mode === 'confirmation') {
     prompt += STAGE_PROTOCOL_ADDENDUM;
+    prompt += SAFETY_BLOCK_ADDENDUM;
   }
   if (opts.ragContext) {
     prompt += `\n\nRELEVANT CODE REFERENCES:\n${opts.ragContext}`;

@@ -24,6 +24,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
 import { supabase } from '../../services/supabase';
 import { listMembers, removeMember } from '../../services/team';
+import { changePlan } from '../../services/payments';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -135,6 +136,20 @@ export default function TradeSettingsScreen() {
         );
       }
 
+      // D-AUDIT (4.5 / 3.6.5): move the Stripe subscription off the Team base
+      // price onto Solo. Removing the member seats alone left the ex-owner being
+      // billed the Team base rate forever. Do this BEFORE flipping account_type
+      // so the billing is corrected first. 'already_on_plan' (409) means a prior
+      // partial attempt already switched the plan — treat that as success.
+      const planResult = await changePlan('solo');
+      if (!planResult.success && !/already_on_plan/i.test(planResult.error ?? '')) {
+        throw new Error(
+          `Team members were removed, but your plan could not be switched to Solo: ${
+            planResult.error ?? 'unknown error'
+          }. Your account type was not changed — please try again.`,
+        );
+      }
+
       const { error } = await supabase
         .from('users')
         .update({ account_type: 'solopreneur' })
@@ -145,7 +160,7 @@ export default function TradeSettingsScreen() {
       setDowngradeText('');
       Alert.alert(
         'Downgraded',
-        'You are now a Solopreneur. All team members and their data have been permanently deleted.',
+        'You are now a Solopreneur on the Solo plan. All team members and their data have been permanently deleted, and your billing has been switched to Solo.',
       );
     } catch (e: any) {
       Alert.alert('Could not downgrade', e?.message ?? 'Unknown error');

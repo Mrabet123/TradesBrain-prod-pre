@@ -20,6 +20,7 @@ import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as WebBrowser from 'expo-web-browser';
 import type { RootStackParamList } from '../_layout';
 import { useAuthContext } from '../../context/AuthContext';
@@ -28,6 +29,11 @@ import { uploadKycPhoto } from '../../services/auth';
 import { checkKycStatus } from '../../services/stripe';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+// Rough byte size of a base64 payload (4 base64 chars ≈ 3 bytes).
+function estimateBytes(base64: string): number {
+  return Math.floor(base64.length * 0.75);
+}
 
 interface ProfileForm {
   fullName: string;
@@ -42,6 +48,8 @@ interface ProfileLocked {
   licenseNumber: string;
   licenseKycStatus: string;
   nationalIdKycStatus: string;
+  licenseKycReason: string | null;
+  nationalIdKycReason: string | null;
   email: string;
 }
 
@@ -61,7 +69,7 @@ export default function ProfileSettingsScreen() {
     const { data } = await supabase
       .from('users')
       .select(
-        'full_name, email, company_name, hourly_rate, phone_number, company_logo_url, vat_number, license_number, license_kyc_status, national_id_kyc_status',
+        'full_name, email, company_name, hourly_rate, phone_number, company_logo_url, vat_number, license_number, license_kyc_status, national_id_kyc_status, license_kyc_reason, national_id_kyc_reason',
       )
       .eq('id', user.id)
       .single();
@@ -78,6 +86,8 @@ export default function ProfileSettingsScreen() {
         licenseNumber: data.license_number,
         licenseKycStatus: data.license_kyc_status,
         nationalIdKycStatus: data.national_id_kyc_status,
+        licenseKycReason: data.license_kyc_reason ?? null,
+        nationalIdKycReason: data.national_id_kyc_reason ?? null,
         email: data.email,
       });
     }
@@ -129,10 +139,35 @@ export default function ProfileSettingsScreen() {
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.6,
+      quality: 0.8,
     });
     if (result.canceled || !result.assets[0]) return;
-    patch({ companyLogoUri: result.assets[0].uri });
+    const uri = result.assets[0].uri;
+    // D2 F8 edge (3.2.3) — auto-compress the logo; if it's still oversized after
+    // an aggressive pass, surface "Image too large" instead of failing the save.
+    const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB is plenty for a logo
+    try {
+      let out = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 512 } }],
+        { compress: 0.7, base64: true, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      if (estimateBytes(out.base64 ?? '') > LOGO_MAX_BYTES) {
+        out = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 384 } }],
+          { compress: 0.5, base64: true, format: ImageManipulator.SaveFormat.JPEG },
+        );
+      }
+      if (estimateBytes(out.base64 ?? '') > LOGO_MAX_BYTES) {
+        Alert.alert('Image too large', 'Please choose a smaller image for your logo.');
+        return;
+      }
+      patch({ companyLogoUri: out.uri });
+    } catch {
+      // Manipulation unavailable on this device — fall back to the original.
+      patch({ companyLogoUri: uri });
+    }
   }
 
   async function save() {
@@ -278,12 +313,14 @@ export default function ProfileSettingsScreen() {
         <KycRow
           label="National ID"
           status={locked.nationalIdKycStatus}
+          reason={locked.nationalIdKycReason}
           busy={verifying === 'national_id'}
           onVerify={() => verifyIdentity('national_id')}
         />
         <KycRow
           label="License proof"
           status={locked.licenseKycStatus}
+          reason={locked.licenseKycReason}
           busy={verifying === 'license'}
           onVerify={() => verifyIdentity('license')}
         />
@@ -311,11 +348,13 @@ function LockedRow({ label, value }: { label: string; value: string }) {
 function KycRow({
   label,
   status,
+  reason,
   busy,
   onVerify,
 }: {
   label: string;
   status: string;
+  reason?: string | null;
   busy: boolean;
   onVerify: () => void;
 }) {
@@ -356,6 +395,10 @@ function KycRow({
         {status === 'verified' && <Text className="text-base">🔒</Text>}
       </View>
       <Text className={`text-xs ${m.color}`}>{m.copy}</Text>
+      {/* D9 (3.4.2) — show Stripe's rejection reason when the document failed. */}
+      {status === 'rejected' && reason ? (
+        <Text className={`text-xs mt-1 ${m.color}`}>Reason: {reason}</Text>
+      ) : null}
       {m.cta && (
         <Pressable
           onPress={onVerify}

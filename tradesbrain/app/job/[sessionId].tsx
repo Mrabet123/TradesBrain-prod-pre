@@ -20,6 +20,7 @@ import {
   Linking,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 
@@ -68,6 +69,7 @@ const STAGE_NAMES: Record<number, string> = {
 export default function ActiveSessionScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteT>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const { tradeType } = useTradeProfileContext();
   const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
@@ -147,8 +149,10 @@ export default function ActiveSessionScreen() {
 
   async function handleVoiceStart() {
     try {
-      await voice.startRecording();
-      setVoiceDenied(false);
+      // startRecording returns false on a denied mic permission (it no longer
+      // throws), so drive the banner off the result — D6 Flow12 S2.
+      const started = await voice.startRecording();
+      setVoiceDenied(!started);
     } catch {
       setVoiceDenied(true);
     }
@@ -158,31 +162,33 @@ export default function ActiveSessionScreen() {
     const uri = await voice.stopRecording();
     if (!uri) return;
     setTranscribing(true);
-    const result = await transcribeAudio(uri);
-    setTranscribing(false);
-    if (!result.ok || !result.text) {
-      // CC-4 (D6 Flow12 S17) — exact Whisper-failure copy. The text input below
-      // stays editable, so the worker can type their description instead.
-      Alert.alert('Voice transcription failed', 'Could not transcribe — type your description instead.');
-      return;
+    try {
+      const result = await transcribeAudio(uri);
+      if (!result.ok || !result.text) {
+        // CC-4 (D6 Flow12 S17) — exact Whisper-failure copy. The text input below
+        // stays editable, so the worker can type their description instead.
+        Alert.alert(
+          'Voice transcription failed',
+          'Could not transcribe — type your description instead.',
+        );
+        return;
+      }
+      setTranscript(result.text);
+      setText(result.text);
+    } finally {
+      // Always clear the spinner — even if transcribeAudio throws unexpectedly —
+      // so the input row can never get stuck showing "Transcribing…".
+      setTranscribing(false);
     }
-    setTranscript(result.text);
-    setText(result.text);
   }
 
   async function handlePhoto() {
     const result = await photo.capture(rex.stage);
     if (result.photo) {
       setPendingPhoto(result.photo);
-      // RX-recompression toast — the photo was over 8 MB and was downscaled
-      // silently. Surface a non-blocking note so the worker knows quality
-      // was reduced before sending.
-      if (result.recompressed) {
-        setToast({
-          msg: 'Photo was large — compressed to fit. Quality reduced.',
-          type: 'warning',
-        });
-      }
+      // D6 Flow12 RULE 5 — a photo over the 8 MB cap is downscaled SILENTLY in
+      // usePhotoCapture. No toast, no "file too large" notice: the worker never
+      // knows it happened. (result.recompressed is intentionally not surfaced.)
     }
   }
 
@@ -283,7 +289,13 @@ export default function ActiveSessionScreen() {
           onDismiss={() => setToast(null)}
         />
       )}
-      <View className="flex-1 bg-white pt-12">
+      {/* Real device insets: top clears the status bar / notch, bottom clears
+          the Android nav bar so the input row + hold-to-record button are never
+          hidden behind the 3-button bar (the reported bug). */}
+      <View
+        className="flex-1 bg-white"
+        style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom }}
+      >
         {/* Header */}
         <View className="px-4 pb-2 flex-row items-center justify-between border-b border-gray-200">
           <Pressable onPress={() => nav.goBack()}>

@@ -25,6 +25,7 @@ import {
   type NativeScrollEvent,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../_layout';
 
@@ -71,6 +72,7 @@ const STAGE_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
 export default function JobDetailScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteT>();
+  const insets = useSafeAreaInsets();
   const jobId = route.params.jobId;
   const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
 
@@ -257,7 +259,7 @@ export default function JobDetailScreen() {
   if (loading || !job) {
     // D6 Flow12 S21 — skeleton during Supabase fetch (no blank screen).
     return (
-      <View className="flex-1 bg-white pt-12 px-4">
+      <View className="flex-1 bg-white px-4" style={{ paddingTop: insets.top + 8 }}>
         <SkeletonCard />
         <SkeletonCard />
         <SkeletonCard />
@@ -266,7 +268,10 @@ export default function JobDetailScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white pt-12">
+    <View
+      className="flex-1 bg-white"
+      style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom }}
+    >
       {/* Header — D6 Flow08 NEW SCREEN A */}
       <View className="px-4 pb-2 border-b border-gray-200">
         <View className="flex-row items-center justify-between mb-2">
@@ -603,7 +608,10 @@ export default function JobDetailScreen() {
       >
         <View className="flex-1 bg-black">
           {/* Top bar: close + counter */}
-          <View className="flex-row items-center justify-between pt-12 px-4 pb-2">
+          <View
+            className="flex-row items-center justify-between px-4 pb-2"
+            style={{ paddingTop: insets.top + 8 }}
+          >
             <Pressable onPress={() => setPhotoModal(null)}>
               <Text className="text-white text-base">Close</Text>
             </Pressable>

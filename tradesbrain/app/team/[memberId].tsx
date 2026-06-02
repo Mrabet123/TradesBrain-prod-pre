@@ -16,6 +16,7 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 import { supabase } from '../../services/supabase';
@@ -70,6 +71,7 @@ interface PhotoRow {
 export default function TeamMemberDetail() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteT>();
+  const insets = useSafeAreaInsets();
   const memberId = route.params.memberId;
 
   const [profile, setProfile] = useState<MemberProfile | null>(null);
@@ -203,7 +205,10 @@ export default function TeamMemberDetail() {
   }
 
   return (
-    <View className="flex-1 bg-white pt-12">
+    <View
+      className="flex-1 bg-white"
+      style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom }}
+    >
       <View className="px-4 pb-2 border-b border-gray-200">
         <View className="flex-row items-center justify-between mb-2">
           <Pressable onPress={() => nav.goBack()}>

@@ -3,7 +3,7 @@
 // session screen renders a queued indicator when this hook reports queued > 0,
 // and flushes on reconnect.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNetworkContext } from '../context/NetworkContext';
 
@@ -61,37 +61,60 @@ export function useOfflineQueue(
     [queue, persist],
   );
 
-  const clearOne = useCallback(
-    async (id: string) => {
-      await persist(queue.filter((q) => q.id !== id));
-    },
-    [queue, persist],
-  );
-
-  // Flush whenever we transition to online
+  // Re-entrancy guard for the flush loop. We use a ref rather than the `flushing`
+  // state so that calling setFlushing(true) does NOT change an effect dependency
+  // and re-trigger (and thereby self-cancel) the flush we just started.
+  const flushingRef = useRef(false);
+  // Keep the latest flush callback in a ref. The screen's flush closure changes
+  // identity on every render (it depends on rex.sendMessage), and if it were an
+  // effect dependency, each parent re-render would cancel the in-flight flush.
+  const flushRef = useRef(flush);
   useEffect(() => {
-    if (!isConnected || queue.length === 0 || flushing) return;
+    flushRef.current = flush;
+  });
+
+  // Flush whenever we go online (or a stored queue loads while already online).
+  useEffect(() => {
+    if (!isConnected || queue.length === 0 || flushingRef.current) return;
+    flushingRef.current = true;
+    setFlushing(true);
     let cancelled = false;
     (async () => {
-      setFlushing(true);
-      // Snapshot the queue at flush-start; flush one-by-one and remove on success.
+      // Snapshot at flush-start. We do NOT mutate `queue` during the loop, so the
+      // effect won't re-run and cancel us mid-flight.
       const snapshot = [...queue];
+      const sentIds: string[] = [];
       for (const item of snapshot) {
         if (cancelled) break;
         try {
-          await flush(item);
-          await clearOne(item.id);
+          await flushRef.current(item);
+          sentIds.push(item.id);
         } catch {
-          // Stop the flush on first failure — items remain queued
+          // Stop on first failure — remaining items stay queued for next time.
           break;
         }
       }
-      if (!cancelled) setFlushing(false);
+      if (sentIds.length) {
+        // Remove every successfully-sent id from the LATEST queue in one
+        // functional update, so a flushed message is never re-added off a stale
+        // snapshot (the previous clear-one-at-a-time path could resurrect items).
+        setQueue((cur) => {
+          const next = cur.filter((q) => !sentIds.includes(q.id));
+          if (sessionId) {
+            AsyncStorage.setItem(keyFor(sessionId), JSON.stringify(next)).catch(() => {
+              /* persisted on next change */
+            });
+          }
+          return next;
+        });
+      }
+      flushingRef.current = false;
+      setFlushing(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [isConnected, queue, flushing, flush, clearOne]);
+  }, [isConnected, queue, sessionId]);
 
   return {
     queued: queue.length,

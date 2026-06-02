@@ -12,6 +12,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import { transcribeAudio } from '../../services/openai';
 import VoiceRecordButton from '../rex/VoiceRecordButton';
@@ -31,6 +32,7 @@ export default function SectionPicker({
   onConfirm,
   onCancel,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<Set<string>>(new Set(defaultSections));
   const [custom, setCustom] = useState('');
   const [customs, setCustoms] = useState<string[]>([]);
@@ -72,7 +74,10 @@ export default function SectionPicker({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
-      <View className="flex-1 bg-white pt-12 px-5 pb-6">
+      <View
+        className="flex-1 bg-white px-5"
+        style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 }}
+      >
         <Text className="text-2xl font-bold text-gray-900 mb-1">{title}</Text>
         <Text className="text-sm text-gray-600 mb-4">
           Pick the sections you want by default — saved permanently for next time.

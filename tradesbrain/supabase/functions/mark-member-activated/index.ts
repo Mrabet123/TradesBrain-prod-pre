@@ -93,12 +93,14 @@ serve(async (req) => {
     // send-push-notification is gated on the service-role key (ISS-M6). We omit
     // the Authorization header so the admin client's default service-role auth
     // is used instead of the caller's JWT.
+    // Deep link straight to THIS member's detail screen (M8 #15) — the app
+    // maps tradesbrain://team/member/<id> → TeamMemberDetail{ memberId }.
     await adminClient.functions.invoke("send-push-notification", {
       body: {
         user_id: row.team_owner_id,
         type: "member_activated",
-        metadata: { member_name: profile?.full_name ?? "Team member" },
-        deep_link: "tradesbrain://team/members",
+        metadata: { member_name: profile?.full_name ?? "Team member", member_id: user.id },
+        deep_link: `tradesbrain://team/member/${user.id}`,
       },
     });
   } catch (e) {

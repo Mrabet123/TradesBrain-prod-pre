@@ -142,7 +142,7 @@ export function useRexSession({
     (async () => {
       try {
         if (sessionId) {
-          const { data: ses } = await supabase
+          const { data: ses, error: sesErr } = await supabase
             .from('job_sessions')
             .select('*')
             .eq('id', sessionId)
@@ -153,14 +153,22 @@ export function useRexSession({
             .eq('session_id', sessionId)
             .order('created_at', { ascending: true });
           if (cancelled) return;
-          if (ses && msgs) {
-            const session = rowToSession(ses);
-            dispatch({ type: 'INIT', session, messages: msgs.map(rowToMessage) });
-            // A linked session is seeded with a carry-over message; only a
-            // brand-new empty active session needs the S0 opener.
-            if (msgs.length === 0 && session.status === 'active') {
-              await openSession(session);
-            }
+          // Previously, a missing session (deleted row, RLS denial, network
+          // error) silently fell through and left a dead blank screen with an
+          // editable input that never sent. Surface it as an error instead.
+          if (!ses) {
+            dispatch({
+              type: 'ERROR',
+              error: sesErr?.message ?? 'Could not load this session — go back and try again.',
+            });
+            return;
+          }
+          const session = rowToSession(ses);
+          dispatch({ type: 'INIT', session, messages: (msgs ?? []).map(rowToMessage) });
+          // A linked session is seeded with a carry-over message; only a
+          // brand-new empty active session needs the S0 opener.
+          if ((msgs ?? []).length === 0 && session.status === 'active') {
+            await openSession(session);
           }
           return;
         }
@@ -312,9 +320,11 @@ export function useRexSession({
       // CC-4 (D6 Flow12 S16) — exact error copy. A 30s abort is the timeout
       // state; anything else (5xx, empty, network) is the unavailable state.
       // Both render with a Retry button in the session screen.
+      const lowered = result.error?.toLowerCase() ?? '';
+      const timedOut = lowered === 'timeout' || lowered.includes('abort');
       dispatch({
         type: 'ERROR',
-        error: result.error?.includes('aborted')
+        error: timedOut
           ? 'Taking longer than usual — tap to retry.'
           : 'Rex is unavailable right now — try again in a moment.',
       });

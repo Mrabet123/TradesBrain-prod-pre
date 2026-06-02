@@ -26,10 +26,21 @@ serve(async (req) => {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) return new Response('Missing OPENAI_API_KEY', { status: 500 });
 
+  // The app uploads multipart/form-data (file + model). OpenAI's transcription
+  // endpoint needs the multipart boundary, which lives in the incoming
+  // Content-Type header — forward it. We also buffer the body to an ArrayBuffer
+  // so we don't depend on Deno's streaming-body `duplex` option. Without the
+  // forwarded Content-Type, OpenAI can't parse the form and transcription fails.
+  const contentType = req.headers.get('Content-Type') ?? 'application/octet-stream';
+  const bodyBuffer = await req.arrayBuffer();
+
   const upstream = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: req.body,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': contentType,
+    },
+    body: bodyBuffer,
   });
 
   return new Response(upstream.body, {

@@ -14,6 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 import { useAuthContext } from '../../context/AuthContext';
@@ -38,6 +39,7 @@ const EMPTY_SNAPSHOT: TeamKpiSnapshot = {
 
 export default function TeamSettingsScreen() {
   const nav = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const { planType, subscriptionStatus } = useSubscriptionContext();
 
@@ -115,7 +117,7 @@ export default function TeamSettingsScreen() {
 
   if (!allowed) {
     return (
-      <View className="flex-1 bg-white pt-12 px-5">
+      <View className="flex-1 bg-white px-5" style={{ paddingTop: insets.top + 8 }}>
         <View className="flex-row items-center justify-between mb-4">
           <Pressable onPress={() => nav.goBack()}>
             <Text className="text-brand text-base">← Back</Text>
@@ -144,7 +146,7 @@ export default function TeamSettingsScreen() {
   if (loading) {
     // D6 Flow12 S21 — KPI + members skeleton.
     return (
-      <View className="flex-1 bg-white pt-12 px-5">
+      <View className="flex-1 bg-white px-5" style={{ paddingTop: insets.top + 8 }}>
         <View className="h-6 bg-gray-200 rounded w-40 mb-4" />
         <SkeletonCard />
         <SkeletonCard />
@@ -156,7 +158,8 @@ export default function TeamSettingsScreen() {
   return (
     <ScrollView
       className="flex-1 bg-white"
-      contentContainerClassName="pt-12 px-5 pb-10"
+      contentContainerClassName="px-5"
+      contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 40 }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}

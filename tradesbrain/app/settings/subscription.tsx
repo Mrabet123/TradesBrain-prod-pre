@@ -14,6 +14,7 @@ import {
   Linking,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
 
@@ -63,6 +64,7 @@ interface BillingRow {
 
 export default function SubscriptionSettingsScreen() {
   const nav = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const { subscriptionStatus, planType, refreshSubscription } = useSubscriptionContext();
 
@@ -264,7 +266,11 @@ export default function SubscriptionSettingsScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="px-5 pt-12 pb-10">
+    <ScrollView
+      className="flex-1 bg-white"
+      contentContainerClassName="px-5"
+      contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 40 }}
+    >
       <View className="flex-row items-center justify-between mb-2">
         <Pressable onPress={() => nav.goBack()}>
           <Text className="text-brand text-base">← Back</Text>
