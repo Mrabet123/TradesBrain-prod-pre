@@ -25,7 +25,18 @@ serve(async (req) => {
   const { data: sd } = await supabase.from("subscriptions").select("stripe_subscription_id, plan_type, billing_cycle").eq("user_id", user.id).eq("status", "active").single();
   if (!sd) return new Response(JSON.stringify({ error: "No subscription" }), { status: 404, headers: { "Content-Type": "application/json" } });
   const sub = await stripe.subscriptions.retrieve(sd.stripe_subscription_id);
-  const ci = sub.items.data[0];
+  // Audit D3: the base-plan line item is NOT necessarily items.data[0]. On a
+  // Team subscription the items array also contains the per-seat line item, and
+  // Stripe does not guarantee ordering. Identify the base item by matching its
+  // price against the known base-plan price IDs (solo/pro/team, either cycle);
+  // fall back to index 0 only for a single-item subscription. Repricing the
+  // wrong item (e.g. the seat line) on an upgrade/downgrade would corrupt billing.
+  const BASE_PRICE_IDS = new Set([
+    PPM.solo.monthly, PPM.solo.annual,
+    PPM.pro.monthly, PPM.pro.annual,
+    PPM.team.monthly, PPM.team.annual,
+  ]);
+  const ci = sub.items.data.find((i) => BASE_PRICE_IDS.has(i.price.id)) ?? sub.items.data[0];
   try {
     switch (body.action) {
       case "upgrade": case "downgrade": {

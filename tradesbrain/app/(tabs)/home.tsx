@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const nav = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
-  const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
+  const { hasAccess } = useSubscriptionContext();
   const [active, setActive] = useState<ActiveSession | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,10 +45,6 @@ export default function HomeScreen() {
       setLoading(false);
     })();
   }, [user]);
-
-  const hasAccess =
-    subscriptionStatus === 'active' ||
-    (subscriptionStatus === 'trial' && trialQueriesRemaining > 0);
 
   function startNewJob() {
     if (!hasAccess) {

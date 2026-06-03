@@ -14,10 +14,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function ReportScreen() {
   const nav = useNavigation<Nav>();
-  const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
-  const hasAccess =
-    subscriptionStatus === 'active' ||
-    (subscriptionStatus === 'trial' && trialQueriesRemaining > 0);
+  const { hasAccess } = useSubscriptionContext();
 
   function go() {
     if (!hasAccess) nav.navigate('Paywall');

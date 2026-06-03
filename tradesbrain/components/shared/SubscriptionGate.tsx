@@ -17,11 +17,8 @@ interface SubscriptionGateProps {
 
 export default function SubscriptionGate({ children, featureName }: SubscriptionGateProps) {
   const nav = useNavigation<Nav>();
-  const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
-
-  const hasAccess =
-    subscriptionStatus === 'active' ||
-    (subscriptionStatus === 'trial' && trialQueriesRemaining > 0);
+  const { hasAccess, subscriptionStatus, trialQueriesRemaining } =
+    useSubscriptionContext();
 
   if (hasAccess) return <>{children}</>;
 

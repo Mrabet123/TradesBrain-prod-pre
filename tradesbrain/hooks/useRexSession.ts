@@ -113,6 +113,11 @@ interface UseRexOpts {
    *  The session continues — the worker just sees a toast so the trial-count
    *  drift is visible. */
   onTrialDecrementFailed?: () => void;
+  /** Called with the authoritative trial-queries-remaining returned by the
+   *  decrement-trial-query Edge Function (null for an active subscription). The
+   *  screen mirrors it into SubscriptionContext so the trial banner and the
+   *  in-session exhaustion notice update without waiting for a cold app open. */
+  onTrialQueriesUpdated?: (remaining: number | null) => void;
 }
 
 export function useRexSession({
@@ -121,6 +126,7 @@ export function useRexSession({
   userId,
   recapOnLoad,
   onTrialDecrementFailed,
+  onTrialQueriesUpdated,
 }: UseRexOpts) {
   const [state, dispatch] = useReducer(reducer, initial);
   const streamingRef = useRef('');
@@ -252,6 +258,16 @@ export function useRexSession({
     await persistAssistant(s.id, result.fullText, 1, result.modelUsed);
   }
 
+  // ── Server-side trial decrement (RULE 7 / M2 R7). Returns the authoritative
+  // queries-remaining (null on an active subscription); throws on transport or
+  // function error so the caller's retry path engages. ──────────────────────
+  async function decrementTrialQuery(): Promise<number | null> {
+    const { data, error } = await supabase.functions.invoke('decrement-trial-query', { body: {} });
+    if (error) throw error;
+    const remaining = (data as { queries_remaining?: number | null })?.queries_remaining;
+    return remaining ?? null;
+  }
+
   // ── Claude turn for the latest user message in `history` (which ends with
   // that user message). Shared by sendMessage and retry. ────────────────────
   async function runAssistantTurn(s: JobSession, history: Message[]) {
@@ -331,20 +347,25 @@ export function useRexSession({
       return;
     }
     dispatch({ type: 'ERROR', error: null });
-    // Trial decrement — only AFTER a successful Claude response (RULE 7).
-    // ISS-32: one silent retry on failure (~1 s delay); still non-blocking.
-    supabase.functions.invoke('decrement-trial-query', { body: {} }).catch(() =>
-      new Promise<void>((res) => setTimeout(res, 1000)).then(() =>
-        supabase.functions
-          .invoke('decrement-trial-query', { body: {} })
+    // Trial decrement — only AFTER a successful Claude response (RULE 7), so the
+    // full response is always delivered before any trial-exhausted notice (D6
+    // Flow09 / 2.9.4). Non-blocking with one silent retry (~1 s) on failure.
+    // The server returns the authoritative post-decrement count, which we mirror
+    // into SubscriptionContext via onTrialQueriesUpdated so the UI counter and
+    // the in-session notice stay in sync.
+    decrementTrialQuery()
+      .then((remaining) => onTrialQueriesUpdated?.(remaining))
+      .catch(() =>
+        new Promise<void>((res) => setTimeout(res, 1000))
+          .then(() => decrementTrialQuery())
+          .then((remaining) => onTrialQueriesUpdated?.(remaining))
           .catch(() => {
             // Second retry also failed — surface to the screen so the worker
             // sees that the trial count may have drifted out of sync with the
             // actual queries used.
             onTrialDecrementFailed?.();
           }),
-      ),
-    );
+      );
     // CC-5 Fix B — tag a pushback response with [[PUSHBACK:n]] so MessageBubble
     // can style the bubble. The marker is stripped from the displayed text
     // (same pattern as [[STAGE:n]]). Consumed only on a successful turn, so a

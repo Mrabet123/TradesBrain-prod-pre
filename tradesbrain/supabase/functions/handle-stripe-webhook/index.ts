@@ -135,18 +135,21 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
 }
 
 async function handleInvoiceSucceeded(inv: Stripe.Invoice) {
-  // ISS-29: Skip billing_history insert for the initial subscription creation
-  // invoice — that event is already fully handled by handleSubscriptionCreated
-  // (customer.subscription.created). Recording it here would create a duplicate
-  // row for the first charge.
-  if (inv.billing_reason === "subscription_create") return;
-
+  // D9 §3.2 (audit D2): record EVERY successful invoice in billing_history,
+  // including the initial 'subscription_create' charge. handleSubscriptionCreated
+  // only writes the subscriptions row — it never inserts a billing_history row —
+  // so skipping the first invoice here previously dropped the worker's first
+  // charge (and its invoice_pdf_url) from billing history entirely. The
+  // billing_history.stripe_invoice_id UNIQUE constraint makes this insert
+  // idempotent, so a redelivered event cannot create a duplicate row.
   const userId = await getUserIdByCustomer(inv.customer as string);
   const subId = invoiceSubscriptionId(inv);
   if (!userId || !subId) { console.error("invoice.payment_succeeded: missing user or subscription id", { userId, subId, customer: inv.customer }); return; }
   const { data: sub } = await supabase.from("subscriptions").select("id, plan_type, seat_count").eq("stripe_subscription_id", subId).single();
   if (!sub) { console.error("invoice.payment_succeeded: subscription row not found for", subId); return; }
-  await supabase.from("billing_history").insert({ user_id: userId, subscription_id: sub.id, stripe_invoice_id: inv.id, amount_paid: inv.amount_paid / 100, plan_type: sub.plan_type, seat_count: sub.seat_count, billing_period_start: new Date(inv.period_start * 1000).toISOString(), billing_period_end: new Date(inv.period_end * 1000).toISOString(), invoice_pdf_url: inv.invoice_pdf, paid_at: new Date((inv.status_transitions?.paid_at ?? Date.now() / 1000) * 1000).toISOString() });
+  // Idempotent on stripe_invoice_id (UNIQUE) — a redelivered invoice event
+  // silently no-ops instead of throwing a 23505 out of the handler.
+  await supabase.from("billing_history").upsert({ user_id: userId, subscription_id: sub.id, stripe_invoice_id: inv.id, amount_paid: inv.amount_paid / 100, plan_type: sub.plan_type, seat_count: sub.seat_count, billing_period_start: new Date(inv.period_start * 1000).toISOString(), billing_period_end: new Date(inv.period_end * 1000).toISOString(), invoice_pdf_url: inv.invoice_pdf, paid_at: new Date((inv.status_transitions?.paid_at ?? Date.now() / 1000) * 1000).toISOString() }, { onConflict: "stripe_invoice_id", ignoreDuplicates: true });
 
   // D9 §8 — notify the worker that a recurring charge renewed their plan. Only
   // for renewal cycles ('subscription_cycle'); the first charge is the

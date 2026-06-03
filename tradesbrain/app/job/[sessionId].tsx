@@ -72,7 +72,8 @@ export default function ActiveSessionScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const { tradeType } = useTradeProfileContext();
-  const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
+  const { subscriptionStatus, trialQueriesRemaining, syncTrialQueries } =
+    useSubscriptionContext();
 
   const sessionId = route.params.sessionId === 'new' ? null : route.params.sessionId;
   const recapOnLoad = route.params.recap === true;
@@ -88,6 +89,9 @@ export default function ActiveSessionScreen() {
         type: 'error',
       });
     },
+    // Keep the local trial counter in lock-step with the server so the trial
+    // banner and the in-session exhaustion notice update mid-session.
+    onTrialQueriesUpdated: (remaining) => syncTrialQueries(remaining),
   });
 
   const voice = useVoiceRecording();

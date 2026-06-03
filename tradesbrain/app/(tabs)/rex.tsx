@@ -20,7 +20,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function RexScreen() {
   const nav = useNavigation<Nav>();
   const { user } = useAuthContext();
-  const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
+  const { hasAccess } = useSubscriptionContext();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,10 +39,6 @@ export default function RexScreen() {
       setLoading(false);
     })();
   }, [user]);
-
-  const hasAccess =
-    subscriptionStatus === 'active' ||
-    (subscriptionStatus === 'trial' && trialQueriesRemaining > 0);
 
   function startNewJob() {
     if (!hasAccess) {

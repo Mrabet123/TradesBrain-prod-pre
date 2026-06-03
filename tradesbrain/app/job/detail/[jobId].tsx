@@ -74,7 +74,7 @@ export default function JobDetailScreen() {
   const route = useRoute<RouteT>();
   const insets = useSafeAreaInsets();
   const jobId = route.params.jobId;
-  const { subscriptionStatus, trialQueriesRemaining } = useSubscriptionContext();
+  const { hasAccess: hasFeatureAccess } = useSubscriptionContext();
 
   const [job, setJob] = useState<HistoryJob | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,12 +108,10 @@ export default function JobDetailScreen() {
   const REX_COLLAPSE_THRESHOLD = 12;
   const REX_HEAD_TAIL = 4;
 
-  // M5 RULE 6 — read-write access is gated by subscription. PDF view/share is
-  // always allowed; feature buttons (reopen, generate new version) route to
-  // the paywall when subscription is expired/cancelled.
-  const hasFeatureAccess =
-    subscriptionStatus === 'active' ||
-    (subscriptionStatus === 'trial' && trialQueriesRemaining > 0);
+  // M5 RULE 6 — read-write access is gated by subscription (hasAccess, the
+  // single source of truth in SubscriptionContext). PDF view/share is always
+  // allowed; feature buttons (reopen, generate new version) route to the
+  // paywall when subscription is expired/cancelled.
 
   const load = useCallback(async () => {
     setLoading(true);

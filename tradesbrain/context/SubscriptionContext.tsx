@@ -25,8 +25,16 @@ interface SubscriptionContextType {
   planType: PlanType;
   trialQueriesRemaining: number;
   subscriptionEndDate: string | null;
+  /** Single source of truth for feature entitlement: active subscription, or a
+   *  trial that still has queries left. Screens must consume this rather than
+   *  re-deriving the rule inline. */
+  hasAccess: boolean;
   refreshSubscription: () => Promise<void>;
   decrementTrialQuery: () => void;
+  /** Sync the local trial counter to the authoritative server value returned by
+   *  the decrement-trial-query Edge Function. Pass null for an active sub
+   *  (no trial count) — it is then a no-op. */
+  syncTrialQueries: (remaining: number | null) => void;
   optimisticActivate: (plan: Exclude<PlanType, null>) => void;
 }
 
@@ -35,8 +43,10 @@ const SubscriptionContext = createContext<SubscriptionContextType>({
   planType: null,
   trialQueriesRemaining: 10,
   subscriptionEndDate: null,
+  hasAccess: true,
   refreshSubscription: async () => {},
   decrementTrialQuery: () => {},
+  syncTrialQueries: () => {},
   optimisticActivate: () => {},
 });
 
@@ -85,6 +95,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const decrementTrialQuery = useCallback(() => {
     setTrialQueriesRemaining((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  // Authoritative sync from the server-side decrement-trial-query response.
+  // The Edge Function returns the post-decrement count; mirroring it here keeps
+  // the trial banner states (2.1.1) and the in-session exhaustion notice (2.9.4)
+  // accurate within a live session — previously the local counter was frozen at
+  // its app-launch value until the next cold open.
+  const syncTrialQueries = useCallback((remaining: number | null) => {
+    if (remaining === null || remaining === undefined) return; // active sub — no trial count
+    setTrialQueriesRemaining(Math.max(remaining, 0));
   }, []);
 
   // BuildGuide M6 RULE 6 — optimistic activation immediately after PaymentSheet
@@ -138,6 +158,10 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const hasAccess =
+    subscriptionStatus === 'active' ||
+    (subscriptionStatus === 'trial' && trialQueriesRemaining > 0);
+
   return (
     <SubscriptionContext.Provider
       value={{
@@ -145,8 +169,10 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         planType,
         trialQueriesRemaining,
         subscriptionEndDate,
+        hasAccess,
         refreshSubscription,
         decrementTrialQuery,
+        syncTrialQueries,
         optimisticActivate,
       }}
     >

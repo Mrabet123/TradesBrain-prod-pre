@@ -21,7 +21,7 @@ import type { RootStackParamList } from './_layout';
 import { PRICING } from '../constants/pricing';
 import { useSubscriptionContext } from '../context/SubscriptionContext';
 import { useAuthContext } from '../context/AuthContext';
-import { supabase } from '../services/supabase';
+import { checkKycStatus } from '../services/stripe';
 import {
   purchaseSubscription,
   restoreSubscription,
@@ -86,42 +86,22 @@ export default function PaywallScreen() {
   // paywall with Team pre-selected).
   const preselectedPlan = route.params?.preselectedPlan ?? null;
 
-  // KYC gate check
+  // KYC gate check (2.3.1) — goes through the kyc-status-check Edge Function,
+  // which checks BOTH national_id and license statuses server-side and returns
+  // a normalised can_subscribe / message. Server-side checkout (stripe-create-
+  // checkout) re-validates as well, so this is the UI half of a defense-in-depth
+  // gate.
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
-        .from('users')
-        .select('national_id_kyc_status, license_kyc_status')
-        .eq('id', user.id)
-        .single();
-      if (!data) {
+      const res = await checkKycStatus();
+      if (!res.success || !res.data) {
         setKycReady(false);
         setKycMessage('Could not load verification status.');
         return;
       }
-      const nid = data.national_id_kyc_status;
-      const lic = data.license_kyc_status;
-      if (nid === 'verified' && lic === 'verified') {
-        setKycReady(true);
-        setKycMessage('Identity verified.');
-      } else if (nid === 'rejected' || lic === 'rejected') {
-        setKycReady(false);
-        // Surface both when both are rejected; otherwise name only the rejected
-        // document so the worker knows which one to re-upload.
-        const rejected: string[] = [];
-        if (nid === 'rejected') rejected.push('National ID');
-        if (lic === 'rejected') rejected.push('License');
-        setKycMessage(
-          `${rejected.join(' and ')} rejected — re-upload from Settings.`,
-        );
-      } else if (nid === 'pending' || lic === 'pending') {
-        setKycReady(false);
-        setKycMessage('Documents under review — usually within 24 hours.');
-      } else {
-        setKycReady(false);
-        setKycMessage('Documents required before subscribing.');
-      }
+      setKycReady(res.data.can_subscribe === true);
+      setKycMessage(res.data.message ?? 'Identity verification required.');
     })();
   }, [user]);
 
@@ -326,7 +306,14 @@ export default function PaywallScreen() {
               </View>
               <Text className="text-xs text-gray-500 mb-2">{p.tagline}</Text>
               {annualTotal && (
-                <Text className="text-xs text-green-700 mb-2">{annualTotal}</Text>
+                <View className="flex-row items-center mb-2">
+                  <Text className="text-xs text-green-700">{annualTotal}</Text>
+                  <View className="ml-2 bg-green-100 rounded-full px-2 py-0.5">
+                    <Text className="text-[10px] font-semibold text-green-700">
+                      Save 20%
+                    </Text>
+                  </View>
+                </View>
               )}
               {p.perks.map((perk) => (
                 <Text key={perk} className="text-sm text-gray-700">

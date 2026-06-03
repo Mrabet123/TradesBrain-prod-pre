@@ -105,7 +105,7 @@ export default function ProfileSettingsScreen() {
       e.preventDefault();
       Alert.alert(
         'Unsaved changes',
-        'Save changes before leaving?',
+        'You have unsaved changes — save or discard?',
         [
           { text: 'Keep editing' },
           {

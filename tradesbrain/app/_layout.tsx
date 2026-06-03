@@ -685,25 +685,28 @@
  *           screen underneath is preserved on dismiss.
  *
  * ── DEVIATIONS ──────────────────────────────────────────────────────────────
- *   1. Stripe Customer Portal (manage payment method) is not wired in M6 —
- *      tapping "Manage payment method" would need a billing portal session,
- *      which Stripe issues via the API. Adding stripe-portal-session Edge
- *      Function is a one-file follow-up. The mobile button is omitted from
- *      M6 to avoid a dead control.
- *   2. The six push notification types (D9 §8) are not registered in M6 —
- *      send-push-notification Edge Function is already implemented; only the
- *      mobile-side registerForPushNotificationsAsync + token sync remain.
- *      Wiring this requires expo-notifications which is a one-line dep add.
- *      Deferred to M6.1 / M9 as it bridges across all milestones.
+ *   1. [RESOLVED post-M6] Stripe Customer Portal (manage payment method) is now
+ *      wired — stripe-portal-session Edge Function + the Settings → Subscription
+ *      "Manage payment method" button (commit c2c3fc3). No longer a deviation.
+ *   2. [RESOLVED post-M6] All six push notification types (D9 §8) are wired via
+ *      send-push-notification; the mobile side registers via expo-notifications
+ *      (services/pushNotifications.ts) and syncs the Expo token. Delivery on a
+ *      physical device still requires the new EAS dev build (Action 1) — a
+ *      build/runtime gate, not a code gap.
  *   3. Restore-purchase on iOS uses Stripe's restore flow, not App Store's
  *      restorePurchases — TradesBrain is subscription billing through Stripe,
- *      not IAP. That matches D9 §1 explicitly.
+ *      not IAP. That matches D9 §1 explicitly. (Intentional, by design.)
+ *
+ *   Post-M6+M7 audit (Audit_M6M7.md) fixes applied in-code:
+ *   • Trial counter now syncs to the server count each turn (SubscriptionContext
+ *     .syncTrialQueries + useRexSession.onTrialQueriesUpdated).
+ *   • billing_history records the initial 'subscription_create' invoice.
+ *   • stripe-update-subscription reprices the matched base-plan item, not items[0].
+ *   • Paywall KYC gate goes through the kyc-status-check Edge Function.
+ *   • hasAccess is the single source of truth in SubscriptionContext (no inline dup).
  *
  * ── BACKLOG / NEXT ──────────────────────────────────────────────────────────
- *   • M7 (Settings, Profile & Account Transitions) — wires the Settings index
- *     to this subscription screen.
- *   • Stripe Customer Portal Edge Function + button.
- *   • Push notification registration (expo-notifications).
+ *   • Push notification delivery test on the new EAS build (Action 1).
  * ══════════════════════════════════════════════════════════════════════════════
  */
 
