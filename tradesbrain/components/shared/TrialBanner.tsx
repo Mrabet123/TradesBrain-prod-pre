@@ -4,7 +4,8 @@
 //   • subscription_status === 'trial' && remaining ≥ 3  → blue, neutral copy
 //   • subscription_status === 'trial' && remaining ≤ 2  → orange, urgency copy
 //   • subscription_status === 'trial' && remaining = 0  → renders nothing (the
-//     paywall is fired by SubscriptionGate before any feature opens)
+//     paywall is fired by the hasAccess check in SubscriptionContext before any
+//     feature opens)
 //   • Any other status                                  → renders nothing
 
 import React, { useState } from 'react';

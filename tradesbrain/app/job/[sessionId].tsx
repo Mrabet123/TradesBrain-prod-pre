@@ -517,7 +517,7 @@ export default function ActiveSessionScreen() {
               Free trial complete
             </Text>
             <Text className="text-amber-700 text-xs mb-2">
-              You've used all 10 free Rex queries. This session is saved — subscribe to
+              You've used all your free Rex queries. This session is saved — subscribe to
               keep going.
             </Text>
             <Pressable

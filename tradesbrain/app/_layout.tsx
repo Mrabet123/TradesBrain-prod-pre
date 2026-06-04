@@ -124,8 +124,8 @@
  *   S5   Rex queued message    ✓ useOfflineQueue (AsyncStorage per-session)
  *   S6   Queue auto-send       ✓ Flushes on isConnected transition to true
  *   S7   Report draft preserve ✓ M3 beforeRemove + Discard panel
- *   S8   Trial exhaustion      ✓ Paywall fired by SubscriptionGate; banner
- *                                 logic from M6 TrialBanner
+ *   S8   Trial exhaustion      ✓ Paywall fired by the hasAccess check in
+ *                                 SubscriptionContext; banner logic from M6 TrialBanner
  *   S9   Paywall over session  ✓ M6 modal preserves session underneath
  *   S10  Session restore       ✓ M2 Home amber banner
  *   S11  Rex recap on reopen   ✓ M5 useRexSession.recapOnLoad
@@ -571,21 +571,20 @@
  *           Stripe Identity session is started server-side per D9 §6.
  *
  * ── DEVIATIONS ──────────────────────────────────────────────────────────────
- *   1. Stripe billing for the cancelled-but-not-yet-ended period continues
- *      after delete-account per D2 F8. delete-account does not cancel the
- *      Stripe subscription. Worker should cancel via Settings → Subscription
- *      first if they want the billing to stop. Surface a hint inside the
- *      DELETE panel — current copy already mentions this.
+ *   1. [RESOLVED] delete-account now cancels the Stripe subscription at period
+ *      end (cancel_at_period_end) — see supabase/functions/delete-account/
+ *      index.ts:86-120. Access is kept until the cycle boundary per D2 F8, then
+ *      Stripe stops billing on its own. The step aborts the whole deletion if it
+ *      fails, so an active subscription is never orphaned.
  *   2. M0 scaffold had "Subscription settings" as a route name
  *      `SubscriptionSettings`; settings/index links to it. The Settings hub
  *      itself reaches that via the Subscription section.
- *   3. Team section in Settings/index just alerts "Arrives in M8" — M8 wires
- *      the actual team UI.
+ *   3. [RESOLVED] Team section in Settings/index now navigates to the live
+ *      SettingsTeam screen (app/settings/team.tsx); it is shown only for Team
+ *      plans (showTeamSection gate). The old "Arrives in M8" alert is gone.
  *
  * ── BACKLOG / NEXT ──────────────────────────────────────────────────────────
  *   • M8 (Team Management) — fills the Team section + KPI dashboard.
- *   • If you want delete-account to also cancel Stripe, add a one-liner to
- *     the Edge Function: `stripe.subscriptions.update(subId, { cancel_at_period_end: true })`.
  * ══════════════════════════════════════════════════════════════════════════════
  */
 
@@ -778,7 +777,7 @@
  *   RULE 5 ✓ JobCard does not render any customer field (none collected).
  *   RULE 6 ✓ History tab does not gate on SubscriptionContext — it loads
  *           regardless. Feature CTAs elsewhere are already gated by the
- *           SubscriptionGate logic.
+ *           inline hasAccess check (routes to Paywall) in SubscriptionContext.
  *
  * ── ROUTES ──────────────────────────────────────────────────────────────────
  *   RootStackParamList gained:
@@ -1041,8 +1040,8 @@
  *                                     - Detects an active session and offers
  *                                       Continue (amber banner).
  *                                     - "Start a new job" CTA — gated by the
- *                                       SubscriptionGate logic (paywall if
- *                                       trial=0 / subscription expired).
+ *                                       hasAccess check in SubscriptionContext
+ *                                       (paywall if trial=0 / subscription expired).
  *   app/job/[sessionId].tsx         The Rex session screen.
  *                                     - sessionId === 'new' creates a row in
  *                                       job_sessions; otherwise loads existing.
@@ -1298,7 +1297,7 @@
  *   components/rex/MessageBubble | VoiceRecordButton | PhotoCapture
  *                | ContextualButtons | StreamingText
  *   components/documents/ReportPreview | QuotePreview
- *   components/shared/SubscriptionGate | LoadingSpinner | ErrorBoundary
+ *   components/shared/LoadingSpinner | ErrorBoundary
  *                   | ToastNotification
  *   components/team/KpiDashboard | MemberCard
  *

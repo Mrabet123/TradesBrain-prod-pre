@@ -1,6 +1,7 @@
 // D3 F2 Path B / D6 Flow05 — Report tab entry.
 // Tapping Generate report opens the builder with no sessionId (standalone).
-// SubscriptionGate is enforced: paywall navigation when no access.
+// Gating: the inline hasAccess check below routes to the Paywall when there
+// is no active subscription or remaining trial — see SubscriptionContext.
 
 import React from 'react';
 import { Text, Pressable } from 'react-native';
