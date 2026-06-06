@@ -64,7 +64,7 @@ serve(async (req) => {
     await stripe.identity.verificationSessions.create({ type: "document", metadata: { user_id: nid, document_type: "license" }, options: { document: { require_live_capture: true, require_id_number: false } } });
     // ISS-10 (fix 2): credentials are NEVER delivered as a plain-text password.
     // A single-use Supabase password-recovery link is generated; that link is
-    // what gets emailed and texted. The member clicks it, sets their own
+    // what gets emailed (O-1: email only). The member clicks it, sets their own
     // password, and the temp password used above is overwritten.
     let recoveryUrl: string | null = null;
     try {
@@ -105,22 +105,15 @@ serve(async (req) => {
       console.error("Resend email failed for new member", nid, emailErr);
     }
 
-    // ISS-09: D10 requires credentials also be delivered via SMS.
-    // The send-push-notification Edge Function (team_member_added type) is the
-    // in-app channel; sendCredentialsSMS() is the SMS channel below.
+    // O-1 (founder decision, LOCKED): credentials are delivered by EMAIL only
+    // (Resend, above). There is no SMS/Twilio credential channel — TradesBrain
+    // does not build an SMS dependency. The send-push-notification Edge Function
+    // (team_member_added type) is the in-app notification channel only.
     await supabase.functions.invoke("send-push-notification", {
       body: { user_id: nid, type: "team_member_added", deep_link: "tradesbrain://home" },
     }).catch((pushErr: unknown) => {
       console.error("Push notification failed for new member", nid, pushErr);
     });
-
-    // ISS-09: deliver the password-setup link by SMS. Isolated in its own
-    // try/catch — an SMS failure must not roll back member creation.
-    try {
-      await sendCredentialsSMS(b.phone_number, b.full_name, od.full_name, recoveryUrl);
-    } catch (smsErr) {
-      console.error("Credential SMS failed for new member", nid, smsErr);
-    }
 
     return new Response(JSON.stringify({ success: true, member_id: nid }), { status: 201, headers: { "Content-Type": "application/json" } });
   } catch (err) {
@@ -134,49 +127,3 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: "creation_failed", details: String(err) }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 });
-
-// ISS-09 — credential SMS via Twilio (D10: credentials delivered by email AND SMS).
-// Sends the password-setup link by SMS. Activates automatically once these
-// Edge Function secrets are configured:
-//   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
-// Until then it logs intent and returns without throwing, so member creation
-// is never blocked by a missing SMS provider.
-async function sendCredentialsSMS(
-  phoneNumber: string,
-  memberName: string,
-  ownerName: string,
-  recoveryUrl: string | null,
-): Promise<void> {
-  const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const token = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const fromNumber = Deno.env.get("TWILIO_FROM_NUMBER");
-
-  const body = recoveryUrl
-    ? `Hi ${memberName}, ${ownerName} added you to TradesBrain. Set your password: ${recoveryUrl}`
-    : `Hi ${memberName}, ${ownerName} added you to TradesBrain. Open the app, tap "Forgot password" and use your email to set your password.`;
-
-  if (!sid || !token || !fromNumber) {
-    console.log(
-      `[ISS-09] Twilio not configured — skipping credential SMS to ${phoneNumber}. ` +
-        `Set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER to enable.`,
-    );
-    return;
-  }
-
-  const resp = await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: "Basic " + btoa(`${sid}:${token}`),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ To: phoneNumber, From: fromNumber, Body: body }),
-    },
-  );
-  if (!resp.ok) {
-    console.error(`[ISS-09] Twilio SMS to ${phoneNumber} failed (HTTP ${resp.status})`, await resp.text());
-  } else {
-    console.log(`[ISS-09] Credential SMS sent to ${phoneNumber}.`);
-  }
-}

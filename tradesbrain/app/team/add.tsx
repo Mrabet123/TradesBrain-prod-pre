@@ -107,7 +107,7 @@ export default function TeamAddScreen() {
 
       Alert.alert(
         'Member added',
-        `${fullName} will receive an email and SMS with a secure link to set their own password.`,
+        `${fullName} will receive an email with a secure link to set their own password.`,
         [{ text: 'OK', onPress: () => nav.goBack() }],
       );
     } catch (e: any) {
@@ -187,7 +187,7 @@ export default function TeamAddScreen() {
           </Pressable>
         </View>
         <Text className="text-xs text-gray-500 mt-1">
-          The member receives a secure link by email + SMS to set their own
+          The member receives a secure link by email to set their own
           password. Share this fallback only if the link does not arrive.
         </Text>
       </View>

@@ -391,7 +391,8 @@
  *                                      Function reassigns ownership on member
  *                                      auth-user create)
  *                                    • Auto-generated 12-char temp password
- *                                      (regenerable) — sent by SMS + email
+ *                                      (regenerable) — fallback only; the member
+ *                                      gets a secure recovery link by email (O-1)
  *
  *   app/team/[memberId].tsx        D6 Flow11 — Member Detail
  *                                    • Banner: "Owner view — all content is
@@ -449,7 +450,8 @@
  * ── EDGE FUNCTIONS (M0 scaffolds — DEPLOYMENT DEFERRED) ─────────────────────
  *   create-team-member  Auth user + users row + team_members link + Stripe
  *                       seat (via stripe-update-subscription) + Stripe Identity
- *                       sessions for license + national ID + Resend email + SMS.
+ *                       sessions for license + national ID + Resend email (O-1:
+ *                       email-only credential delivery, no SMS/Twilio).
  *                       Full ATOMIC rollback if any step fails (RULE 6) — incl.
  *                       reversing an already-added Stripe seat (D-1 fix).
  *   delete-team-member  Confirmation === 'DELETE'. Deletes messages →
