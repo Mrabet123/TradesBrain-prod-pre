@@ -100,12 +100,19 @@ export default function TeamSettingsScreen() {
             const result = await removeMember(member.memberId);
             setRemovingId(null);
             if (!result.ok) {
+              // O-5: map the raw partial_delete token to a clear, reassuring
+              // message. The member's data is removed and the seat is dropped;
+              // only a non-critical cleanup step (e.g. a storage file) failed.
+              const isPartial = result.error?.includes('partial_delete');
               Alert.alert(
-                'Could not delete',
-                result.error?.includes('not deployed')
+                isPartial ? 'Member removed' : 'Could not delete',
+                isPartial
+                  ? `${member.fullName} has been removed and the Stripe seat dropped. A minor cleanup step didn't finish — refresh in a moment, and if the member still appears, try delete again.`
+                  : result.error?.includes('not deployed')
                   ? 'delete-team-member Edge Function is not deployed yet.'
                   : result.error ?? 'Unknown error',
               );
+              await reload();
               return;
             }
             await reload();
