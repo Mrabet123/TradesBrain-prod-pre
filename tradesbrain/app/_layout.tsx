@@ -246,28 +246,25 @@
  *         deploy-time step against the existing ingest-code-document Edge
  *         Function from M4.
  *
- * ── PROMPT SOURCE ───────────────────────────────────────────────────────────
- *   constants/systemPrompts.ts now exports four prompts loaded verbatim from
+ * ── PROMPT SOURCE (SERVER-SIDE — Security Rule 2) ───────────────────────────
+ *   UPDATED: prompts were moved OFF the client. constants/systemPrompts.ts has
+ *   been DELETED. The four prompts now live verbatim in the claude-proxy Edge
+ *   Function (supabase/functions/claude-proxy/prompts.ts), loaded from
  *   D7 §2 (Plumber v2.0), §3 (Electrician v1.0), §4 (HVAC Technician v1.0),
  *   and §5 (Roofer v1.0):
  *     PLUMBER_V2     · ELECTRICIAN_V1 · HVAC_V1 · ROOFER_V1
  *
- *   getSystemPrompt(tradeType) routes the value from users.trade_type to the
- *   matching prompt. 'other' (General Contractor) falls back to PLUMBER_V2
- *   until the General Contractor profile is published in a future D7 release
- *   (D7 §1 logs it as a Year-2 item).
+ *   buildSystemPrompt({ tradeType, mode, ragContext }) in prompts.ts maps
+ *   users.trade_type → the matching prompt. 'other' (General Contractor) falls
+ *   back to PLUMBER_V2 until the General Contractor profile is published in a
+ *   future D7 release (D7 §1 logs it as a Year-2 item).
  *
- * ── ROUTING IS CLIENT-SIDE ──────────────────────────────────────────────────
- *   Per D4 §4.1 Step 5, the system prompt is fed into the Claude payload from
- *   the client before the Edge Function streams it through. claude-proxy is
- *   a transparent pass-through, so trade routing logic lives in
- *   getSystemPrompt() — useRexSession and services/codeLookup both call it.
- *
- *   The BuildGuide spec language ("trade routing in Edge Function") is honored
- *   functionally: the prompt is selected by trade_type before the call. If you
- *   later want the Edge Function to be the source of truth for trade prompts,
- *   move SYSTEM_PROMPTS into the function and look it up from users.trade_type
- *   server-side — getSystemPrompt becomes a no-op on the client.
+ * ── ROUTING IS SERVER-SIDE ──────────────────────────────────────────────────
+ *   The client sends ONLY { trade_type, mode, rag_context }; the confidential
+ *   system prompt never ships in the app bundle (Security Rule 2). claude-proxy
+ *   (supabase/functions/claude-proxy/index.ts) verifies the caller JWT, calls
+ *   buildSystemPrompt() server-side, and forwards to Anthropic. This is the
+ *   source of truth for trade routing — there is no client getSystemPrompt().
  *
  * ── CONTEXT QUESTIONS (D7 verbatim, RULE 2) ─────────────────────────────────
  *   Electrician:
@@ -316,14 +313,13 @@
  *
  * ── TRADE SWITCH (RULE 11 from M7) ──────────────────────────────────────────
  *   Settings → Trade & account → trade radio writes to users.trade_type and
- *   calls refreshProfile() on TradeProfileContext. The next time
- *   useRexSession runs openSession(), it pulls the new prompt via
- *   getSystemPrompt(s.tradeType) — confirmed by re-reading M7's TradeSettings
- *   handler.
+ *   calls refreshProfile() on TradeProfileContext. The NEXT Rex/codeLookup call
+ *   sends the new trade_type to claude-proxy, which selects the matching prompt
+ *   server-side via buildSystemPrompt() — confirmed in app/settings/trade.tsx.
  *
- *   The Plumber session loaded BEFORE the switch is untouched — the system
- *   prompt is captured into the Claude call at send-time, not stored on the
- *   session row.
+ *   The Plumber session loaded BEFORE the switch is untouched — the prompt is
+ *   chosen server-side per request from the trade_type sent at send-time, not
+ *   stored on the session row.
  *
  * ── SECONDARY FIX ───────────────────────────────────────────────────────────
  *   app/(tabs)/codes.tsx — the trade switcher used the value 'general' which
@@ -331,10 +327,32 @@
  *   CHECK constraint value). Label "General" stays the same.
  *
  * ── RULE COMPLIANCE ─────────────────────────────────────────────────────────
- *   RULE 1 ✓ All three prompts copied verbatim from D7.
+ *   RULE 1 ✓ All four prompts copied byte-for-byte from D7 into prompts.ts.
  *   RULE 2 ✓ Context questions match D7 word-for-word (inside the prompts).
  *   RULE 3 ✓ Each prompt carries its trade-specific safety escalation block.
  *   RULE 4 ✓ match_documents filters by trade_type — RAG is isolated.
+ *
+ * ── PLUMBER REGRESSION ──────────────────────────────────────────────────────
+ *   PLUMBER_V2 (from M2) is unchanged in prompts.ts: context questions (water
+ *   supply / pipe material / system type) and the gas-leak STOP safety rule are
+ *   intact. Adding the 3 new trade keys to SYSTEM_PROMPTS does not touch the
+ *   plumber entry, and plumber RAG rows are isolated by trade_type.
+ *
+ * ── CODE DOCUMENTS INGESTED ─────────────────────────────────────────────────
+ *   Pipeline (ingest-code-document) is code-complete and tags every chunk with
+ *   trade_type. Actual ingestion of NEC / IMC+ASHRAE / IBC roofing is a
+ *   deploy-time backend step (Track 2 / Part 6.4) — see the POST payloads above.
+ *
+ * ── DEVIATIONS ──────────────────────────────────────────────────────────────
+ *   1. Trade routing is SERVER-SIDE, not client-side. The BuildGuide language
+ *      ("trade routing in Edge Function") is satisfied literally: prompts live
+ *      in claude-proxy/prompts.ts and are selected server-side from trade_type.
+ *      (Earlier drafts of this report described a client getSystemPrompt() — that
+ *      approach was removed for Security Rule 2; constants/systemPrompts.ts is
+ *      deleted.) This is a stronger-than-spec posture, flagged for the record.
+ *   2. 'other' (General Contractor) falls back to PLUMBER_V2 until D7 publishes
+ *      a General Contractor profile (D7 §1 Year-2 item). Justified — no GC prompt
+ *      exists to deploy yet.
  *
  * ── BACKLOG / NEXT ──────────────────────────────────────────────────────────
  *   • M10 (System states & edge cases) — D6 Flow12 S22-S25 wireframe screens.
@@ -431,13 +449,15 @@
  * ── EDGE FUNCTIONS (M0 scaffolds — DEPLOYMENT DEFERRED) ─────────────────────
  *   create-team-member  Auth user + users row + team_members link + Stripe
  *                       seat (via stripe-update-subscription) + Stripe Identity
- *                       sessions for license + national ID + Resend email.
- *                       Full rollback if any step fails (RULE 6).
+ *                       sessions for license + national ID + Resend email + SMS.
+ *                       Full ATOMIC rollback if any step fails (RULE 6) — incl.
+ *                       reversing an already-added Stripe seat (D-1 fix).
  *   delete-team-member  Confirmation === 'DELETE'. Deletes messages →
  *                       job_reports → quotes → job_sessions → worker_preferences
  *                       → team_members → all storage objects under member id
  *                       → users row → auth user. Then decrements Stripe seat
- *                       (RULE 4).
+ *                       (RULE 4). Best-effort cascade reports partial failures
+ *                       instead of silently swallowing them (D-3 fix).
  *
  * ── RULE COMPLIANCE ─────────────────────────────────────────────────────────
  *   RULE 1 ✓ settings/index renders Team section only when account_type =
@@ -452,8 +472,9 @@
  *   RULE 4 ✓ Confirm dialog calls delete-team-member with the destruction
  *           list mentioned in the copy.
  *   RULE 5 ✓ + Add disabled at cap 10 with amber notice.
- *   RULE 6 ✓ create-team-member uses a try/catch that calls admin delete on
- *           the partial auth user if any subsequent step fails.
+ *   RULE 6 ✓ create-team-member rolls back atomically on any failure: the
+ *           catch deletes the partial auth user + users + team_members rows AND
+ *           reverses the Stripe seat if it was added (error-checked add_seat).
  *
  * ── DEVIATIONS ──────────────────────────────────────────────────────────────
  *   1. Swipe-to-delete (D6 calls for swipe-left) is implemented as
@@ -474,8 +495,11 @@
  *   • M9 (Remaining trade profiles) — Electrician, HVAC, Roofer prompts.
  *   • Swap long-press → Swipeable for the member list when react-native-
  *     gesture-handler is explicitly added.
- *   • Member first-login forced password change + phone OTP arrives in the
- *     next milestone (sign-in flow extension).
+ *   • Member first-login is handled NOW: create-team-member emails + texts a
+ *     single-use Supabase recovery link so the member sets their OWN password
+ *     (no plaintext credential), and phone OTP is enforced by the global
+ *     fullyVerified gate (phone_confirm:false at creation). mark-member-activated
+ *     flips temporary_password_set + pushes the owner once first login completes.
  * ══════════════════════════════════════════════════════════════════════════════
  */
 

@@ -31,6 +31,10 @@ serve(async (req) => {
   }
 
   let nid: string | null = null;
+  // D-1 (audit 4.1 / 2.5.7): track whether the Stripe seat was actually added so
+  // the rollback can REVERSE it. Previously the catch only deleted the auth user
+  // + DB rows and left an orphaned, billed seat if a step AFTER add_seat threw.
+  let seatAdded = false;
   try {
     const { data: au, error } = await supabase.auth.admin.createUser({ email: b.email, phone: b.phone_number, password: b.temp_password, email_confirm: true, phone_confirm: false });
     if (error || !au.user) throw new Error(error?.message);
@@ -41,9 +45,21 @@ serve(async (req) => {
     // because no error was thrown. Throwing routes into the rollback below.
     const { error: userErr } = await supabase.from("users").insert({ id: nid, full_name: b.full_name, email: b.email, phone_number: b.phone_number, trade_type: b.trade_type, account_type: "solopreneur", hourly_rate: 0, vat_number: b.vat_number, license_number: b.license_number, license_proof_url: b.license_proof_url, national_id_url: b.national_id_url, national_id_kyc_status: "pending", license_kyc_status: "pending", trial_queries_remaining: 0, subscription_status: "active", plan_type: "team", terms_accepted_at: new Date().toISOString(), terms_version: "1.2" });
     if (userErr) throw new Error(`users insert failed: ${userErr.message}`);
+    // D-1: error-check the seat-add. `functions.invoke` resolves with { error }
+    // (transport) and the function itself may return { data: { error } } (a 4xx/5xx
+    // body) — NEITHER throws. Inspect both so a failed seat-add routes into the
+    // rollback below instead of silently producing a seatless member.
+    // ORDER: add_seat runs BEFORE the team_members insert. stripe-update-subscription's
+    // add_seat cap check counts team_members rows; inserting this member first would
+    // double-count and wrongly reject the legitimate 10th seat. The outer count guard
+    // (above) already blocks the 11th before we get here.
+    const seatRes = await supabase.functions.invoke("stripe-update-subscription", { headers: { Authorization: ah }, body: { action: "add_seat" } });
+    if (seatRes.error || (seatRes.data && (seatRes.data as { error?: string }).error)) {
+      throw new Error(`add_seat failed: ${seatRes.error?.message ?? (seatRes.data as { error?: string })?.error}`);
+    }
+    seatAdded = true;
     const { error: teamErr } = await supabase.from("team_members").insert({ team_owner_id: owner.id, member_id: nid, is_active: true, temporary_password_set: true });
     if (teamErr) throw new Error(`team_members insert failed: ${teamErr.message}`);
-    await supabase.functions.invoke("stripe-update-subscription", { headers: { Authorization: ah }, body: { action: "add_seat" } });
     await stripe.identity.verificationSessions.create({ type: "document", metadata: { user_id: nid, document_type: "national_id" }, options: { document: { require_live_capture: true, require_id_number: false } } });
     await stripe.identity.verificationSessions.create({ type: "document", metadata: { user_id: nid, document_type: "license" }, options: { document: { require_live_capture: true, require_id_number: false } } });
     // ISS-10 (fix 2): credentials are NEVER delivered as a plain-text password.
@@ -108,6 +124,12 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ success: true, member_id: nid }), { status: 201, headers: { "Content-Type": "application/json" } });
   } catch (err) {
+    // D-1: FULL rollback (D10 §2.7 "No partial state"). Reverse the Stripe seat
+    // FIRST if it was added, so a failure after add_seat never leaves an orphaned
+    // billed seat. Then delete the auth user + DB rows. All steps best-effort.
+    if (seatAdded) {
+      await supabase.functions.invoke("stripe-update-subscription", { headers: { Authorization: ah }, body: { action: "remove_seat" } }).catch(() => {});
+    }
     if (nid) { await supabase.auth.admin.deleteUser(nid).catch(() => {}); await supabase.from("users").delete().eq("id", nid).catch(() => {}); await supabase.from("team_members").delete().eq("member_id", nid).catch(() => {}); }
     return new Response(JSON.stringify({ error: "creation_failed", details: String(err) }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
