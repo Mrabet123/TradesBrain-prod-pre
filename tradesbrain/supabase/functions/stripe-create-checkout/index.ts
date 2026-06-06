@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@13.0.0";
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2023-10-16", httpClient: Stripe.createFetchHttpClient() });
+const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2026-04-22.dahlia" as Stripe.LatestApiVersion, httpClient: Stripe.createFetchHttpClient() });
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const PLAN_PRICE_MAP: Record<string, Record<string, string>> = {
   solo: { monthly: Deno.env.get("STRIPE_PRICE_SOLO_MONTHLY")!, annual: Deno.env.get("STRIPE_PRICE_SOLO_ANNUAL")! },
@@ -32,6 +32,6 @@ serve(async (req) => {
   const sub = await stripe.subscriptions.create({ customer: cid, items: [{ price: priceId }], payment_behavior: "default_incomplete", payment_settings: { save_default_payment_method: "on_subscription" }, expand: ["latest_invoice.payment_intent"], metadata: { supabase_user_id: user.id, plan_type, billing_cycle } });
   const pi = (sub.latest_invoice as Stripe.Invoice)?.payment_intent as Stripe.PaymentIntent;
   if (!pi?.client_secret) return new Response(JSON.stringify({ error: "Checkout failed" }), { status: 500, headers: { "Content-Type": "application/json" } });
-  const ek = await stripe.ephemeralKeys.create({ customer: cid }, { apiVersion: "2023-10-16" });
+  const ek = await stripe.ephemeralKeys.create({ customer: cid }, { apiVersion: "2026-04-22.dahlia" });
   return new Response(JSON.stringify({ client_secret: pi.client_secret, subscription_id: sub.id, customer_id: cid, ephemeral_key: ek.secret }), { status: 200, headers: { "Content-Type": "application/json" } });
 });

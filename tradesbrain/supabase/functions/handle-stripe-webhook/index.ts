@@ -5,7 +5,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@13.0.0";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
-  apiVersion: "2023-10-16", httpClient: Stripe.createFetchHttpClient(),
+  // Match the webhook endpoint's locked API version (2026-04-22.dahlia) so the
+  // SDK serialises requests/responses in the same shape Stripe delivers events.
+  // Cast: this string is newer than stripe@13's typed LatestApiVersion literal.
+  apiVersion: "2026-04-22.dahlia" as Stripe.LatestApiVersion, httpClient: Stripe.createFetchHttpClient(),
 });
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET")!;

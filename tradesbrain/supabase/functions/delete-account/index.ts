@@ -22,7 +22,7 @@ import Stripe from 'https://esm.sh/stripe@13.0.0';
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY');
 const stripe = STRIPE_SECRET_KEY
   ? new Stripe(STRIPE_SECRET_KEY, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2026-04-22.dahlia' as Stripe.LatestApiVersion,
       httpClient: Stripe.createFetchHttpClient(),
     })
   : null;
