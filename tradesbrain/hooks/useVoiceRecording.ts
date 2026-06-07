@@ -9,6 +9,13 @@ export function useVoiceRecording() {
   // silent early-return previously left the caller unable to detect denial.
   const [permissionDenied, setPermissionDenied] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  // TC-031 — this is a HOLD-to-record control, not a tap-toggle. A quick tap
+  // fires onPressIn→onPressOut almost instantly and captures a sub-second clip
+  // that Whisper can't transcribe (looks like "transcription always fails").
+  // We stamp the start time and discard anything shorter than MIN_RECORDING_MS
+  // so only a deliberate press-and-hold produces audio.
+  const startedAtRef = useRef(0);
+  const MIN_RECORDING_MS = 600;
   // Press-and-hold race guards. The mic button fires onPressIn → startRecording
   // (several awaits) and onPressOut → stopRecording. A quick tap can fire
   // onPressOut BEFORE startRecording resolves. Without these guards, on Android
@@ -51,6 +58,7 @@ export function useVoiceRecording() {
 
       await recording.startAsync();
       recordingRef.current = recording;
+      startedAtRef.current = Date.now();
       setIsRecording(true);
       return true;
     } catch {
@@ -74,6 +82,8 @@ export function useVoiceRecording() {
     setIsRecording(false);
     if (!recording) return null;
 
+    const heldMs = startedAtRef.current ? Date.now() - startedAtRef.current : 0;
+    startedAtRef.current = 0;
     let uri: string | null = null;
     try {
       await recording.stopAndUnloadAsync();
@@ -82,6 +92,11 @@ export function useVoiceRecording() {
       // Recording was too short / never produced audio. On Android
       // stopAndUnloadAsync throws here — treat it as "nothing to transcribe"
       // rather than crashing the caller with an unhandled rejection.
+      uri = null;
+    }
+    // TC-031 — a tap (not a hold) produced an unusable sub-second clip. Discard
+    // it so the caller no-ops instead of firing a doomed transcription request.
+    if (uri && heldMs > 0 && heldMs < MIN_RECORDING_MS) {
       uri = null;
     }
     // Release the recording audio mode so later playback isn't forced to the

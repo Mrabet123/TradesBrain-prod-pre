@@ -1560,6 +1560,7 @@ export default function RootLayout() {
     profileChecked,
     profileSetupPending,
     fullyVerified,
+    recoveryMode,
     user,
   } = useAuthContext();
   const suspended = useSuspended(isAuthenticated);
@@ -1590,11 +1591,13 @@ export default function RootLayout() {
       />
     );
   }
-  // Wait for the first profile lookup before choosing a stack.
-  if (isAuthenticated && !profileChecked) return <SplashScreen />;
+  // Wait for the first profile lookup before choosing a stack — unless the
+  // worker is mid password-reset (TC-018), in which case we must NOT flash a
+  // splash over the reset form just because a recovery session just appeared.
+  if (isAuthenticated && !profileChecked && !recoveryMode) return <SplashScreen />;
 
   // Suspended (D6 Flow12 S20) — restricted stack: read-only Job History only.
-  if (isAuthenticated && suspended) {
+  if (isAuthenticated && suspended && !recoveryMode) {
     return (
       <View style={{ flex: 1 }}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -1614,14 +1617,14 @@ export default function RootLayout() {
     <View style={{ flex: 1 }}>
       <OfflineBanner />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated && !fullyVerified && !profileSetupPending ? (
+      {isAuthenticated && !fullyVerified && !profileSetupPending && !recoveryMode ? (
         // Channel-level gate (fix for "verifying just one OTP went to Home").
         // A session can exist before both channels are confirmed — we keep the
         // worker on the verify screen until email AND phone are both checked.
         // Skipped while profileSetupPending is true so the OtpVerify wizard
         // inside the auth stack can finish creating the profile.
         <Stack.Screen name="VerifyPending" component={VerifyPendingScreen} />
-      ) : isAuthenticated && profileComplete && fullyVerified ? (
+      ) : isAuthenticated && profileComplete && fullyVerified && !recoveryMode ? (
         <>
           <Stack.Screen name="Tabs" component={TabsNavigator} />
           <Stack.Screen name="Job" component={ActiveSessionScreen} />
@@ -1648,9 +1651,13 @@ export default function RootLayout() {
             options={{ presentation: 'modal' }}
           />
         </>
-      ) : isAuthenticated && !profileComplete && !profileSetupPending ? (
+      ) : isAuthenticated && !profileComplete && !profileSetupPending && !recoveryMode ? (
         <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
       ) : (
+        // Auth stack — also the branch shown while recoveryMode is true. Because
+        // ForgotPassword already lives here and stays mounted across the
+        // not-authenticated → recovery-session transition, the reset phase is
+        // preserved instead of being torn down for the Home tabs (TC-018).
         <>
           <Stack.Screen name="Welcome" component={WelcomeScreen} />
           <Stack.Screen name="SignUp" component={SignUpScreen} />

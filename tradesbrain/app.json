@@ -16,14 +16,15 @@
     },
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#1E3A5F"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.tradesbrain",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "TradesBrain needs the microphone so you can describe jobs to Rex by voice."
       }
     },
     "android": {
@@ -48,6 +49,12 @@
         "@react-native-google-signin/google-signin",
         {
           "iosUrlScheme": "com.googleusercontent.apps.843071726886-637f7jngnqdi2gll7e5aoclbbp88bkca"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "TradesBrain needs the microphone so you can describe jobs to Rex by voice."
         }
       ],
       "expo-secure-store",

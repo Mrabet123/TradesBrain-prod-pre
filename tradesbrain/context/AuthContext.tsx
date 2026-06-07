@@ -32,9 +32,17 @@ interface AuthContextType {
   phoneVerified: boolean;
   fullyVerified: boolean;
   signUpProvider: 'email' | 'oauth' | 'phone' | null;
+  // recoveryMode (TC-018): true while the worker is mid password-reset.
+  // Verifying the recovery OTP (or tapping an emailed recovery link) establishes
+  // a real Supabase session — without this flag the RootLayout gate would see
+  // "authenticated + profileComplete" and jump straight to Home, skipping the
+  // set-new-password step. While it is true the gate keeps the auth stack
+  // mounted so ForgotPassword can finish its reset phase.
+  recoveryMode: boolean;
   refreshProfileStatus: () => Promise<void>;
   refreshUser: () => Promise<void>;
   setProfileSetupPending: (pending: boolean) => void;
+  setRecoveryMode: (on: boolean) => void;
   signOut: () => Promise<void>;
 }
 
@@ -50,9 +58,11 @@ const AuthContext = createContext<AuthContextType>({
   phoneVerified: false,
   fullyVerified: false,
   signUpProvider: null,
+  recoveryMode: false,
   refreshProfileStatus: async () => {},
   refreshUser: async () => {},
   setProfileSetupPending: () => {},
+  setRecoveryMode: () => {},
   signOut: async () => {},
 });
 
@@ -112,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileComplete, setProfileComplete] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
   const [profileSetupPending, setProfileSetupPending] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   const refreshProfileStatus = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
@@ -183,6 +194,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // hangs on "Working…" forever. The profile-check runs in the
       // separate effect below, OUTSIDE the listener, where the auth lock
       // has already been released.
+      //
+      // TC-018: an emailed recovery LINK fires PASSWORD_RECOVERY with a fresh
+      // session. Flag recovery so the gate keeps the worker on ForgotPassword
+      // (reset phase) instead of dropping them on Home. (The OTP-code path sets
+      // the flag explicitly in forgot-password.tsx before verifying.)
+      if (_event === 'PASSWORD_RECOVERY') {
+        setRecoveryMode(true);
+      }
       if (!session?.user) {
         setSession(null);
         setUser(null);
@@ -234,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfileComplete(false);
     setProfileSetupPending(false);
+    setRecoveryMode(false);
   };
 
   const { emailVerified, phoneVerified, provider, fullyVerified } = deriveVerification(user);
@@ -252,9 +272,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneVerified,
         fullyVerified,
         signUpProvider: provider,
+        recoveryMode,
         refreshProfileStatus,
         refreshUser,
         setProfileSetupPending,
+        setRecoveryMode,
         signOut,
       }}
     >

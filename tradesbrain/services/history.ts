@@ -96,25 +96,29 @@ export async function fetchHistorySessions(
   const { data, error } = await query;
   if (error || !data) return [];
 
-  const rows = data
-    .map((row: any) => {
-      const reports = (row.job_reports ?? []).filter((r: any) => r.status === 'finalised');
-      const quotes = (row.quotes ?? []).filter((q: any) => q.status === 'finalised');
-      return {
-        id: row.id,
-        jobName: row.job_name,
-        jobsite: row.jobsite,
-        tradeType: row.trade_type,
-        status: row.status,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        closedAt: row.closed_at,
-        messageCount: row.message_count,
-        reportCount: reports.length,
-        quoteCount: quotes.length,
-      };
-    })
-    .filter((j) => j.reportCount + j.quoteCount > 0);
+  // TC-045/046: a closed job must appear in History as soon as it is saved —
+  // even before any report or quote is generated. (Previously a hard
+  // `.filter(reportCount + quoteCount > 0)` hid every just-closed job until the
+  // worker also produced a finalised document, so testers saw an empty History
+  // right after Close Job.) We still surface the finalised-doc counts for the
+  // job card; we just no longer require them for the row to exist.
+  const rows = data.map((row: any) => {
+    const reports = (row.job_reports ?? []).filter((r: any) => r.status === 'finalised');
+    const quotes = (row.quotes ?? []).filter((q: any) => q.status === 'finalised');
+    return {
+      id: row.id,
+      jobName: row.job_name,
+      jobsite: row.jobsite,
+      tradeType: row.trade_type,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      closedAt: row.closed_at,
+      messageCount: row.message_count,
+      reportCount: reports.length,
+      quoteCount: quotes.length,
+    };
+  });
 
   if (!q) return rows;
 

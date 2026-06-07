@@ -427,21 +427,30 @@ export function useRexSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.session, state.messages, state.stage, state.streaming, state.closed]);
 
-  // ── Stage progression — prefer Rex's explicit [[STAGE:n]] marker; fall back
-  // to a content heuristic if the marker is absent. Only ever moves forward.
+  // ── Stage progression — combine Rex's explicit [[STAGE:n]] marker with a
+  // content heuristic and advance to whichever is further. Only ever moves
+  // forward. (TC-038/039/040): the marker addendum tells Rex to emit a stage
+  // marker on EVERY message, so `explicit` is almost always present — if we
+  // returned early on it the heuristic would never run, and a turn where Rex
+  // delivers a diagnosis but tags it [[STAGE:1]] (or omits the advance) would
+  // leave the session stuck on Stage 1 with no way to reach the Stage 2
+  // contextual buttons. Taking the max of marker + heuristic unsticks it.
   function applyStageSignal(explicit: Stage | undefined, text: string) {
-    if (explicit && explicit > state.stage) {
-      dispatch({ type: 'STAGE', stage: explicit });
-      return;
-    }
-    if (explicit) return;
     const t = text.toLowerCase();
-    let next: Stage | null = null;
-    if (state.stage === 1 && /(diagnosis|root cause|the issue is|component:)/.test(t)) next = 2;
-    else if (state.stage === 2 && /(step 1|first step|begin by)/.test(t)) next = 3;
-    else if (state.stage === 3 && /(final|completion|inspection)/.test(t)) next = 4;
-    else if (state.stage === 4 && /(close (this )?job|job complete)/.test(t)) next = 5;
-    if (next) dispatch({ type: 'STAGE', stage: next });
+    let heuristic: Stage | null = null;
+    if (
+      state.stage === 1 &&
+      /(diagnosis|root cause|the issue is|component:|likely cause|most likely|what (i'm|i am) seeing)/.test(t)
+    )
+      heuristic = 2;
+    else if (state.stage === 2 && /(step 1\b|first step|begin by|start by|let'?s start)/.test(t))
+      heuristic = 3;
+    else if (state.stage === 3 && /(final (check|inspection)|completion|all steps (are )?done|wrap)/.test(t))
+      heuristic = 4;
+    else if (state.stage === 4 && /(close (this )?job|job complete|ready to close|all clear)/.test(t))
+      heuristic = 5;
+    const candidate = Math.max(explicit ?? 0, heuristic ?? 0) as Stage;
+    if (candidate > state.stage) dispatch({ type: 'STAGE', stage: candidate });
   }
 
   const advanceStage = useCallback((next: Stage) => {
@@ -540,7 +549,13 @@ export function useRexSession({
           Math.round((new Date(closedAtIso).getTime() - startedMs) / 1000),
         );
       }
-      if (jobName && jobName.trim()) update.job_name = jobName.trim();
+      // TC-045/046 — auto-name fallback. If the worker leaves the name blank,
+      // generate "Job — <date>" and append the jobsite when one was captured
+      // during the session ("Job — <date> — <jobsite>"). The worker is never
+      // blocked by an empty name.
+      const trimmed = jobName?.trim();
+      const finalName = trimmed && trimmed.length > 0 ? trimmed : autoJobName(state.session.jobsite);
+      update.job_name = finalName;
       const { error } = await supabase
         .from('job_sessions')
         .update(update)
@@ -549,7 +564,7 @@ export function useRexSession({
         dispatch({ type: 'ERROR', error: error.message });
         return;
       }
-      dispatch({ type: 'CLOSE', jobName: jobName?.trim() });
+      dispatch({ type: 'CLOSE', jobName: finalName });
     },
     [state.session],
   );
@@ -665,6 +680,18 @@ export function useRexSession({
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+// TC-045/046 — build the fallback job name used when Close Job is saved without
+// a worker-supplied name: "Job — <date>" (+ " — <jobsite>" when known).
+function autoJobName(jobsite: string | null | undefined): string {
+  const date = new Date().toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  const base = `Job — ${date}`;
+  return jobsite && jobsite.trim() ? `${base} — ${jobsite.trim()}` : base;
+}
+
 function rowToMessage(row: any): Message {
   return {
     id: row.id,

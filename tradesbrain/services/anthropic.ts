@@ -48,6 +48,11 @@ const STAGE_TAG = /\[\[STAGE:([1-5])\]\]/g;
 // bare marker tokens from the live word-by-word reveal so the brackets never
 // flash mid-stream.
 const SAFETY_TOKEN = /\[\[SAFETY:(?:stop|confirm|note)\]\]|\[\[\/SAFETY\]\]/gi;
+// Rex prepends [[PUSHBACK:1|2]] on a hold/adopt pushback turn (server
+// PUSHBACK_PROTOCOL_ADDENDUM). Like SAFETY it is KEPT in fullText so MessageBubble
+// can apply the amber/green bubble styling; we only strip the bare token from the
+// live word-by-word reveal so the brackets never flash mid-stream.
+const PUSHBACK_TOKEN = /\[\[PUSHBACK:[12]\]\]/gi;
 
 // Reveal buffered text progressively (~1.1s total regardless of length) so the
 // response appears word-by-word instead of all at once.
@@ -123,7 +128,11 @@ export async function streamRexResponse(
     // Reveal the safety text inline during streaming but without the bracket
     // tokens; the wrapped block reflows into its coloured panel once the
     // finished message is persisted and rendered by MessageBubble.
-    const streamText = cleanText.replace(SAFETY_TOKEN, '').replace(/\n{3,}/g, '\n\n').trim();
+    const streamText = cleanText
+      .replace(SAFETY_TOKEN, '')
+      .replace(PUSHBACK_TOKEN, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
     await revealWordByWord(streamText, onChunk);
     // fullText keeps the SAFETY markers so they persist to the DB and render.
     return { ok: true, fullText: cleanText, modelUsed: model, stage };

@@ -43,6 +43,7 @@ interface Props {
 }
 
 const PUSHBACK_TAG = /\[\[PUSHBACK:([12])\]\]/;
+const PUSHBACK_TAG_ALL = /\[\[PUSHBACK:[12]\]\]/g;
 
 // M10 / D6 Flow12 S22–S25 — split an assistant message into ordered text and
 // safety-panel segments. Safety blocks are wrapped server-side as
@@ -95,7 +96,7 @@ export default function MessageBubble({ role, content, photoUrl, transcript }: P
   // CC-5 Fix B — detect + strip the pushback marker before display.
   const pushbackMatch = !isUser ? content.match(PUSHBACK_TAG) : null;
   const pushbackLevel = pushbackMatch ? Number(pushbackMatch[1]) : 0;
-  const displayText = pushbackMatch ? content.replace(PUSHBACK_TAG, '').trim() : content;
+  const displayText = pushbackMatch ? content.replace(PUSHBACK_TAG_ALL, '').trim() : content;
 
   // M10 — when Rex's message carries one or more safety panels, render the
   // assistant column as a stack of boxes (safety panels + gray text bubbles) in

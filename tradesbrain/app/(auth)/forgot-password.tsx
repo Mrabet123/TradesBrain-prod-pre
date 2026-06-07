@@ -20,6 +20,7 @@ import {
   verifyRecoveryOtp,
 } from '../../services/auth';
 import { supabase } from '../../services/supabase';
+import { useAuthContext } from '../../context/AuthContext';
 import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -29,6 +30,7 @@ const RESEND_COOLDOWN_S = 60;
 
 export default function ForgotPasswordScreen() {
   const nav = useNavigation<Nav>();
+  const { setRecoveryMode } = useAuthContext();
   const [phase, setPhase] = useState<'request' | 'otp' | 'reset'>('request');
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -52,8 +54,13 @@ export default function ForgotPasswordScreen() {
         setErrorMsg(null);
       }
     });
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+      // Safety net: if the worker abandons the screen mid-reset, don't leave the
+      // gate pinned to the auth stack (TC-018).
+      setRecoveryMode(false);
+    };
+  }, [setRecoveryMode]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -102,10 +109,15 @@ export default function ForgotPasswordScreen() {
       setErrorMsg('Enter the 6-digit code from your email.');
       return;
     }
+    // TC-018: arm recovery mode BEFORE verifying — verifyRecoveryOtp creates a
+    // live session, and without this flag the RootLayout gate would route to
+    // Home before the worker can set a new password.
+    setRecoveryMode(true);
     setBusy(true);
     const { error } = await verifyRecoveryOtp(email.trim(), otpCode.trim());
     setBusy(false);
     if (error) {
+      setRecoveryMode(false);
       const msg = (error.message ?? '').toLowerCase();
       const isExpired = msg.includes('expired') || (error as any).code === 'otp_expired';
       setErrorMsg(
@@ -138,8 +150,10 @@ export default function ForgotPasswordScreen() {
     }
     // Drop the recovery session so the user signs in fresh with the new
     // password. RootLayout's gate routes them back to SignIn once
-    // onAuthStateChange clears.
+    // onAuthStateChange clears. Clear recoveryMode so the gate stops pinning
+    // the auth stack (TC-018).
     await supabase.auth.signOut();
+    setRecoveryMode(false);
     setBusy(false);
     setSuccess('Password updated — sign in with your new password.');
     setNewPassword('');

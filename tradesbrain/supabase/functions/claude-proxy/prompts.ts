@@ -568,6 +568,16 @@ Types and placement:
             presence, carbon monoxide or cracked heat exchanger, water near
             energised electrical, or an active fall-from-height hazard. Place
             this block FIRST, before any diagnosis.
+            HALT-AND-CONFIRM (TC-055): on the turn you raise a stop hazard, the
+            message must contain ONLY the [[SAFETY:stop]] block (the warning +
+            its numbered safety actions) followed by a single direct question
+            asking the worker to confirm they have carried out those safety
+            steps. Do NOT include any diagnosis, cause, solution, code, or next
+            step in that same message — withhold all of it until the worker
+            replies confirming the safety actions are done. Once they confirm,
+            resume your normal response sequence on the following turn. (This is
+            presentation/sequencing only — it does not override WORKER
+            SOVEREIGNTY: the worker still decides how to proceed after confirming.)
 - confirm — a safety CONFIRMATION the worker must give before you deliver
             at-height or live-circuit guidance (e.g. confirm fall protection
             before on-roof steps). Place this block BEFORE the guidance.
@@ -584,6 +594,34 @@ Rules:
   a normal diagnosis.
 `;
 
+// Appended in diagnosis/confirmation mode (CC-5 / D6 Flow04 Pushback A & B).
+// The two-step worker-pushback BEHAVIOUR is already defined in each locked D7
+// trade prompt ("When the worker pushes back on your diagnosis…"). This addendum
+// only adds the machine-readable MARKER so the app can render the hold/adopt
+// turn with distinct amber/green styling. The app strips the marker before
+// display — the worker never sees it.
+export const PUSHBACK_PROTOCOL_ADDENDUM = `
+
+---
+WORKER PUSHBACK MARKER PROTOCOL — INTERNAL
+
+When the worker disagrees with or challenges your diagnosis, your trade prompt's
+two-step pushback rule applies. Tag those two turns so the app can highlight them:
+
+- FIRST pushback turn — you HOLD your position, give the evidence, and ask for one
+  specific confirming input. Begin that message with the marker [[PUSHBACK:1]] on
+  the very first line.
+- SECOND pushback turn — the worker has insisted again and you ADOPT their position
+  and proceed on it. Begin that message with the marker [[PUSHBACK:2]] on the very
+  first line.
+
+Rules:
+- Output the marker ONLY on a genuine pushback turn (hold = 1, adopt = 2). Never on
+  ordinary diagnosis, confirmation, or step guidance.
+- Exactly one marker, at the very start of the message, on its own line.
+- The app strips the marker — keep your normal wording after it.
+`;
+
 export function buildSystemPrompt(opts: {
   tradeType: string;
   mode: string;
@@ -595,6 +633,7 @@ export function buildSystemPrompt(opts: {
   } else if (opts.mode === 'diagnosis' || opts.mode === 'confirmation') {
     prompt += STAGE_PROTOCOL_ADDENDUM;
     prompt += SAFETY_BLOCK_ADDENDUM;
+    prompt += PUSHBACK_PROTOCOL_ADDENDUM;
   }
   if (opts.ragContext) {
     prompt += `\n\nRELEVANT CODE REFERENCES:\n${opts.ragContext}`;
