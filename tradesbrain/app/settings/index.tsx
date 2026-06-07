@@ -212,7 +212,7 @@ export default function SettingsScreen() {
           <Text className="text-xs text-red-600 mb-3">
             All your jobs, reports, quotes, photos and account record will be
             permanently destroyed. Your subscription billing continues until the
-            current period ends (per D2 F8).
+            current period ends.
           </Text>
           <Text className="text-xs text-gray-700 mb-1">
             Type <Text className="font-bold">DELETE</Text> exactly to confirm.
