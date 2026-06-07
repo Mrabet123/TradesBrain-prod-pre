@@ -368,20 +368,30 @@ export async function deleteAccountFully(): Promise<void> {
 }
 
 export async function sendPasswordReset(email: string) {
-  // Supabase emits a 6-digit recovery code in the email when the project's
-  // "Reset Password" email template includes {{ .Token }}. The mobile app
-  // verifies the code via verifyRecoveryOtp (below) — no deep-link round trip
-  // needed. redirectTo is kept so the link variant still re-opens the app if
-  // the template falls back to it.
+  // D2 Sign-In Flow / D6 Flow02 S5-S6 — LINK-based reset (the locked spec). The
+  // email contains a clickable reset LINK (not a code): the project's "Reset
+  // Password" template MUST use {{ .ConfirmationURL }}. Tapping it returns to
+  // the app at tradesbrain://reset-password?code=… ; the PKCE code is exchanged
+  // for a short-lived recovery session via exchangeRecoveryCode() below, which
+  // authorises updatePassword(). The reset link expires after 1 hour.
   return supabase.auth.resetPasswordForEmail(email, {
     redirectTo: 'tradesbrain://reset-password',
   });
 }
 
-// Verifies the 6-digit recovery code emailed by Supabase. On success the user
-// has a short-lived recovery session that authorises updatePassword().
-export async function verifyRecoveryOtp(email: string, token: string) {
-  return supabase.auth.verifyOtp({ email, token, type: 'recovery' });
+// Exchanges the PKCE auth code from the reset-password deep link for a
+// short-lived recovery session that authorises updatePassword(). The
+// code_verifier minted by sendPasswordReset() lives (encrypted) in SecureStore,
+// so this must run on the same device that requested the reset.
+export async function exchangeRecoveryCode(code: string) {
+  return supabase.auth.exchangeCodeForSession(code);
+}
+
+// Implicit-flow fallback: some email templates / older projects return the
+// recovery session as access_token + refresh_token in the URL fragment instead
+// of a PKCE code. setSession establishes the recovery session from those.
+export async function setRecoverySession(accessToken: string, refreshToken: string) {
+  return supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
 }
 
 export async function updatePassword(newPassword: string) {
