@@ -15,12 +15,22 @@ export async function transcribeAudio(audioUri: string): Promise<TranscribeResul
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
 
+    // Derive the file extension from the recording URI so the multipart name +
+    // MIME match what the recorder actually produced (Whisper rejects a
+    // mislabelled container). expo-audio HIGH_QUALITY is .m4a on both platforms,
+    // but deriving it keeps transcription working if the preset ever changes.
+    const ext = (audioUri.split('.').pop() ?? 'm4a').split('?')[0].toLowerCase();
+    const mime = ext === 'm4a' || ext === 'mp4' ? 'audio/m4a'
+      : ext === 'caf' ? 'audio/x-caf'
+      : ext === 'wav' ? 'audio/wav'
+      : `audio/${ext}`;
+
     const form = new FormData();
     // RN-specific multipart: name field is "file"
     form.append('file', {
       uri: audioUri,
-      name: 'recording.m4a',
-      type: 'audio/m4a',
+      name: `recording.${ext}`,
+      type: mime,
     } as any);
     form.append('model', 'whisper-1');
 

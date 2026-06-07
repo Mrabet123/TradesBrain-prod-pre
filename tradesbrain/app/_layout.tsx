@@ -1109,7 +1109,7 @@
  *                                     - Worker-pushback two-step protocol
  *                                       (D6 Flow04 Pushback A then B).
  *                                     - Soft cap warning @ 28, reached @ 30.
- *   hooks/useVoiceRecording.ts      expo-av .m4a — startRecording / stopRecording.
+ *   hooks/useVoiceRecording.ts      expo-audio .m4a — startRecording / stopRecording.
  *   hooks/usePhotoCapture.ts        Stage-aware ImagePicker capture.
  *                                     Returns { uri, base64, mime } for
  *                                     multimodal Claude calls. Quality bucket

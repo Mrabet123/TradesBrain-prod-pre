@@ -153,12 +153,24 @@ export default function ActiveSessionScreen() {
 
   async function handleVoiceStart() {
     try {
-      // startRecording returns false on a denied mic permission (it no longer
-      // throws), so drive the banner off the result — D6 Flow12 S2.
-      const started = await voice.startRecording();
-      setVoiceDenied(!started);
+      // startRecording distinguishes a denied mic permission ('denied') from a
+      // recording failure ('error') so we show the RIGHT surface — the old code
+      // labelled every failure as "denied" even when the mic was granted
+      // (TC-031). 'denied' → amber banner + Open Settings (TC-069); 'error' →
+      // transient toast (mic busy / hardware fault).
+      const result = await voice.startRecording();
+      setVoiceDenied(result === 'denied');
+      if (result === 'error') {
+        setToast({
+          msg: "Couldn't start recording — make sure no other app is using the mic, then try again.",
+          type: 'error',
+        });
+      }
     } catch {
-      setVoiceDenied(true);
+      setToast({
+        msg: "Couldn't start recording — please try again.",
+        type: 'error',
+      });
     }
   }
 

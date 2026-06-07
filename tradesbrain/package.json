@@ -19,7 +19,7 @@
     "@stripe/stripe-react-native": "0.63.0",
     "@supabase/supabase-js": "^2.105.3",
     "expo": "^55.0.24",
-    "expo-av": "^16.0.8",
+    "expo-audio": "~55.0.14",
     "expo-constants": "~55.0.16",
     "expo-dev-client": "~55.0.35",
     "expo-font": "~55.0.7",
