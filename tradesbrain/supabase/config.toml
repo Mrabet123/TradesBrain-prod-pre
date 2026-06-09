@@ -366,6 +366,20 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# ── Edge Function auth overrides ─────────────────────────────────────────────
+# Stripe webhooks are called by Stripe, which cannot send a Supabase JWT. The
+# platform's default verify_jwt gate therefore rejects every delivery with 401
+# BEFORE the function runs. These two endpoints authenticate each request by
+# verifying the Stripe-Signature header against their own signing secret
+# (D9 §3.4), so the JWT gate must be disabled for them — and ONLY them. Every
+# other function (claude-proxy, decrement-trial-query, kyc-status-check, …) is
+# called by the app with a real user JWT and MUST keep verify_jwt = true.
+[functions.handle-stripe-webhook]
+verify_jwt = false
+
+[functions.kyc-webhook]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
