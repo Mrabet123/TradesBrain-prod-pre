@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  Linking,
 } from 'react-native';
 import KeyboardAwareScreen from '../../components/shared/KeyboardAwareScreen';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -52,6 +53,9 @@ export default function ReportBuilderScreen() {
   const { tradeType, hourlyRate } = useTradeProfileContext();
   const { isConnected } = useNetworkContext();
   const voice = useVoiceRecording();
+  // D6 Flow12 S6 — a confirm requested while offline is deferred and fires
+  // automatically once the connection returns (see effect below).
+  const [pendingConfirm, setPendingConfirm] = useState(false);
 
   // Path indicator
   const incomingSessionId = route.params?.sessionId ?? null;
@@ -374,13 +378,15 @@ export default function ReportBuilderScreen() {
     // auto-saved on every edit, so the worker can confirm later when online.
     if (!isConnected) {
       setConfirmVisible(false);
+      setPendingConfirm(true);
       Alert.alert(
         'You are offline',
-        'Connect to the internet to generate and lock the PDF. Your draft is saved — confirm again when you have signal.',
+        'Your draft is saved. The PDF will generate and lock automatically as soon as you reconnect.',
       );
       return;
     }
     setConfirmVisible(false);
+    setPendingConfirm(false);
     setConfirming(true);
     try {
       const { pdfUri } = await confirmReport(draft, profile);
@@ -402,6 +408,15 @@ export default function ReportBuilderScreen() {
       setConfirming(false);
     }
   }
+
+  // D6 Flow12 S6 — auto-fire the deferred confirm once the connection returns.
+  useEffect(() => {
+    if (isConnected && pendingConfirm && draft && !confirming) {
+      setPendingConfirm(false);
+      runConfirm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, pendingConfirm]);
 
   async function onSavePrefs(sections: string[]) {
     if (!user) return;
@@ -482,11 +497,31 @@ export default function ReportBuilderScreen() {
             className="border border-gray-300 rounded-lg px-3 py-3 text-base min-h-[120px] mb-3"
           />
 
+          {/* D6 Flow12 S2 — mic denied also covers the Report voice summary. */}
+          {voice.permissionDenied && (
+            <View className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-3">
+              <Text className="text-amber-800 text-sm font-medium mb-0.5">
+                Microphone access denied
+              </Text>
+              <Text className="text-amber-700 text-xs">
+                Voice input is off — type your summary above, or{' '}
+                <Text
+                  className="underline font-semibold"
+                  onPress={() => Linking.openSettings()}
+                >
+                  open Settings
+                </Text>{' '}
+                to enable the mic.
+              </Text>
+            </View>
+          )}
+
           <View className="flex-row items-center mb-4">
             <VoiceRecordButton
               isRecording={voice.isRecording}
               onPressIn={voice.startRecording}
               onPressOut={onVoiceStop}
+              disabled={voice.permissionDenied}
             />
             {transcribing && (
               <View className="flex-row items-center ml-3">
@@ -584,11 +619,17 @@ export default function ReportBuilderScreen() {
           ) : (
             <Pressable
               onPress={doConfirm}
-              disabled={confirming}
-              className={`mt-2 py-4 rounded-xl ${confirming ? 'bg-gray-300' : 'bg-brand'}`}
+              disabled={confirming || !isConnected}
+              className={`mt-2 py-4 rounded-xl ${
+                confirming || !isConnected ? 'bg-gray-300' : 'bg-brand'
+              }`}
             >
               <Text className="text-center text-white font-semibold text-base">
-                {confirming ? 'Locking…' : 'Confirm & generate PDF'}
+                {confirming
+                  ? 'Locking…'
+                  : !isConnected
+                  ? 'Confirm — waiting for connection'
+                  : 'Confirm & generate PDF'}
               </Text>
             </Pressable>
           )}

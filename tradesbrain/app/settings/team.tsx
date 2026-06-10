@@ -151,11 +151,26 @@ export default function TeamSettingsScreen() {
   }
 
   if (loading) {
-    // D6 Flow12 S21 — KPI + members skeleton.
+    // D6 Flow12 S21 — KPI dashboard + members skeleton. The KPI block is
+    // row/tile-shaped (6 metric tiles) rather than a generic card so it mirrors
+    // the real dashboard layout while data loads.
     return (
       <View className="flex-1 bg-white px-5" style={{ paddingTop: insets.top + 8 }}>
         <View className="h-6 bg-gray-200 rounded w-40 mb-4" />
-        <SkeletonCard />
+        {/* KPI aggregate card skeleton — 6 metric tiles */}
+        <View className="border border-gray-200 rounded-2xl p-4 mb-3">
+          <View className="h-3 bg-gray-200 rounded w-24 mb-3" />
+          <View className="flex-row flex-wrap">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <View key={i} className="w-1/3 mb-3">
+                <View className="h-6 bg-gray-200 rounded w-12 mb-1.5" />
+                <View className="h-2.5 bg-gray-200 rounded w-16" />
+              </View>
+            ))}
+          </View>
+        </View>
+        {/* Member rows skeleton */}
+        <View className="h-3 bg-gray-200 rounded w-20 mb-2" />
         <SkeletonCard />
         <SkeletonCard />
       </View>

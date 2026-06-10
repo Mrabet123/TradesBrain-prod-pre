@@ -75,19 +75,46 @@ function parseSegments(content: string): Segment[] {
     return segs;
   }
 
-  // Fallback (life-safety): if the model omitted the marker but the message
-  // still opens with a bold STOP warning, render the leading paragraph as a red
-  // stop panel so the warning is never lost in a plain bubble.
-  const stopMatch = content.match(/^\s*\**\s*(STOP\b[\s\S]*?)(\n\s*\n|$)/i);
-  if (stopMatch) {
-    const block = stopMatch[1].trim();
-    const rest = content.slice((stopMatch.index ?? 0) + stopMatch[0].length).trim();
-    const out: Segment[] = [{ kind: 'safety', variant: 'stop', text: block }];
-    if (rest) out.push({ kind: 'text', text: rest });
-    return out;
-  }
+  // Fallback (life-safety): if the model omitted the [[SAFETY]] markers but the
+  // text still contains a recognised safety heading, promote that paragraph to
+  // the correct coloured panel so the warning is never lost in a plain bubble.
+  // Covers all three panel types — stop (gas/CO), confirm (fall protection),
+  // and note (lockout/tagout) — so a dropped marker can never silently degrade
+  // a roofer or electrician safety warning to ordinary text.
+  const fb = fallbackSafety(content);
+  if (fb) return fb;
 
   return [{ kind: 'text', text: content }];
+}
+
+// Heading patterns matched in document order against the raw text. Each grabs
+// the heading + its following lines up to the next blank line (or end). The
+// surrounding text is preserved before/after the panel, so a note at the end of
+// a diagnosis still renders last and a STOP at the start still renders first.
+const SAFETY_FALLBACKS: { re: RegExp; variant: SafetyVariant }[] = [
+  { re: /\**\s*(STOP\b[\s\S]*?)(?:\n\s*\n|$)/i, variant: 'stop' },
+  { re: /\**\s*(FALL PROTECTION\b[\s\S]*?)(?:\n\s*\n|$)/i, variant: 'confirm' },
+  {
+    re: /\**\s*((?:SAFETY[^\n]*?)?(?:LOCKOUT\s*\/?\s*TAGOUT|\bLOTO\b)[\s\S]*?)(?:\n\s*\n|$)/i,
+    variant: 'note',
+  },
+];
+
+function fallbackSafety(content: string): Segment[] | null {
+  for (const { re, variant } of SAFETY_FALLBACKS) {
+    const m = content.match(re);
+    if (m && m.index !== undefined && m[1].trim()) {
+      const block = m[1].trim();
+      const before = content.slice(0, m.index).trim();
+      const after = content.slice(m.index + m[0].length).trim();
+      const out: Segment[] = [];
+      if (before) out.push({ kind: 'text', text: before });
+      out.push({ kind: 'safety', variant, text: block });
+      if (after) out.push({ kind: 'text', text: after });
+      return out;
+    }
+  }
+  return null;
 }
 
 export default function MessageBubble({ role, content, photoUrl, transcript }: Props) {

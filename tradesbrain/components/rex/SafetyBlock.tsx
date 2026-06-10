@@ -107,11 +107,20 @@ export default function SafetyBlock({ variant, content }: Props) {
   const v = VARIANTS[variant];
   const { title, body } = splitTitle(content, v.defaultTitle);
 
+  // D6 Flow12 S23 — a STOP block about carbon monoxide / a cracked heat
+  // exchanger renders a shade darker than a gas-leak STOP, matching the
+  // wireframe (gas #C62828 vs CO #B71C1C). Detection is deterministic from the
+  // warning text, so the distinction never depends on the model emitting a
+  // separate marker type.
+  const isCo =
+    variant === 'stop' && /(carbon monoxide|\bCO\b|cracked heat exchanger|heat exchanger)/i.test(content);
+  const bg = isCo ? '#B71C1C' : v.bg;
+
   return (
     <View
       accessibilityRole="alert"
       style={{
-        backgroundColor: v.bg,
+        backgroundColor: bg,
         borderRadius: 12,
         padding: 12,
         marginBottom: 8,

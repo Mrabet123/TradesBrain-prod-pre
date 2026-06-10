@@ -374,10 +374,14 @@ export default function ActiveSessionScreen() {
           </View>
         )}
         {offlineQueue.queued > 0 && (
-          <View className="bg-blue-50 border-b border-blue-200 px-4 py-1.5">
-            <Text className="text-blue-700 text-xs">
-              {offlineQueue.queued} message{offlineQueue.queued > 1 ? 's' : ''} queued
-              {offlineQueue.flushing ? ' — sending…' : ''}
+          <View className="bg-blue-50 border-b border-blue-200 px-4 py-1.5 flex-row items-center justify-center">
+            <ActivityIndicator size="small" color="#1d4ed8" />
+            <Text className="text-blue-700 text-xs ml-2">
+              {offlineQueue.flushing
+                ? `Sending ${offlineQueue.queued} queued message${
+                    offlineQueue.queued > 1 ? 's' : ''
+                  }…`
+                : `Waiting for connection · ${offlineQueue.queued} queued`}
             </Text>
           </View>
         )}

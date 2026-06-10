@@ -18,6 +18,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './_layout';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRICING } from '../constants/pricing';
 import { useSubscriptionContext } from '../context/SubscriptionContext';
 import { useAuthContext } from '../context/AuthContext';
@@ -86,6 +87,18 @@ export default function PaywallScreen() {
   // paywall with Team pre-selected).
   const preselectedPlan = route.params?.preselectedPlan ?? null;
 
+  // D6 Flow12 S12 — the KYC-verified push deep-links to a bare `paywall` URL
+  // with no plan param. Fall back to the worker's last-selected plan so it is
+  // pre-highlighted, matching "Paywall with last-selected plan pre-loaded".
+  const [storedPlan, setStoredPlan] = useState<PlanType | null>(null);
+  useEffect(() => {
+    AsyncStorage.getItem('tb_last_selected_plan')
+      .then((p) => {
+        if (p) setStoredPlan(p as PlanType);
+      })
+      .catch(() => {});
+  }, []);
+
   // KYC gate check (2.3.1) — goes through the kyc-status-check Edge Function,
   // which checks BOTH national_id and license statuses server-side and returns
   // a normalised can_subscribe / message. Server-side checkout (stripe-create-
@@ -129,6 +142,9 @@ export default function PaywallScreen() {
   async function onSubscribe(plan: PlanType) {
     if (busyPlan) return;
     setBusyPlan(plan);
+    // Remember the worker's plan choice so a later bare `paywall` deep link
+    // (e.g. KYC-verified push) can pre-highlight it.
+    AsyncStorage.setItem('tb_last_selected_plan', plan).catch(() => {});
     const result = await purchaseSubscription(plan, cycle);
     setBusyPlan(null);
 
@@ -292,7 +308,7 @@ export default function PaywallScreen() {
           const disabled = !kycReady || busy;
           // 2.1.4 — Solo is the default highlighted plan when nothing was
           // explicitly pre-selected (e.g. the Team upgrade path passes 'team').
-          const highlighted = (preselectedPlan ?? 'solo') === p.value;
+          const highlighted = (preselectedPlan ?? storedPlan ?? 'solo') === p.value;
           return (
             <View
               key={p.value}

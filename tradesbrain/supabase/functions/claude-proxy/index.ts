@@ -54,8 +54,20 @@ serve(async (req) => {
   // string is honoured as-is for non-Rex utility calls.
   let system: string;
   if (typeof body.trade_type === 'string') {
+    // Don't trust the client-supplied trade for prompt selection — the trade
+    // gates which safety rules load (gas vs CO vs fall vs LOTO). Re-validate
+    // against the authenticated user's stored trade; fall back to the client
+    // value only if the profile has none yet.
+    let tradeType = body.trade_type;
+    const { data: profile } = await userClient
+      .from('users')
+      .select('trade_type')
+      .eq('id', user.id)
+      .single();
+    if (profile?.trade_type) tradeType = profile.trade_type;
+
     system = buildSystemPrompt({
-      tradeType: body.trade_type,
+      tradeType,
       mode: typeof body.mode === 'string' ? body.mode : 'diagnosis',
       ragContext: typeof body.rag_context === 'string' ? body.rag_context : undefined,
     });

@@ -137,8 +137,8 @@
  *   S16  Claude timeout (30s)  ✓ M2 AbortController + inline error banner
  *   S17  5xx error             ✓ streamRexResponse returns ok=false → banner
  *   S18  Whisper fail          ✓ Alert + text fallback in Rex/Report/Codes
- *   S19  Force upgrade         ✓ ForceUpgradeScreen — gate plumbing in place
- *                                 (wire to remote min_version when desired)
+ *   S19  Force upgrade         ✓ ForceUpgradeScreen — wired to
+ *                                 app_config.min_supported_version (migration 00008)
  *   S20  Account suspended     ✓ AccountSuspendedScreen + RootLayout gate
  *   S21  Skeleton loading      ✓ History (M5), JobDetail (M10), Team (M10)
  *   S22  Plumber gas STOP      ✓ D7 PLUMBER_V2 SAFETY RULES rule 1 (M2)
@@ -184,19 +184,20 @@
  *   Operator flips to true via admin console / service-role tool when an
  *   account violates terms. Mobile honours it on session load + focus.
  *
- * ── D7 SAFETY VERIFICATION (LLM-driven, RULE 2) ─────────────────────────────
+ * ── D7 SAFETY VERIFICATION (LLM-driven + styled panels, RULE 2) ──────────────
  *   Each trade prompt carries its own non-violable SAFETY RULES block, copied
- *   verbatim from D7. Outputs are LLM-side text — there is no client-side
- *   pre-blocking. RULE 2's "RED block first" / "ORANGE block first" / "amber
- *   block last" semantics are enforced by the prompt's RESPONSE STRUCTURE
- *   and SAFETY FORMAT instructions. The wireframes S22-S25 are the styling
- *   contract for the Rex message bubble — Rex emits the STOP block as the
- *   first sentence(s) of its response when the gas/CO/etc. trigger fires.
- *   No special UI overlay is added because the source of truth is the
- *   conversation transcript (D6 Flow04). If you want a styled red banner
- *   ABOVE the bubble, that's a future MessageBubble visual polish — the data
- *   model carries everything needed (the bubble already supports inline
- *   markdown-ish rendering).
+ *   verbatim from D7 (HVAC names CO as odourless+fatal; Electrician enumerates
+ *   the 3 LOTO steps). The CONTENT and its ordering are governed by each
+ *   prompt's SAFETY RULES + SAFETY FORMAT; the SAFETY_BLOCK_ADDENDUM tells Rex
+ *   to wrap the warning in [[SAFETY:stop|confirm|note]] markers. The app strips
+ *   the markers and renders a coloured panel via components/rex/SafetyBlock:
+ *   stop = red (gas) / dark-red (CO, detected from the text), confirm = orange
+ *   (fall protection, S24), note = dark + amber border, last (LOTO, S25).
+ *   MessageBubble.parseSegments has a deterministic fallback for ALL THREE
+ *   panel types, so a dropped marker still renders the warning as a panel, not
+ *   plain text. Non-bypassability is still owner-verified live on device
+ *   (Part 5.2.5) — there is no hard client-side pre-block, by design (WORKER
+ *   SOVEREIGNTY). trade_type is re-validated server-side in claude-proxy.
  *
  * ── SECURITY VERIFICATION (D8 §J — confirmed by code review) ────────────────
  *   • RLS on every D5 table — confirmed M0.
@@ -214,18 +215,18 @@
  *   supabase db push   (runs 00005)
  *
  * ── DEVIATIONS ──────────────────────────────────────────────────────────────
- *   1. Force-upgrade auto-detection is not wired — the component is in place
- *      but the trigger needs a remote min_version source (a one-row
- *      Supabase config table). One-file follow-up.
- *   2. D7 S22-S25 styled overlays are LLM-generated text inside the regular
- *      Rex bubble, not a separate red banner UI. The behavioural contract
- *      (STOP block FIRST for gas/CO, safety LAST for LOTO) is enforced by
- *      the prompt and visible in the response text. Adding a Markdown-style
- *      red-block parser to MessageBubble is a visual polish, not a behaviour
- *      change.
- *   3. Push notifications still deferred — registerForPushNotificationsAsync
- *      with expo-notifications is a one-file follow-up that bridges across
- *      M6/M8.
+ *   NONE. The three items previously listed here are now fully implemented:
+ *     • Force-upgrade is wired to app_config.min_supported_version (migration
+ *       00008) via hooks/useMinVersion.
+ *     • D7 S22-S25 render as styled coloured panels (components/rex/SafetyBlock)
+ *       driven by [[SAFETY:type]] markers, with a deterministic fallback for
+ *       all three panel types and a distinct dark-red CO variant for S23.
+ *     • Push notifications are live (services/pushNotifications.ts,
+ *       hooks/useNotificationDeepLinks.ts, send-push-notification) — all 6
+ *       types deep-link to their target screen.
+ *   Known architectural limitation (not a deviation): RN fetch cannot stream,
+ *   so a mid-stream disconnect (S5) shows an error + identical-payload Retry
+ *   rather than a partial transcript — a true partial is impossible here.
  *
  * ── BACKLOG / NEXT ──────────────────────────────────────────────────────────
  *   • M11 — Full QA pass + pre-launch checklist (D8 232 test cases).
@@ -1600,6 +1601,7 @@ export default function RootLayout() {
   if (isAuthenticated && suspended && !recoveryMode) {
     return (
       <View style={{ flex: 1 }}>
+        <OfflineBanner />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Suspended" component={AccountSuspendedScreen} />
           <Stack.Screen

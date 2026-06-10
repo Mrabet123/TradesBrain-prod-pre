@@ -28,6 +28,8 @@ export default function HomeScreen() {
   const { user } = useAuthContext();
   const { hasAccess } = useSubscriptionContext();
   const [active, setActive] = useState<ActiveSession | null>(null);
+  // D6 Flow12 S13 — new user with zero jobs gets the "No jobs yet" empty state.
+  const [jobCount, setJobCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,6 +44,11 @@ export default function HomeScreen() {
         .limit(1)
         .maybeSingle();
       setActive(data ?? null);
+      const { count } = await supabase
+        .from('job_sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      setJobCount(count ?? 0);
       setLoading(false);
     })();
   }, [user]);
@@ -90,6 +97,17 @@ export default function HomeScreen() {
 
         <Text className="text-2xl font-bold text-gray-900">Welcome back</Text>
         <Text className="text-sm text-gray-500 mt-1">{user?.email}</Text>
+
+        {/* D6 Flow12 S13 — empty state for a brand-new user with no jobs yet. */}
+        {!loading && jobCount === 0 && !active && (
+          <View className="items-center mt-8">
+            <Text className="text-lg font-bold text-gray-900 mb-1.5">No jobs yet</Text>
+            <Text className="text-sm text-gray-500 text-center leading-5">
+              Take Rex to your first job site. Show him a problem — he&apos;ll
+              diagnose it, guide the fix, and help you write the report.
+            </Text>
+          </View>
+        )}
 
         <View className="mt-6">
           {/* ISS-11 (D2 Sign-In Flow): when the subscription is expired the
