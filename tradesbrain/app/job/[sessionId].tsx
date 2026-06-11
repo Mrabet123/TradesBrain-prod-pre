@@ -56,6 +56,18 @@ function formatJobDate(d: Date): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// D7 §6.1 — when a worker is registered as 'other' / General Contractor (which
+// has no inherent code/safety ruleset), a new Rex session must first ask which
+// concrete trade this job is, then route to that profile. These are the four
+// shipped profiles offered in that picker — 'other' is deliberately excluded so
+// the session can never silently fall back to Plumber.
+const PICK_TRADES: { value: string; label: string }[] = [
+  { value: 'plumber', label: 'Plumber' },
+  { value: 'electrician', label: 'Electrician' },
+  { value: 'hvac', label: 'HVAC Technician' },
+  { value: 'roofer', label: 'Roofer' },
+];
+
 // ISS-M10 (RX-4): D6 Flow04 locks a visible stage indicator. The five Rex
 // stages, used by the header pill and the ①→⑤ progress strip.
 const STAGE_NAMES: Record<number, string> = {
@@ -78,11 +90,31 @@ export default function ActiveSessionScreen() {
   const sessionId = route.params.sessionId === 'new' ? null : route.params.sessionId;
   const recapOnLoad = route.params.recap === true;
 
+  // D7 §6.1 — an 'other' / General Contractor worker has no inherent trade
+  // ruleset, so a NEW session asks which concrete trade this job is before it
+  // starts and routes Rex to that profile (never silently Plumber). The chosen
+  // trade is what the session is created with and what the proxy loads.
+  const [chosenTrade, setChosenTrade] = useState<string | null>(null);
+  const isNewSession = sessionId === null;
+  const profileTradeLoaded = tradeType !== ''; // '' until TradeProfileContext resolves
+  const needsTradePick = isNewSession && tradeType === 'other';
+  // The trade the session is created with. For an existing session this value is
+  // ignored (the hook uses the stored row trade); for a new non-'other' session
+  // it is the worker's registered trade.
+  const sessionTrade = needsTradePick ? chosenTrade ?? 'plumber' : tradeType || 'plumber';
+  // Hold off creating a NEW session until: the profile trade has loaded, and (if
+  // 'other') the worker has confirmed a concrete trade. Existing sessions load
+  // immediately — they carry their own stored trade.
+  const sessionEnabled = isNewSession
+    ? profileTradeLoaded && (!needsTradePick || chosenTrade !== null)
+    : true;
+
   const rex = useRexSession({
     sessionId,
-    tradeType: tradeType || 'plumber',
+    tradeType: sessionTrade,
     userId: user?.id ?? '',
     recapOnLoad,
+    enabled: sessionEnabled,
     onTrialDecrementFailed: () => {
       setToast({
         msg: 'Trial count may be out of sync — server unreachable. We will retry on next message.',
@@ -280,6 +312,43 @@ export default function ActiveSessionScreen() {
     const newId = await rex.startLinkedSession();
     setLinking(false);
     if (newId) nav.replace('Job', { sessionId: newId });
+  }
+
+  // D7 §6.1 — trade confirmation gate. Shown before a new 'other' session starts;
+  // picking a trade creates the session on that concrete profile. Placed after
+  // all hooks so hook order stays stable across renders.
+  if (needsTradePick && chosenTrade === null) {
+    return (
+      <View
+        className="flex-1 bg-white"
+        style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom }}
+      >
+        <View className="px-4 pb-2 flex-row items-center border-b border-gray-200">
+          <Pressable onPress={() => nav.goBack()}>
+            <Text className="text-brand text-base">← Back</Text>
+          </Pressable>
+        </View>
+        <ScrollView className="flex-1" contentContainerClassName="px-5 pt-8 pb-8">
+          <Text className="text-2xl font-bold text-gray-900 mb-2">
+            What's your trade for this job?
+          </Text>
+          <Text className="text-sm text-gray-600 mb-6">
+            You're set up as Other / General Contractor. Pick the trade that
+            matches this job so Rex loads the right codes and safety rules. You
+            can choose a different one next time.
+          </Text>
+          {PICK_TRADES.map((t) => (
+            <Pressable
+              key={t.value}
+              onPress={() => setChosenTrade(t.value)}
+              className="flex-row items-center py-4 px-4 rounded-xl mb-3 border border-gray-200 active:bg-gray-50"
+            >
+              <Text className="text-base font-medium text-gray-800">{t.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
   }
 
   const apprenticePending =

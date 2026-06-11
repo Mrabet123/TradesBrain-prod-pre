@@ -52,19 +52,36 @@ serve(async (req) => {
   // Assemble the system message. Rex calls send trade_type + mode; the prompt
   // is built server-side so it never ships in the app bundle. A raw `system`
   // string is honoured as-is for non-Rex utility calls.
+  const KNOWN_TRADES = ['plumber', 'electrician', 'hvac', 'roofer'];
   let system: string;
   if (typeof body.trade_type === 'string') {
     // Don't trust the client-supplied trade for prompt selection — the trade
     // gates which safety rules load (gas vs CO vs fall vs LOTO). Re-validate
-    // against the authenticated user's stored trade; fall back to the client
-    // value only if the profile has none yet.
+    // against the authenticated user's stored trade.
     let tradeType = body.trade_type;
     const { data: profile } = await userClient
       .from('users')
       .select('trade_type')
       .eq('id', user.id)
       .single();
-    if (profile?.trade_type) tradeType = profile.trade_type;
+    const storedTrade = profile?.trade_type;
+    if (storedTrade && storedTrade !== 'other') {
+      // Concrete registered trade is authoritative — a worker cannot spoof a
+      // different trade's prompt or safety rules by editing the client payload.
+      tradeType = storedTrade;
+    } else if (KNOWN_TRADES.includes(body.trade_type)) {
+      // Registered as 'other' / General Contractor (no inherent safety ruleset):
+      // honour the concrete trade the worker confirmed at session start (D7
+      // §6.1 — 'other' routes to the nearest real profile, never silently
+      // Plumber). The client gates a new 'other' session behind this choice.
+      tradeType = body.trade_type;
+    } else {
+      // Degenerate fallback: registered 'other' AND no concrete per-session
+      // trade supplied (e.g. a legacy session row created before the trade
+      // picker shipped). Default to Plumber so the call still succeeds; new
+      // sessions never reach this path.
+      tradeType = 'plumber';
+    }
 
     system = buildSystemPrompt({
       tradeType,

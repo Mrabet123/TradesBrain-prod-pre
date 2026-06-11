@@ -109,6 +109,12 @@ interface UseRexOpts {
   tradeType: string;
   userId: string;
   recapOnLoad?: boolean;
+  /** When false, the hook does NOT create or load a session yet. The Job screen
+   *  sets this false to defer creating a NEW session until an 'other' / General
+   *  Contractor worker has confirmed the concrete trade for this job — D7 §6.1
+   *  requires 'other' to route to a real profile, never silently Plumber.
+   *  Defaults to true (every existing call site is unaffected). */
+  enabled?: boolean;
   /** Called when the server-side trial decrement failed twice (retry exhausted).
    *  The session continues — the worker just sees a toast so the trial-count
    *  drift is visible. */
@@ -125,6 +131,7 @@ export function useRexSession({
   tradeType,
   userId,
   recapOnLoad,
+  enabled = true,
   onTrialDecrementFailed,
   onTrialQueriesUpdated,
 }: UseRexOpts) {
@@ -144,6 +151,10 @@ export function useRexSession({
 
   // ── Session bootstrapping ─────────────────────────────────────────────────
   useEffect(() => {
+    // Deferred until the caller is ready (e.g. 'other'/General-Contractor trade
+    // confirmation on a new session). Once `enabled` flips true, the effect
+    // re-runs and creates/loads the session.
+    if (!enabled) return;
     let cancelled = false;
     (async () => {
       try {
@@ -198,7 +209,7 @@ export function useRexSession({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, userId]);
+  }, [sessionId, userId, enabled]);
 
   // ── Recap on reopen (D6 Flow12 / M5 RULE 3) ───────────────────────────────
   useEffect(() => {
