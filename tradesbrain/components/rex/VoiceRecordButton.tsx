@@ -21,6 +21,9 @@ export default function VoiceRecordButton({
       onPressIn={onPressIn}
       onPressOut={onPressOut}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={isRecording ? 'Recording — release to send' : 'Hold to record a voice message'}
+      accessibilityHint="Press and hold to record, release to send"
       className={`flex-row items-center justify-center px-4 py-3 rounded-full ${
         disabled ? 'bg-gray-300' : isRecording ? 'bg-red-600' : 'bg-brand'
       }`}

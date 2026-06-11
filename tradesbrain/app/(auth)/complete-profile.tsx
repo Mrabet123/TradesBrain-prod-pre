@@ -4,7 +4,7 @@
 // createUserProfile() — which creates the users row and clears the gate.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, Pressable, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { supabase } from '../../services/supabase';
 import { createUserProfile, deleteAccountFully, type SignUpInput } from '../../services/auth';
 import { useAuthContext } from '../../context/AuthContext';
@@ -119,7 +119,13 @@ export default function CompleteProfileScreen() {
     }
   }
 
-  if (loading) return <View className="flex-1 bg-white" />;
+  if (loading) {
+    return (
+      <View className="flex-1 bg-white items-center justify-center">
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   const hasVerifiedChannels = emailLocked || phoneLocked;
 

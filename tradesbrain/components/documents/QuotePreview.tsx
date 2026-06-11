@@ -117,8 +117,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
               value={li.name}
               onChangeText={(t) => updateLine(li.id, { name: t })}
               placeholder={needsInput ? 'TBC — tap to name' : 'Item name'}
-              placeholderTextColor={needsInput ? '#d97706' : undefined}
-              className={`flex-1 px-1 text-sm ${uncertainStyle}`}
+              placeholderTextColor={needsInput ? '#d97706' : '#9CA3AF'}
+              className={`flex-1 px-1 text-sm text-gray-900 ${uncertainStyle}`}
             />
             {needsInput && (
               <Text className="text-amber-500 text-sm font-bold ml-0.5" accessibilityLabel="needs input">
@@ -130,13 +130,13 @@ export default function QuotePreview({ draft, onChange }: Props) {
               value={li.qty.toString()}
               onChangeText={(t) => updateLine(li.id, { qty: Number(t) || 0 })}
               keyboardType="decimal-pad"
-              className={`w-12 text-right text-sm ${uncertainStyle}`}
+              className={`w-12 text-right text-sm text-gray-900 ${uncertainStyle}`}
             />
             <TextInput
               value={li.unitCost.toString()}
               onChangeText={(t) => updateLine(li.id, { unitCost: Number(t) || 0 })}
               keyboardType="decimal-pad"
-              className={`w-20 text-right text-sm ${uncertainStyle}`}
+              className={`w-20 text-right text-sm text-gray-900 ${uncertainStyle}`}
             />
             <Text className={`w-20 text-right text-sm font-medium ${uncertainStyle}`}>
               {needsInput && li.unitCost === 0 ? 'TBC' : `$${(li.qty * li.unitCost).toFixed(2)}`}
@@ -168,7 +168,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
             value={draft.labourHours.toString()}
             onChangeText={(t) => onChange({ ...draft, labourHours: Number(t) || 0 })}
             keyboardType="decimal-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
+            placeholderTextColor="#9CA3AF"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900"
           />
         </View>
         <View className="flex-1">
@@ -179,7 +180,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
               onChange({ ...draft, hourlyRateSnapshot: Number(t) || 0 })
             }
             keyboardType="decimal-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
+            placeholderTextColor="#9CA3AF"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900"
           />
         </View>
       </View>
@@ -192,7 +194,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
       <TextInput
         value={draft.paymentTerms}
         onChangeText={(t) => onChange({ ...draft, paymentTerms: t })}
-        className="border border-gray-300 rounded-lg px-3 py-2 text-base mb-3"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900 mb-3"
       />
 
       <View className="flex-row items-center mb-2">
@@ -216,7 +219,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
         value={draft.validityDays.toString()}
         onChangeText={(t) => onChange({ ...draft, validityDays: Number(t) || 0 })}
         keyboardType="number-pad"
-        className="border border-gray-300 rounded-lg px-3 py-2 text-base mb-3"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900 mb-3"
       />
 
       <View className="flex-row items-center mb-1">
@@ -228,7 +232,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
         value={draft.notes}
         onChangeText={(t) => onChange({ ...draft, notes: t })}
         multiline
-        className="border border-gray-300 rounded-lg px-3 py-2 text-base min-h-[60px] mb-3"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900 min-h-[60px] mb-3"
       />
 
       <View className="flex-row items-center justify-between mb-3">
@@ -271,7 +276,8 @@ export default function QuotePreview({ draft, onChange }: Props) {
         }
         keyboardType="decimal-pad"
         placeholder={subtotal.toFixed(2)}
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-2"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-2"
       />
       <Text className="text-xs text-gray-500 mb-4">
         Leave blank to use the subtotal above.

@@ -434,16 +434,18 @@ export default function ReportBuilderScreen() {
   }
 
   return (
-    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5 pt-12">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5">
       {/* D6 Flow05 S6 — when the doc is confirmed the header flips green and
           shows the versioned "🔒 Report N" badge. Otherwise the neutral Path
-          A / Path B label stays. */}
+          A / Path B label stays. The green bar bleeds to the screen edges
+          horizontally (-mx-5 px-5); vertical spacing now comes from the
+          KeyboardAwareScreen top inset, not a fixed -mt-12 trick. */}
       <View
-        className={`flex-row items-center justify-between mb-2 -mx-5 -mt-12 px-5 pt-12 pb-3 ${
+        className={`flex-row items-center justify-between mb-2 -mx-5 px-5 pt-1 pb-3 ${
           pdfUri ? 'bg-green-50' : ''
         }`}
       >
-        <Pressable onPress={() => nav.goBack()}>
+        <Pressable onPress={() => nav.goBack()} hitSlop={8}>
           <Text className={`text-base ${pdfUri ? 'text-green-700' : 'text-brand'}`}>
             ← Back
           </Text>
@@ -477,7 +479,8 @@ export default function ReportBuilderScreen() {
                 value={jobName}
                 onChangeText={setJobName}
                 placeholder="e.g. 122 Main St — leaking water heater"
-                className="border border-gray-300 rounded-lg px-3 py-3 text-base"
+                placeholderTextColor="#9CA3AF"
+                className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900"
               />
             </View>
           )}
@@ -494,7 +497,8 @@ export default function ReportBuilderScreen() {
             onChangeText={setSummary}
             multiline
             placeholder="Type or use the mic below…"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base min-h-[120px] mb-3"
+            placeholderTextColor="#9CA3AF"
+            className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 min-h-[120px] mb-3"
           />
 
           {/* D6 Flow12 S2 — mic denied also covers the Report voice summary. */}

@@ -28,6 +28,11 @@ export interface RexPayload {
   messageType: 'diagnosis' | 'confirmation' | 'formatting' | 'summary' | 'lookup';
   ragContext?: string;
   maxTokens?: number;
+  /** Explicit model override. When set, bypasses routeModel(). Used by the
+   *  session opener, which is a fixed context-question message that does not
+   *  need Sonnet's reasoning — routing it to Haiku makes the FIRST message Rex
+   *  shows appear much faster. */
+  model?: string;
 }
 
 export interface StreamResult {
@@ -69,10 +74,12 @@ export async function streamRexResponse(
   payload: RexPayload,
   onChunk: (text: string) => void,
 ): Promise<StreamResult> {
-  const model = routeModel({
-    sessionStage: payload.sessionStage,
-    messageType: payload.messageType,
-  });
+  const model =
+    payload.model ??
+    routeModel({
+      sessionStage: payload.sessionStage,
+      messageType: payload.messageType,
+    });
 
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;

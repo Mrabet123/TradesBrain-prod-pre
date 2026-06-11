@@ -118,9 +118,9 @@ export default function TeamAddScreen() {
   }
 
   return (
-    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="pt-12 px-5">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5">
       <View className="flex-row items-center justify-between mb-4">
-        <Pressable onPress={() => nav.goBack()}>
+        <Pressable onPress={() => nav.goBack()} hitSlop={8}>
           <Text className="text-brand text-base">← Back</Text>
         </Pressable>
         <Text className="text-base font-semibold">Add member</Text>

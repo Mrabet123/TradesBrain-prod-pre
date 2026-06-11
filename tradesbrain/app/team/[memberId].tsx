@@ -196,10 +196,27 @@ export default function TeamMemberDetail() {
     sharePdf(data.signedUrl, 'Team member document');
   }
 
-  if (loading || !profile) {
+  if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator />
+      </View>
+    );
+  }
+  // Don't strand the owner on an endless spinner if the member record fails to
+  // load — give them a way back.
+  if (!profile) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white px-8">
+        <Text className="text-base font-semibold text-gray-900 mb-1 text-center">
+          Couldn't load this member
+        </Text>
+        <Text className="text-sm text-gray-600 text-center mb-5">
+          Check your connection and try again.
+        </Text>
+        <Pressable onPress={() => nav.goBack()} className="bg-brand py-3 px-8 rounded-xl">
+          <Text className="text-white font-semibold">Go back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -211,7 +228,7 @@ export default function TeamMemberDetail() {
     >
       <View className="px-4 pb-2 border-b border-gray-200">
         <View className="flex-row items-center justify-between mb-2">
-          <Pressable onPress={() => nav.goBack()}>
+          <Pressable onPress={() => nav.goBack()} hitSlop={8}>
             <Text className="text-brand text-base">← Back</Text>
           </Pressable>
           <Text className="text-base font-semibold flex-1 text-center">

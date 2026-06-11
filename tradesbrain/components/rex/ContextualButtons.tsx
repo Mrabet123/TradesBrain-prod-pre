@@ -84,6 +84,8 @@ export default function ContextualButtons({ stage, disabled, onPress }: Props) {
             key={b.action}
             disabled={disabled}
             onPress={() => onPress(b.action)}
+            accessibilityRole="button"
+            accessibilityLabel={b.label.replace(/^[^A-Za-z0-9]+\s*/, '')}
             className={`px-3 py-2 rounded-full border ${t.border}`}
           >
             <Text className={`text-sm font-medium ${t.text}`}>{b.label}</Text>

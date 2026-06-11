@@ -7,6 +7,7 @@ import { View, Text, Pressable, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../_layout';
+import Screen from '../../components/shared/Screen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -14,7 +15,7 @@ export default function WelcomeScreen() {
   const nav = useNavigation<Nav>();
 
   return (
-    <View className="flex-1 bg-white px-6 justify-center">
+    <Screen className="flex-1 bg-white px-6 justify-center">
       <View className="items-center mb-12">
         <Image
           source={require('../../assets/logo.png')}
@@ -46,6 +47,6 @@ export default function WelcomeScreen() {
       <Text className="text-xs text-gray-400 text-center mt-8">
         By continuing you agree to our Terms of Use and Privacy Policy.
       </Text>
-    </View>
+    </Screen>
   );
 }

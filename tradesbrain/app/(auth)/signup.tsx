@@ -253,7 +253,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5 pt-12">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5">
       <Text className="text-2xl font-bold text-gray-900 mb-1">Create your account</Text>
       <Text className="text-sm text-gray-500 mb-5">Step {step} of 3</Text>
 

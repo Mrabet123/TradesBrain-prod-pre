@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ToastProps {
   message: string;
@@ -10,7 +11,13 @@ interface ToastProps {
 }
 
 export default function ToastNotification({ message, visible, type = 'info', onDismiss, duration = 3000 }: ToastProps) {
-  const opacity = React.useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  // Hold the latest onDismiss in a ref so the show/hide animation effect only
+  // re-runs when `visible` changes — not every time the parent re-renders with
+  // a new callback identity (which would restart/cancel the toast).
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
 
   useEffect(() => {
     if (visible) {
@@ -18,22 +25,27 @@ export default function ToastNotification({ message, visible, type = 'info', onD
         Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
         Animated.delay(duration),
         Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]).start(() => onDismiss());
+      ]).start(() => onDismissRef.current());
     }
-  }, [visible]);
+  }, [visible, duration, opacity]);
 
   if (!visible) return null;
 
   const bgColor = type === 'error' ? '#DC2626' : type === 'success' ? '#16A34A' : type === 'warning' ? '#D97706' : '#1E3A5F';
 
   return (
-    <Animated.View style={[styles.container, { opacity, backgroundColor: bgColor }]}>
+    <Animated.View
+      // Sit below the status bar / notch on any device, not a fixed 60px.
+      style={[styles.container, { top: insets.top + 12, opacity, backgroundColor: bgColor }]}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+    >
       <Text style={styles.text}>{message}</Text>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { position: 'absolute', top: 60, left: 20, right: 20, padding: 16, borderRadius: 8, zIndex: 9999 },
+  container: { position: 'absolute', left: 20, right: 20, padding: 16, borderRadius: 8, zIndex: 9999 },
   text: { color: '#fff', fontSize: 14, fontWeight: '600', textAlign: 'center' },
 });

@@ -205,7 +205,7 @@ export default function CodesScreen() {
 
   return (
     <KeyboardAwareScreen bottomInset={80} contentContainerClassName="">
-      <View className="pt-12 px-5">
+      <View className="px-5">
         <Text className="text-2xl font-bold text-gray-900">Codes</Text>
         <Text className="text-sm text-gray-600 mb-3">
           Trade code lookup · {tradeLabel}
@@ -268,7 +268,13 @@ export default function CodesScreen() {
               busy || !text.trim() || !isConnected ? 'bg-gray-300' : 'bg-brand'
             }`}
           >
-            <Text className="text-white font-semibold">Ask</Text>
+            <Text
+              className={`font-semibold ${
+                busy || !text.trim() || !isConnected ? 'text-gray-500' : 'text-white'
+              }`}
+            >
+              Ask
+            </Text>
           </Pressable>
         </View>
 

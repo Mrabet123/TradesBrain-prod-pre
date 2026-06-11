@@ -114,10 +114,27 @@ export default function SettingsScreen() {
     }
   }
 
-  if (loading || !profile) {
+  if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator />
+      </View>
+    );
+  }
+  // A failed/empty profile load must not strand the user on an endless spinner
+  // with no way out — show an error with a back affordance.
+  if (!profile) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white px-8">
+        <Text className="text-base font-semibold text-gray-900 mb-1 text-center">
+          Couldn't load your account
+        </Text>
+        <Text className="text-sm text-gray-600 text-center mb-5">
+          Check your connection and try again.
+        </Text>
+        <Pressable onPress={() => nav.goBack()} className="bg-brand py-3 px-8 rounded-xl">
+          <Text className="text-white font-semibold">Go back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -128,9 +145,9 @@ export default function SettingsScreen() {
   );
 
   return (
-    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="pt-12 px-5">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5">
       <View className="flex-row items-center justify-between mb-4">
-        <Pressable onPress={() => nav.goBack()}>
+        <Pressable onPress={() => nav.goBack()} hitSlop={8}>
           <Text className="text-brand text-base">← Back</Text>
         </Pressable>
         <Text className="text-base font-semibold">Settings</Text>

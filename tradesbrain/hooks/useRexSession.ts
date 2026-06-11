@@ -252,7 +252,13 @@ export function useRexSession({
         tradeType: s.tradeType,
         messages: opening,
         sessionStage: 1,
-        messageType: 'diagnosis',
+        // The opener is a fixed-format context-capture message (ask the 6
+        // questions) — it needs no diagnosis reasoning, safety, or RAG. Route it
+        // to Haiku via an explicit model override and use 'formatting' mode (no
+        // stage/safety/pushback addenda) so the FIRST message Rex shows appears
+        // quickly instead of waiting on a full Sonnet generation.
+        messageType: 'formatting',
+        model: 'claude-haiku-4-5-20251001',
         maxTokens: 600,
       },
       (chunk) => {

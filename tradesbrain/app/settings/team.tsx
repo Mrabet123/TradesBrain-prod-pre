@@ -126,7 +126,7 @@ export default function TeamSettingsScreen() {
     return (
       <View className="flex-1 bg-white px-5" style={{ paddingTop: insets.top + 8 }}>
         <View className="flex-row items-center justify-between mb-4">
-          <Pressable onPress={() => nav.goBack()}>
+          <Pressable onPress={() => nav.goBack()} hitSlop={8}>
             <Text className="text-brand text-base">← Back</Text>
           </Pressable>
           <Text className="text-base font-semibold">Team Management</Text>
@@ -194,7 +194,7 @@ export default function TeamSettingsScreen() {
       }
     >
       <View className="flex-row items-center justify-between mb-4">
-        <Pressable onPress={() => nav.goBack()}>
+        <Pressable onPress={() => nav.goBack()} hitSlop={8}>
           <Text className="text-brand text-base">← Back</Text>
         </Pressable>
         <Text className="text-base font-semibold">Team Management</Text>
@@ -210,9 +210,11 @@ export default function TeamSettingsScreen() {
         <Pressable
           onPress={onAdd}
           disabled={atCap}
-          className={`px-3 py-2 rounded-lg ${atCap ? 'bg-gray-300' : 'bg-brand'}`}
+          className={`px-4 py-2.5 rounded-lg ${atCap ? 'bg-gray-300' : 'bg-brand'}`}
         >
-          <Text className="text-white text-sm font-semibold">+ Add member</Text>
+          <Text className={`text-sm font-semibold ${atCap ? 'text-gray-500' : 'text-white'}`}>
+            + Add member
+          </Text>
         </Pressable>
       </View>
 

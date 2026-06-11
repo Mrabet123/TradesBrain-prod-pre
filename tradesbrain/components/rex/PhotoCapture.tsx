@@ -14,6 +14,8 @@ export default function PhotoCapture({ disabled, onCapture }: Props) {
     <Pressable
       onPress={onCapture}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel="Take photo"
       className={`px-4 py-3 rounded-full ${disabled ? 'bg-gray-300' : 'bg-green-600'}`}
     >
       <Text className="text-white font-semibold">📷 Photo</Text>

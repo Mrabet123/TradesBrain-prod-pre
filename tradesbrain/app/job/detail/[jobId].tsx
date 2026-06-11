@@ -273,7 +273,7 @@ export default function JobDetailScreen() {
       {/* Header — D6 Flow08 NEW SCREEN A */}
       <View className="px-4 pb-2 border-b border-gray-200">
         <View className="flex-row items-center justify-between mb-2">
-          <Pressable onPress={() => nav.goBack()}>
+          <Pressable onPress={() => nav.goBack()} hitSlop={8}>
             <Text className="text-brand text-base">← Back</Text>
           </Pressable>
           {editing ? (
@@ -283,8 +283,9 @@ export default function JobDetailScreen() {
                 onChangeText={setDraftName}
                 autoFocus
                 placeholder="Job name"
+                placeholderTextColor="#9CA3AF"
                 onSubmitEditing={saveEditName}
-                className="flex-1 border border-brand rounded-lg px-2 py-1 text-base"
+                className="flex-1 border border-brand rounded-lg px-2 py-1 text-base text-gray-900"
               />
               <Pressable onPress={saveEditName} className="px-2">
                 <Text className="text-brand text-sm font-semibold">Save</Text>

@@ -65,7 +65,8 @@ export default function JobCard({ job, onPress, onRename, searchTerm }: Props) {
             onBlur={commit}
             onSubmitEditing={commit}
             autoFocus
-            className="flex-1 text-base font-semibold border-b border-brand pb-0.5"
+            placeholderTextColor="#9CA3AF"
+            className="flex-1 text-base font-semibold text-gray-900 border-b border-brand pb-0.5"
           />
         ) : (
           <Pressable onPress={() => setEditing(true)} className="flex-1">

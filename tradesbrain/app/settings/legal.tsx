@@ -58,7 +58,7 @@ export default function LegalScreen() {
       contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 40 }}
     >
       <View className="flex-row items-center justify-between mb-4">
-        <Pressable onPress={() => nav.goBack()}>
+        <Pressable onPress={() => nav.goBack()} hitSlop={8}>
           <Text className="text-brand text-base">← Back</Text>
         </Pressable>
         <Text className="text-base font-semibold">Legal</Text>

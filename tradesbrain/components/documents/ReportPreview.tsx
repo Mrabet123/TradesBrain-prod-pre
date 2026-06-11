@@ -72,7 +72,8 @@ export default function ReportPreview(props: Props) {
             onChangeText={(t) => props.onSectionContentChange(s.id, t)}
             multiline
             placeholder={`Edit ${s.name.toLowerCase()}…`}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base min-h-[80px]"
+            placeholderTextColor="#9CA3AF"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900 min-h-[80px]"
           />
         </View>
       ))}
@@ -98,7 +99,8 @@ export default function ReportPreview(props: Props) {
         }
         keyboardType="decimal-pad"
         placeholder="0.00"
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-4"
+        placeholderTextColor="#9CA3AF"
+        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-4"
       />
 
       <View className="flex-row items-center justify-between mb-3">

@@ -18,6 +18,7 @@ import {
   Image,
   ActivityIndicator,
   Linking,
+  Keyboard,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -150,6 +151,24 @@ export default function ActiveSessionScreen() {
   // CC-2 — soft-cap "Continue here" is sticky-dismissable per session.
   const [softCapDismissed, setSoftCapDismissed] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Keyboard visibility — Android uses adjustResize (AndroidManifest), so the
+  // OS already lifts the input row above the keyboard. While the keyboard is
+  // open we collapse the bottom safe-area inset to 0 so the nav-bar inset does
+  // not leave a dead gap between the input row and the keyboard. When it closes,
+  // the inset is restored so the row clears the 3-button nav bar — the row
+  // returns to EXACTLY the same place every time (the reported bug).
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener(hideEvt, () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // Trial gate. A trial user who has run out gets an in-thread notice (D6 S8) —
   // the session is preserved. expired/cancelled users go straight to Paywall.
@@ -324,7 +343,7 @@ export default function ActiveSessionScreen() {
         style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom }}
       >
         <View className="px-4 pb-2 flex-row items-center border-b border-gray-200">
-          <Pressable onPress={() => nav.goBack()}>
+          <Pressable onPress={() => nav.goBack()} hitSlop={8}>
             <Text className="text-brand text-base">← Back</Text>
           </Pressable>
         </View>
@@ -359,11 +378,14 @@ export default function ActiveSessionScreen() {
 
   return (
     <KeyboardAvoidingView
-      // Android needs an explicit behavior or the input row stays under the
-      // soft keyboard. 'height' lets the layout reflow so the input stays
-      // visible above the keyboard while the message list shrinks.
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      // Android already resizes the window for the keyboard (adjustResize in
+      // AndroidManifest), so a 'height'/'padding' behavior here would
+      // DOUBLE-compensate — that was the cause of the large gap and the input
+      // row not returning to its original position. On Android we let the OS
+      // handle it (behavior undefined); only iOS (no adjustResize) needs
+      // 'padding'. Offset is 0 — the header is inside this view, not above it.
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
       style={{ flex: 1 }}
     >
       {toast && (
@@ -374,16 +396,20 @@ export default function ActiveSessionScreen() {
           onDismiss={() => setToast(null)}
         />
       )}
-      {/* Real device insets: top clears the status bar / notch, bottom clears
-          the Android nav bar so the input row + hold-to-record button are never
-          hidden behind the 3-button bar (the reported bug). */}
+      {/* Real device insets: top clears the status bar / notch. Bottom clears
+          the Android 3-button nav bar so the input row + hold-to-record button
+          are never hidden behind it — but only while the keyboard is CLOSED.
+          While it is open, adjustResize has already lifted the row above the
+          keyboard, so the nav-bar inset would just be a dead gap; collapse it to
+          0 so the row sits flush above the keyboard and snaps back exactly on
+          close. */}
       <View
         className="flex-1 bg-white"
-        style={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: keyboardOpen ? 0 : insets.bottom }}
       >
         {/* Header */}
         <View className="px-4 pb-2 flex-row items-center justify-between border-b border-gray-200">
-          <Pressable onPress={() => nav.goBack()}>
+          <Pressable onPress={() => nav.goBack()} hitSlop={8}>
             <Text className="text-brand text-base">← Back</Text>
           </Pressable>
           {/* ISS-M10 (RX-4): header stage pill — always visible (D6 Flow04). */}

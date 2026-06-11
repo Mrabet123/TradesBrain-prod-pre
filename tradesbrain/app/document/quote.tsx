@@ -369,15 +369,16 @@ export default function QuoteBuilderScreen() {
   }
 
   return (
-    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5 pt-12">
+    <KeyboardAwareScreen bottomInset={96} contentContainerClassName="px-5">
       {/* D6 Flow06 S6 — confirmed state flips the header background green and
-          shows "🔒 Quote N" with version. */}
+          shows "🔒 Quote N" with version. Green bar bleeds horizontally
+          (-mx-5 px-5); top spacing comes from the KeyboardAwareScreen inset. */}
       <View
-        className={`flex-row items-center justify-between mb-2 -mx-5 -mt-12 px-5 pt-12 pb-3 ${
+        className={`flex-row items-center justify-between mb-2 -mx-5 px-5 pt-1 pb-3 ${
           pdfUri ? 'bg-green-50' : ''
         }`}
       >
-        <Pressable onPress={() => nav.goBack()}>
+        <Pressable onPress={() => nav.goBack()} hitSlop={8}>
           <Text className={`text-base ${pdfUri ? 'text-green-700' : 'text-brand'}`}>← Back</Text>
         </Pressable>
         <Text
@@ -410,7 +411,8 @@ export default function QuoteBuilderScreen() {
               value={jobName}
               onChangeText={setJobName}
               placeholder="e.g. Bathroom remodel — 47 Oak Lane"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base"
+              placeholderTextColor="#9CA3AF"
+              className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900"
             />
           </View>
 
@@ -425,7 +427,8 @@ export default function QuoteBuilderScreen() {
             onChangeText={setDescription}
             multiline
             placeholder="Type or use the mic below…"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base min-h-[110px] mb-3"
+            placeholderTextColor="#9CA3AF"
+            className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 min-h-[110px] mb-3"
           />
           {/* D6 Flow12 S2 — mic denied also covers the Quote voice summary. */}
           {voice.permissionDenied && (

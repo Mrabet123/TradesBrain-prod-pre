@@ -22,6 +22,10 @@ type Props = {
   /** Extra padding (px) appended below the content. Default 48. Bump on screens
    *  whose final button sits flush at the bottom. */
   bottomInset?: number;
+  /** Extra px added below the device top inset for breathing room under the
+   *  status bar / notch. Default 8. (Replaces the old hardcoded `pt-12` hack —
+   *  the real top inset is now applied automatically.) */
+  topInset?: number;
   /** Pass-through ScrollView className (NativeWind). */
   className?: string;
   /** Pass-through ScrollView contentContainerClassName (NativeWind). */
@@ -37,22 +41,26 @@ type Props = {
 export default function KeyboardAwareScreen({
   children,
   bottomInset = 48,
+  topInset = 8,
   className = 'flex-1 bg-white',
-  contentContainerClassName = 'px-5 pt-12',
+  contentContainerClassName = 'px-5',
   scrollable = true,
   dismissOnTap = true,
   scrollViewProps,
 }: Props) {
-  // Add the device's bottom inset (Android nav bar / iOS home indicator) on top
-  // of the caller's bottomInset so the final CTA (Create Account / Save / Confirm)
-  // is never hidden behind the system navigation bar on any phone.
+  // Apply the REAL device insets, not a fixed pad. Top: clears the status bar /
+  // notch on any phone (replaces the old hardcoded `pt-12`, which was wrong on
+  // every device with a different status-bar height). Bottom: clears the Android
+  // nav bar / iOS home indicator so the final CTA (Create Account / Save /
+  // Confirm) is never hidden behind the system navigation bar.
   const insets = useSafeAreaInsets();
+  const paddingTop = insets.top + topInset;
   const paddingBottom = bottomInset + insets.bottom;
   const body = scrollable ? (
     <ScrollView
       className={className}
       contentContainerClassName={contentContainerClassName}
-      contentContainerStyle={{ paddingBottom }}
+      contentContainerStyle={{ paddingTop, paddingBottom }}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       showsVerticalScrollIndicator={false}
@@ -61,7 +69,7 @@ export default function KeyboardAwareScreen({
       {children}
     </ScrollView>
   ) : (
-    <View className={className} style={{ paddingBottom }}>
+    <View className={className} style={{ paddingTop, paddingBottom }}>
       {children}
     </View>
   );

@@ -109,7 +109,8 @@ export default function SectionPicker({
               value={custom}
               onChangeText={setCustom}
               placeholder="Add a custom section"
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base"
+              placeholderTextColor="#9CA3AF"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900"
             />
             {/* D6 Flow05 S2 — voice-add a custom section */}
             <VoiceRecordButton

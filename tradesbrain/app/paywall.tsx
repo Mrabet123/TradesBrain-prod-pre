@@ -233,7 +233,7 @@ export default function PaywallScreen() {
   return (
     <View className="flex-1 bg-white" style={{ paddingTop: insets.top + 8 }}>
       <View className="px-5 pb-3 flex-row items-center justify-between">
-        <Pressable onPress={() => nav.goBack()}>
+        <Pressable onPress={() => nav.goBack()} hitSlop={8}>
           <Text className="text-gray-500 text-base">Close</Text>
         </Pressable>
         <Text className="text-base font-semibold">Choose your plan</Text>
@@ -341,7 +341,9 @@ export default function PaywallScreen() {
                 disabled={disabled}
                 className={`mt-4 py-3 rounded-xl ${disabled ? 'bg-gray-300' : 'bg-brand'}`}
               >
-                <Text className="text-center text-white font-semibold">
+                <Text
+                  className={`text-center font-semibold ${disabled ? 'text-gray-500' : 'text-white'}`}
+                >
                   {busy ? 'Opening checkout…' : `Subscribe to ${p.label}`}
                 </Text>
               </Pressable>

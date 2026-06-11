@@ -5,7 +5,7 @@
 // Accessible even when subscription is expired (RULE 6).
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, ScrollView, RefreshControl, Pressable } from 'react-native';
+import { View, Text, TextInput, ScrollView, SectionList, RefreshControl, Pressable } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -115,89 +115,100 @@ export default function HistoryScreen() {
     return out;
   }, [filtered]);
 
+  // SectionList sections from the date-bucket groups (virtualized — only the
+  // visible JobCards mount, so a long history no longer renders all at once).
+  const sections = groups.map((g) => ({ title: g.label, data: g.items }));
+
+  // Search + filters live in a FIXED header above the list (not inside it), so
+  // the search TextInput never loses focus on a list re-render and stays pinned
+  // while the job list scrolls.
   return (
-    <ScrollView
-      className="flex-1 bg-white"
-      contentContainerClassName="px-5 pb-10"
-      contentContainerStyle={{ paddingTop: insets.top + 8 }}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={async () => {
-            setRefreshing(true);
-            await reload();
-            setRefreshing(false);
-          }}
+    <View className="flex-1 bg-white" style={{ paddingTop: insets.top + 8 }}>
+      <View className="px-5">
+        <Text className="text-2xl font-bold text-gray-900 mb-1">Job History</Text>
+        <Text className="text-sm text-gray-600 mb-4">
+          Only confirmed-closed jobs appear here.
+        </Text>
+
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search by job name, address, or date"
+          placeholderTextColor="#9CA3AF"
+          className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-3"
         />
-      }
-    >
-      <Text className="text-2xl font-bold text-gray-900 mb-1">Job History</Text>
-      <Text className="text-sm text-gray-600 mb-4">
-        Only confirmed-closed jobs appear here.
-      </Text>
 
-      <TextInput
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Search by job name, address, or date"
-        placeholderTextColor="#9CA3AF"
-        className="border border-gray-300 rounded-lg px-3 py-3 text-base text-gray-900 mb-3"
-      />
-
-      {/* D6 Flow08 S1 — filter chips. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-        className="mb-4"
-      >
-        {FILTERS.map((f) => {
-          const on = filter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => setFilter(f.key)}
-              className={`px-3 py-1.5 rounded-full border ${
-                on ? 'border-brand bg-brand/10' : 'border-gray-300 bg-white'
-              }`}
-            >
-              <Text className={`text-sm ${on ? 'text-brand font-semibold' : 'text-gray-700'}`}>
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+        {/* D6 Flow08 S1 — filter chips. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8 }}
+          className="mb-4"
+        >
+          {FILTERS.map((f) => {
+            const on = filter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => setFilter(f.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                className={`px-3 py-1.5 rounded-full border ${
+                  on ? 'border-brand bg-brand/10' : 'border-gray-300 bg-white'
+                }`}
+              >
+                <Text className={`text-sm ${on ? 'text-brand font-semibold' : 'text-gray-700'}`}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {loading ? (
-        <View>
+        <View className="px-5">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </View>
       ) : filtered.length === 0 ? (
-        <EmptyState
-          onStartFirstJob={() => nav.navigate('Job', { sessionId: 'new' })}
-        />
+        <View className="px-5">
+          <EmptyState onStartFirstJob={() => nav.navigate('Job', { sessionId: 'new' })} />
+        </View>
       ) : (
-        groups.map((g) => (
-          <View key={g.label} className="mb-2">
-            <Text className="text-xs font-semibold text-gray-500 tracking-wider mt-2 mb-2">
-              {g.label}
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderSectionHeader={({ section }) => (
+            <Text className="text-xs font-semibold text-gray-500 tracking-wider mt-2 mb-2 bg-white">
+              {section.title}
             </Text>
-            {g.items.map((j) => (
-              <JobCard
-                key={j.id}
-                job={j}
-                onPress={() => nav.navigate('JobDetail', { jobId: j.id })}
-                onRename={(name) => rename(j.id, name)}
-                searchTerm={search}
-              />
-            ))}
-          </View>
-        ))
+          )}
+          renderItem={({ item }) => (
+            <JobCard
+              job={item}
+              onPress={() => nav.navigate('JobDetail', { jobId: item.id })}
+              onRename={(name) => rename(item.id, name)}
+              searchTerm={search}
+            />
+          )}
+          stickySectionHeadersEnabled={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName="px-5 pb-10"
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await reload();
+                setRefreshing(false);
+              }}
+            />
+          }
+        />
       )}
-    </ScrollView>
+    </View>
   );
 }
