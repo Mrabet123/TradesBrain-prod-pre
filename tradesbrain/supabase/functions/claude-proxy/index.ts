@@ -71,16 +71,26 @@ serve(async (req) => {
       tradeType = storedTrade;
     } else if (KNOWN_TRADES.includes(body.trade_type)) {
       // Registered as 'other' / General Contractor (no inherent safety ruleset):
-      // honour the concrete trade the worker confirmed at session start (D7
-      // §6.1 — 'other' routes to the nearest real profile, never silently
-      // Plumber). The client gates a new 'other' session behind this choice.
+      // honour the concrete trade the worker confirmed for this job (D7 §6.1 —
+      // 'other' routes to a real profile, never silently Plumber). The client
+      // gates EVERY 'other' session — new and legacy — behind the trade picker,
+      // which persists the chosen concrete trade onto the session row before any
+      // Rex call is made.
       tradeType = body.trade_type;
     } else {
-      // Degenerate fallback: registered 'other' AND no concrete per-session
-      // trade supplied (e.g. a legacy session row created before the trade
-      // picker shipped). Default to Plumber so the call still succeeds; new
-      // sessions never reach this path.
-      tradeType = 'plumber';
+      // Registered 'other' AND no concrete per-session trade resolved (e.g. a
+      // legacy session row created before the trade picker shipped, or a spoofed
+      // payload). There is deliberately NO Plumber default here: the only way a
+      // session runs on the Plumber prompt is if the worker explicitly selected
+      // Plumber. Reject so the client resolves the trade via the picker instead
+      // of silently running on an assumed trade's safety rules.
+      return new Response(
+        JSON.stringify({
+          error:
+            "Unresolved 'other' trade — select a concrete trade for this job before starting Rex.",
+        }),
+        { status: 400, headers: { ...corsHeaders(), 'Content-Type': 'application/json' } },
+      );
     }
 
     system = buildSystemPrompt({

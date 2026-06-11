@@ -37,6 +37,7 @@ interface State {
 
 type Action =
   | { type: 'INIT'; session: JobSession; messages: Message[] }
+  | { type: 'SET_TRADE'; tradeType: string }
   | { type: 'STAGE'; stage: Stage }
   | { type: 'APPEND'; message: Message }
   | { type: 'STREAM_START' }
@@ -69,6 +70,12 @@ function reducer(s: State, a: Action): State {
   switch (a.type) {
     case 'INIT':
       return { ...s, session: a.session, messages: a.messages, closed: a.session.status !== 'active' };
+    case 'SET_TRADE':
+      // Resolve a legacy 'other' session onto a concrete trade after the worker
+      // picks one (D7 §6.1). Persisted to the row by resolveSessionTrade; this
+      // updates the in-memory session so subsequent Rex calls send the concrete
+      // trade and the picker does not re-appear.
+      return s.session ? { ...s, session: { ...s.session, tradeType: a.tradeType } } : s;
     case 'STAGE':
       // ISS-M8 (RX-2): the worker-pushback two-step is per-diagnosis, not
       // per-session. A stage change is a new diagnosis context, so reset the
@@ -183,8 +190,15 @@ export function useRexSession({
           const session = rowToSession(ses);
           dispatch({ type: 'INIT', session, messages: (msgs ?? []).map(rowToMessage) });
           // A linked session is seeded with a carry-over message; only a
-          // brand-new empty active session needs the S0 opener.
-          if ((msgs ?? []).length === 0 && session.status === 'active') {
+          // brand-new empty active session needs the S0 opener. A legacy 'other'
+          // session is held back until the worker resolves a concrete trade via
+          // the picker (resolveSessionTrade opens it afterwards) — never auto-open
+          // it on the unresolved 'other' trade (D7 §6.1).
+          if (
+            (msgs ?? []).length === 0 &&
+            session.status === 'active' &&
+            session.tradeType !== 'other'
+          ) {
             await openSession(session);
           }
           return;
@@ -216,6 +230,11 @@ export function useRexSession({
     if (!recapOnLoad) return;
     if (recapTriggeredRef.current) return;
     if (!state.session || state.messages.length === 0 || state.streaming) return;
+    // Hold the recap until a legacy 'other' session has been resolved to a
+    // concrete trade — otherwise the recap turn would hit the proxy on the
+    // unresolved 'other' trade (D7 §6.1). resolveSessionTrade flips the trade,
+    // re-runs this effect, and the recap fires then.
+    if (state.session.tradeType === 'other') return;
     recapTriggeredRef.current = true;
     sendMessage({
       text:
@@ -676,9 +695,47 @@ export function useRexSession({
     }
   }
 
+  // ── Resolve a legacy 'other' session to a concrete trade (D7 §6.1) ─────────
+  // A session row created before the trade picker shipped carries trade_type =
+  // 'other' with no concrete trade resolved. When reopened, the screen shows the
+  // same "What's your trade for this job?" picker as a new 'other' session; the
+  // chosen concrete trade is written to the row here so the session is resolved
+  // PERMANENTLY (reopening it again will not prompt the picker), and the in-memory
+  // session updates so every Rex call loads the correct concrete profile — the
+  // Plumber-as-default fallback for 'other' is gone, both client- and server-side.
+  const resolveSessionTrade = useCallback(
+    async (concreteTrade: string) => {
+      const s = state.session;
+      if (!s) return;
+      const { error } = await supabase
+        .from('job_sessions')
+        .update({ trade_type: concreteTrade })
+        .eq('id', s.id);
+      if (error) {
+        dispatch({ type: 'ERROR', error: error.message });
+        return;
+      }
+      dispatch({ type: 'SET_TRADE', tradeType: concreteTrade });
+      // Edge case: an empty, never-opened legacy 'other' session needs its S0
+      // opener now that the trade is resolved (a populated session is recapped by
+      // the recap effect, which un-gates on the same trade change).
+      if (state.messages.length === 0 && s.status === 'active') {
+        await openSession({ ...s, tradeType: concreteTrade });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.session, state.messages.length],
+  );
+
+  // True when the loaded session is still on the unresolved 'other' trade — the
+  // screen shows the trade picker and blocks input until resolveSessionTrade runs.
+  const needsTradeResolution = !!state.session && state.session.tradeType === 'other';
+
   const lastMsg = state.messages[state.messages.length - 1];
   return {
     ...state,
+    needsTradeResolution,
+    resolveSessionTrade,
     sendMessage,
     retry,
     canRetry:

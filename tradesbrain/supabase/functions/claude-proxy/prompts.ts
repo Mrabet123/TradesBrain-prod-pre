@@ -566,19 +566,19 @@ The worker is a licensed professional. The worker carries the liability for thei
 `;
 
 // D5 trade_type accepts: 'plumber','electrician','hvac','roofer','other'.
-// 'other' (General Contractor) has no inherent code/safety ruleset, so it is
-// resolved to one of the four concrete profiles BEFORE the prompt is built:
-// the Job screen asks an 'other' worker which trade this job is and creates the
-// session on that profile, and index.ts honours that confirmed trade (D7 §6.1).
-// The 'other' entry below is therefore only a last-resort default for a
-// degenerate call that somehow reaches here without a concrete trade (e.g. a
-// legacy session row) — a new 'other' session never routes here silently.
+// 'other' (General Contractor) has no inherent code/safety ruleset, so it MUST be
+// resolved to one of the four concrete profiles BEFORE the prompt is built — by
+// the trade picker, which is the universal resolver for 'other' across every
+// entry point (new sessions, legacy session rows, and code lookups). The chosen
+// concrete trade is what reaches this map, so there is deliberately NO 'other'
+// entry and NO Plumber default: a session runs on the Plumber prompt ONLY when
+// the worker explicitly selected Plumber, never as a silent fallback (D7 §6.1).
+// index.ts rejects an unresolved 'other' before buildSystemPrompt is ever called.
 const SYSTEM_PROMPTS: Record<string, string> = {
   plumber: PLUMBER_V2,
   electrician: ELECTRICIAN_V1,
   hvac: HVAC_V1,
   roofer: ROOFER_V1,
-  other: PLUMBER_V2,
 };
 
 // Appended in code-lookup mode (F4) — D7 code-lookup addendum.
@@ -704,7 +704,14 @@ export function buildSystemPrompt(opts: {
   mode: string;
   ragContext?: string;
 }): string {
-  let prompt = SYSTEM_PROMPTS[opts.tradeType] ?? PLUMBER_V2;
+  // No silent Plumber default: an unknown/unresolved trade (e.g. 'other') is a
+  // bug upstream — index.ts validates and rejects it before we get here — so fail
+  // loudly rather than quietly serving the wrong trade's safety ruleset.
+  const base = SYSTEM_PROMPTS[opts.tradeType];
+  if (!base) {
+    throw new Error(`No system prompt for trade '${opts.tradeType}' — 'other' must be resolved to a concrete trade first.`);
+  }
+  let prompt = base;
   if (opts.mode === 'lookup') {
     prompt += CODE_LOOKUP_ADDENDUM;
   } else if (opts.mode === 'diagnosis' || opts.mode === 'confirmation') {

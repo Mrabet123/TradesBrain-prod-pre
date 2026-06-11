@@ -34,15 +34,25 @@ import CitationCard from '../../components/codes/CitationCard';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-// D5 trade_type CHECK accepts: plumber / electrician / hvac / roofer / other.
+// D7 §6.1 — code lookups must run on a concrete trade's code base. 'other' /
+// General Contractor has no inherent code library, so it is NOT offered here:
+// a General-Contractor worker picks a concrete trade for each lookup, exactly as
+// the session trade picker resolves 'other' for a job. This keeps the proxy free
+// of any 'other'→Plumber fallback (the only Plumber path is picking Plumber).
 const TRADES = [
   { value: 'plumber', label: 'Plumber' },
   { value: 'electrician', label: 'Electrician' },
   { value: 'hvac', label: 'HVAC' },
   { value: 'roofer', label: 'Roofer' },
-  { value: 'other', label: 'General' },
 ] as const;
 type Trade = (typeof TRADES)[number]['value'];
+
+// A registered trade is only usable for lookups if it is one of the four concrete
+// trades. A General-Contractor ('other') or not-yet-loaded profile resolves to
+// null, which forces the worker to pick a concrete trade before searching.
+function asConcreteTrade(t: string | null | undefined): Trade | null {
+  return TRADES.some((x) => x.value === t) ? (t as Trade) : null;
+}
 
 // D6 Flow07 S1 — quick-query suggestion chips. Per-trade example lookups the
 // worker can tap to run immediately instead of typing.
@@ -67,10 +77,6 @@ const QUICK_QUERIES: Record<Trade, string[]> = {
     'Ice barrier requirements in cold climates',
     'Drip edge installation requirements',
   ],
-  other: [
-    'Permit requirements for this work',
-    'Inspections required before closing the job',
-  ],
 };
 
 export default function CodesScreen() {
@@ -80,14 +86,16 @@ export default function CodesScreen() {
   // ISS-M13 (CL-2): offline mode — D6 Flow07 Screen 7.
   const { isConnected } = useNetworkContext();
 
-  // Temporary trade switch — resets each time the user leaves the tab
-  const [activeTrade, setActiveTrade] = useState<Trade>(
-    (profileTrade as Trade) || 'plumber',
+  // Temporary trade switch — resets each time the user leaves the tab. A
+  // General-Contractor ('other') profile has no concrete trade, so it starts
+  // null and the worker must pick one before searching (no silent Plumber).
+  const [activeTrade, setActiveTrade] = useState<Trade | null>(
+    asConcreteTrade(profileTrade),
   );
   useEffect(() => {
     const unsubBlur = nav.addListener('blur', () => {
       // RULE 6 — revert temporary switch when leaving the tab
-      setActiveTrade((profileTrade as Trade) || 'plumber');
+      setActiveTrade(asConcreteTrade(profileTrade));
       // ISS-31: clear follow-up context when leaving the tab
       prevLookupRef.current = null;
     });
@@ -147,6 +155,15 @@ export default function CodesScreen() {
   async function runSearch(q: string) {
     const query = q.trim();
     if (!query) return;
+    // D7 §6.1 — a lookup must run on a concrete trade's code base. A General
+    // Contractor must pick one first; never silently assume a trade.
+    if (!activeTrade) {
+      Alert.alert(
+        'Pick a trade',
+        'Choose the trade for this code lookup so Rex searches the right code base.',
+      );
+      return;
+    }
     // ISS-M13 (CL-2): new lookups need a connection — the last 10 cached
     // lookups remain viewable offline below.
     if (!isConnected) {
@@ -199,7 +216,7 @@ export default function CodesScreen() {
 
   const showEmpty = !latest && recent.length === 0;
   const tradeLabel = useMemo(
-    () => TRADES.find((t) => t.value === activeTrade)?.label ?? activeTrade,
+    () => TRADES.find((t) => t.value === activeTrade)?.label ?? 'Pick a trade',
     [activeTrade],
   );
 
@@ -293,8 +310,20 @@ export default function CodesScreen() {
           )}
         </View>
 
+        {/* D7 §6.1 — General-Contractor worker must pick a concrete trade before
+            a lookup; never silently assume one. */}
+        {!activeTrade && !busy && (
+          <View className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            <Text className="text-amber-800 text-sm font-medium">Pick a trade</Text>
+            <Text className="text-amber-700 text-xs">
+              Choose the trade for this code lookup above so Rex searches the right
+              code base.
+            </Text>
+          </View>
+        )}
+
         {/* D6 Flow07 S1 — quick-query suggestion chips */}
-        {!latest && !busy && isConnected && (
+        {activeTrade && !latest && !busy && isConnected && (
           <View className="mb-4">
             <Text className="text-xs font-semibold text-gray-600 mb-2">
               Try a quick lookup

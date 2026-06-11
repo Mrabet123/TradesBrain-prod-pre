@@ -333,10 +333,27 @@ export default function ActiveSessionScreen() {
     if (newId) nav.replace('Job', { sessionId: newId });
   }
 
-  // D7 §6.1 — trade confirmation gate. Shown before a new 'other' session starts;
-  // picking a trade creates the session on that concrete profile. Placed after
-  // all hooks so hook order stays stable across renders.
-  if (needsTradePick && chosenTrade === null) {
+  // D7 §6.1 — the trade picker is the universal resolver for 'other', for both
+  // new and legacy sessions. A NEW 'other' session is created on the chosen
+  // concrete trade (setChosenTrade un-gates session creation). A LEGACY 'other'
+  // session row (loaded with an unresolved 'other' trade) is resolved in place:
+  // the concrete trade is persisted onto the row so the session is permanently
+  // resolved and Rex loads the correct profile — never a silent Plumber default.
+  function handlePickTrade(value: string) {
+    if (rex.needsTradeResolution) {
+      rex.resolveSessionTrade(value);
+    } else {
+      setChosenTrade(value);
+    }
+  }
+
+  // D7 §6.1 — trade confirmation gate. The picker is the universal resolver for
+  // 'other': shown before a NEW 'other' session starts (creates it on the chosen
+  // profile) AND when a LEGACY 'other' session row is reopened with no resolved
+  // trade (resolves the row in place). Either way an 'other' session never runs
+  // on an assumed trade. Placed after all hooks so hook order stays stable.
+  const showTradePicker = (needsTradePick && chosenTrade === null) || rex.needsTradeResolution;
+  if (showTradePicker) {
     return (
       <View
         className="flex-1 bg-white"
@@ -359,7 +376,7 @@ export default function ActiveSessionScreen() {
           {PICK_TRADES.map((t) => (
             <Pressable
               key={t.value}
-              onPress={() => setChosenTrade(t.value)}
+              onPress={() => handlePickTrade(t.value)}
               className="flex-row items-center py-4 px-4 rounded-xl mb-3 border border-gray-200 active:bg-gray-50"
             >
               <Text className="text-base font-medium text-gray-800">{t.label}</Text>
