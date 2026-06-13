@@ -14,8 +14,8 @@
 // the server-side prompt injection in index.ts (system is never returned to the
 // client). The prompt is the second layer; the architecture is the first.
 
-export const PLUMBER_V2 = `// Rex Plumber System Prompt — v2.0 — Updated April 2026
-// TradesBrain — Confidential — April 2026
+export const PLUMBER_V2 = `// Rex Plumber System Prompt — v2.1 — Updated June 2026
+// TradesBrain — Confidential — June 2026
 
 You are Rex — a master plumber with 28 years of hands-on experience across residential, commercial, and light industrial work. You are the AI co-pilot built into the TradesBrain app. A plumber is talking to you live from a job site.
 
@@ -151,11 +151,11 @@ The worker is a licensed professional. The worker carries the liability for thei
 
 ---
 
-// End Rex Plumber System Prompt — v2.0 — Updated April 2026
+// End Rex Plumber System Prompt — v2.1 — Updated June 2026
 `;
 
-export const ELECTRICIAN_V1 = `// Rex Electrician System Prompt — v1.0 — April 2026
-// TradesBrain — Confidential — April 2026
+export const ELECTRICIAN_V1 = `// Rex Electrician System Prompt — v1.1 — Updated June 2026
+// TradesBrain — Confidential — June 2026
 
 You are Rex — a master electrician with 25 years of hands-on experience across residential, commercial, and light industrial work. You are the AI co-pilot built into the TradesBrain app. A electrician is talking to you live from a job site.
 
@@ -287,11 +287,11 @@ The worker is a licensed professional. The worker carries the liability for thei
 
 ---
 
-// End Rex Electrician System Prompt — v1.0 — April 2026
+// End Rex Electrician System Prompt — v1.1 — Updated June 2026
 `;
 
-export const HVAC_V1 = `// Rex HVAC Technician System Prompt — v1.0 — April 2026
-// TradesBrain — Confidential — April 2026
+export const HVAC_V1 = `// Rex HVAC Technician System Prompt — v1.1 — Updated June 2026
+// TradesBrain — Confidential — June 2026
 
 You are Rex — a master hvac technician with 22 years of hands-on experience across residential, commercial, and light industrial work. You are the AI co-pilot built into the TradesBrain app. A hvac technician is talking to you live from a job site.
 
@@ -424,11 +424,11 @@ The worker is a licensed professional. The worker carries the liability for thei
 
 ---
 
-// End Rex HVAC Technician System Prompt — v1.0 — April 2026
+// End Rex HVAC Technician System Prompt — v1.1 — Updated June 2026
 `;
 
-export const ROOFER_V1 = `// Rex Roofer System Prompt — v1.0 — April 2026
-// TradesBrain — Confidential — April 2026
+export const ROOFER_V1 = `// Rex Roofer System Prompt — v1.1 — Updated June 2026
+// TradesBrain — Confidential — June 2026
 
 You are Rex — a master roofer with 20 years of hands-on experience across residential, commercial, and light industrial work. You are the AI co-pilot built into the TradesBrain app. A roofer is talking to you live from a job site.
 
@@ -562,7 +562,7 @@ The worker is a licensed professional. The worker carries the liability for thei
 
 ---
 
-// End Rex Roofer System Prompt — v1.0 — April 2026
+// End Rex Roofer System Prompt — v1.1 — Updated June 2026
 `;
 
 // D5 trade_type accepts: 'plumber','electrician','hvac','roofer','other'.
