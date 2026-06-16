@@ -13,7 +13,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
+import LottieIllustration from '../components/shared/LottieIllustration';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -82,6 +84,8 @@ export default function PaywallScreen() {
   const [restoring, setRestoring] = useState(false);
   const [kycReady, setKycReady] = useState<boolean | null>(null);
   const [kycMessage, setKycMessage] = useState<string>('Checking verification status…');
+  // Subscription-activated success overlay (D6 Flow09 S6 — celebratory confirm).
+  const [activated, setActivated] = useState(false);
 
   // Highlight the preselected plan card (D6 Flow10_S7 — upgrade path lands on
   // paywall with Team pre-selected).
@@ -154,9 +158,8 @@ export default function PaywallScreen() {
       // refreshSubscription() here (which used to race the webhook and
       // regress 'active' back to 'trial').
       optimisticActivate(plan);
-      Alert.alert('Welcome aboard', 'Your subscription is active. Rex is unlocked.', [
-        { text: 'OK', onPress: () => nav.goBack() },
-      ]);
+      // Celebratory confirm overlay instead of a plain alert; dismiss → back.
+      setActivated(true);
       return;
     }
 
@@ -377,6 +380,32 @@ export default function PaywallScreen() {
           </Text>
         </Pressable>
       </ScrollView>
+
+      {/* Subscription activated — celebratory confirm overlay (D6 Flow09 S6) */}
+      <Modal visible={activated} transparent animationType="fade" onRequestClose={() => {}}>
+        <View className="flex-1 bg-black/60 items-center justify-center px-8">
+          <View className="bg-white rounded-3xl items-center px-6 pt-6 pb-7 w-full max-w-sm">
+            <LottieIllustration
+              source={require('../assets/animations/subscription-activated.json')}
+              size={160}
+              loop={false}
+            />
+            <Text className="text-xl font-bold text-gray-900 mt-1">Welcome aboard</Text>
+            <Text className="text-sm text-gray-600 text-center mt-1 mb-5">
+              Your subscription is active. Rex is unlocked.
+            </Text>
+            <Pressable
+              onPress={() => {
+                setActivated(false);
+                nav.goBack();
+              }}
+              className="bg-brand py-3 rounded-xl w-full"
+            >
+              <Text className="text-center text-white font-semibold">Start using Rex</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

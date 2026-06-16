@@ -152,18 +152,25 @@ export default function ActiveSessionScreen() {
   const [softCapDismissed, setSoftCapDismissed] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Keyboard visibility — Android uses adjustResize (AndroidManifest), so the
-  // OS already lifts the input row above the keyboard. While the keyboard is
-  // open we collapse the bottom safe-area inset to 0 so the nav-bar inset does
-  // not leave a dead gap between the input row and the keyboard. When it closes,
-  // the inset is restored so the row clears the 3-button nav bar — the row
-  // returns to EXACTLY the same place every time (the reported bug).
+  // Keyboard handling. This app runs edge-to-edge (gradle edgeToEdgeEnabled=true),
+  // under which Android's adjustResize NO LONGER shrinks the React root view —
+  // the IME simply floats over the content, hiding the input row behind it (the
+  // reported bug). So instead of relying on the OS to lift the row, we measure
+  // the keyboard height from the event and lift the content by exactly that
+  // amount on Android. iOS keeps using KeyboardAvoidingView's 'padding' behavior.
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const show = Keyboard.addListener(showEvt, () => setKeyboardOpen(true));
-    const hide = Keyboard.addListener(hideEvt, () => setKeyboardOpen(false));
+    const show = Keyboard.addListener(showEvt, (e) => {
+      setKeyboardOpen(true);
+      setKeyboardHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hide = Keyboard.addListener(hideEvt, () => {
+      setKeyboardOpen(false);
+      setKeyboardHeight(0);
+    });
     return () => {
       show.remove();
       hide.remove();
@@ -415,14 +422,23 @@ export default function ActiveSessionScreen() {
       )}
       {/* Real device insets: top clears the status bar / notch. Bottom clears
           the Android 3-button nav bar so the input row + hold-to-record button
-          are never hidden behind it — but only while the keyboard is CLOSED.
-          While it is open, adjustResize has already lifted the row above the
-          keyboard, so the nav-bar inset would just be a dead gap; collapse it to
-          0 so the row sits flush above the keyboard and snaps back exactly on
+          are never hidden behind it while the keyboard is CLOSED. While it is
+          OPEN: on Android (edge-to-edge — adjustResize does not resize the root
+          view) we lift the whole column by the measured keyboard height so the
+          input row sits flush above the keyboard; on iOS the surrounding
+          KeyboardAvoidingView 'padding' already does the lift, so we collapse
+          the inset to 0 to avoid a double gap. The row snaps back exactly on
           close. */}
       <View
         className="flex-1 bg-white"
-        style={{ paddingTop: insets.top + 8, paddingBottom: keyboardOpen ? 0 : insets.bottom }}
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: keyboardOpen
+            ? Platform.OS === 'android'
+              ? keyboardHeight
+              : 0
+            : insets.bottom,
+        }}
       >
         {/* Header */}
         <View className="px-4 pb-2 flex-row items-center justify-between border-b border-gray-200">

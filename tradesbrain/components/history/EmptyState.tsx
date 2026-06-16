@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
+import LottieIllustration from '../shared/LottieIllustration';
 
 interface Props {
   onStartFirstJob: () => void;
@@ -10,7 +11,11 @@ interface Props {
 export default function EmptyState({ onStartFirstJob }: Props) {
   return (
     <View className="items-center mt-16 px-6">
-      <Text className="text-5xl mb-4">📂</Text>
+      <LottieIllustration
+        source={require('../../assets/animations/empty-state-loop.json')}
+        size={140}
+        style={{ marginBottom: 8 }}
+      />
       <Text className="text-lg font-semibold text-gray-900 mb-1">No jobs yet</Text>
       <Text className="text-sm text-gray-600 text-center mb-6">
         Closed Rex sessions with a confirmed report or quote land here.

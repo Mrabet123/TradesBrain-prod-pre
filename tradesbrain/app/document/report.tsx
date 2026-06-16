@@ -40,6 +40,7 @@ import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import ReportPreview from '../../components/documents/ReportPreview';
 import SectionPicker from '../../components/documents/SectionPicker';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import LottieIllustration from '../../components/shared/LottieIllustration';
 import VoiceRecordButton from '../../components/rex/VoiceRecordButton';
 import { DEFAULT_REPORT_SECTIONS } from '../../constants/paymentMethods';
 
@@ -595,11 +596,19 @@ export default function ReportBuilderScreen() {
 
           {pdfUri ? (
             <View className="mt-2 gap-2">
-              <View className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <Text className="text-green-800 font-semibold">Report locked ✓</Text>
-                <Text className="text-green-700 text-xs">
-                  Saved to Job History. Cannot be edited.
-                </Text>
+              <View className="bg-green-50 border border-green-200 rounded-lg p-3 flex-row items-center">
+                <LottieIllustration
+                  source={require('../../assets/animations/document-confirmed-lock.json')}
+                  size={36}
+                  loop={false}
+                  style={{ marginRight: 8 }}
+                />
+                <View className="flex-1">
+                  <Text className="text-green-800 font-semibold">Report locked ✓</Text>
+                  <Text className="text-green-700 text-xs">
+                    Saved to Job History. Cannot be edited.
+                  </Text>
+                </View>
               </View>
               <Pressable
                 onPress={() => sharePdf(pdfUri, 'Job Report')}
