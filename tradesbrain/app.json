@@ -24,7 +24,9 @@
       "bundleIdentifier": "app.tradesbrain",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "TradesBrain needs the microphone so you can describe jobs to Rex by voice."
+        "NSMicrophoneUsageDescription": "TradesBrain needs the microphone so you can describe jobs to Rex by voice.",
+        "NSCameraUsageDescription": "TradesBrain uses your camera to capture job-site photos so Rex can diagnose the problem.",
+        "NSPhotoLibraryUsageDescription": "TradesBrain accesses your photos so you can attach job-site images to a diagnosis."
       }
     },
     "android": {
