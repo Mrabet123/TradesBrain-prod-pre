@@ -14,6 +14,8 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
+  Linking,
 } from 'react-native';
 import LottieIllustration from '../components/shared/LottieIllustration';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -23,14 +25,20 @@ import type { RootStackParamList } from './_layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRICING } from '../constants/pricing';
 import { useSubscriptionContext } from '../context/SubscriptionContext';
+import { useIapContext } from '../context/IapProvider';
 import { useAuthContext } from '../context/AuthContext';
 import { checkKycStatus } from '../services/stripe';
+import { iapProductId } from '../services/appleIap';
 import {
   purchaseSubscription,
   restoreSubscription,
   type BillingCycle,
   type PlanType,
 } from '../services/payments';
+
+const IS_IOS = Platform.OS === 'ios';
+// Apple's standard EULA for auto-renewable subscriptions (App Store requirement).
+const APPLE_EULA_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -78,6 +86,7 @@ export default function PaywallScreen() {
     subscriptionStatus,
     planType,
   } = useSubscriptionContext();
+  const iap = useIapContext();
 
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [busyPlan, setBusyPlan] = useState<PlanType | null>(null);
@@ -128,6 +137,21 @@ export default function PaywallScreen() {
   async function onRestore() {
     if (restoring) return;
     setRestoring(true);
+
+    if (IS_IOS) {
+      const restored = await iap.restore();
+      await refreshSubscription();
+      setRestoring(false);
+      Alert.alert(
+        restored ? 'Purchase restored' : 'Nothing to restore',
+        restored
+          ? 'Your subscription has been restored.'
+          : 'We could not find an active subscription to restore on this Apple ID.',
+        [{ text: 'OK', onPress: () => { if (restored) nav.goBack(); } }],
+      );
+      return;
+    }
+
     const result = await restoreSubscription();
     await refreshSubscription();
     setRestoring(false);
@@ -149,6 +173,28 @@ export default function PaywallScreen() {
     // Remember the worker's plan choice so a later bare `paywall` deep link
     // (e.g. KYC-verified push) can pre-highlight it.
     AsyncStorage.setItem('tb_last_selected_plan', plan).catch(() => {});
+
+    // iOS → Apple In-App Purchase (StoreKit). The provider verifies server-side
+    // and optimistically activates on success; we just surface the result.
+    if (IS_IOS) {
+      const r = await iap.purchase(iapProductId(plan, cycle));
+      setBusyPlan(null);
+      if (r.ok) {
+        setActivated(true);
+        return;
+      }
+      if (r.reason === 'cancelled') return;
+      if (r.reason === 'validation_failed') {
+        Alert.alert(
+          'Purchase not verified',
+          'Your purchase could not be verified. If you were charged, tap “Restore purchase” or contact support.',
+        );
+        return;
+      }
+      Alert.alert('Purchase failed', 'Something went wrong starting the purchase. Please try again.');
+      return;
+    }
+
     const result = await purchaseSubscription(plan, cycle);
     setBusyPlan(null);
 
@@ -301,12 +347,25 @@ export default function PaywallScreen() {
         {/* Plan cards */}
         {PLANS.map((p) => {
           const price = PRICING[p.value];
-          const display =
-            cycle === 'monthly'
+          // On iOS, show Apple's localized StoreKit price (the source of truth
+          // for what the user is charged); fall back to the Stripe-derived
+          // figures if products haven't loaded yet.
+          const iosProd = IS_IOS
+            ? iap.products.find(
+                (pr: { id?: string }) => pr?.id === iapProductId(p.value, cycle),
+              )
+            : null;
+          const display = iosProd?.displayPrice
+            ? `${iosProd.displayPrice}/${cycle === 'monthly' ? 'mo' : 'yr'}`
+            : cycle === 'monthly'
               ? `$${price.monthly.toFixed(2)}/month`
               : `$${price.monthlyEquivalent.toFixed(2)}/month`;
+          // The iOS StoreKit price already reflects the annual total; only show
+          // the Stripe-derived "Billed $X/year" line on Android.
           const annualTotal =
-            cycle === 'annual' ? `Billed $${price.annual.toFixed(2)}/year` : null;
+            cycle === 'annual' && !IS_IOS
+              ? `Billed $${price.annual.toFixed(2)}/year`
+              : null;
           const busy = busyPlan === p.value;
           const disabled = !kycReady || busy;
           // 2.1.4 — Solo is the default highlighted plan when nothing was
@@ -354,16 +413,46 @@ export default function PaywallScreen() {
           );
         })}
 
-        {/* Team seat note */}
-        <Text className="text-xs text-gray-500 text-center mt-2">
-          Team plan adds seats at ${PRICING.seat.monthly.toFixed(2)}/month
-          (${PRICING.seat.monthlyEquivalent.toFixed(2)} on annual) beyond the base of 3.
-        </Text>
+        {/* Team seat note — per-seat add-ons are web/Stripe only, so on iOS
+            Team is a flat base of 3 seats (Apple IAP can't do per-seat quantity). */}
+        {IS_IOS ? (
+          <Text className="text-xs text-gray-500 text-center mt-2">
+            Team plan includes 3 seats. Additional seats can be added from the
+            TradesBrain web dashboard.
+          </Text>
+        ) : (
+          <Text className="text-xs text-gray-500 text-center mt-2">
+            Team plan adds seats at ${PRICING.seat.monthly.toFixed(2)}/month
+            (${PRICING.seat.monthlyEquivalent.toFixed(2)} on annual) beyond the base of 3.
+          </Text>
+        )}
 
-        <Text className="text-xs text-gray-400 text-center mt-6">
-          Apple Pay and Google Pay available at checkout. Cancel any time — access
-          continues until the end of the period.
-        </Text>
+        {IS_IOS ? (
+          // App Store review REQUIREMENT for auto-renewable subscriptions:
+          // state the auto-renew terms and link Terms of Use (EULA) + Privacy.
+          <View className="mt-6">
+            <Text className="text-[11px] text-gray-400 text-center leading-4">
+              Subscriptions are billed to your Apple ID. Your plan renews
+              automatically for the same price and period unless auto-renew is
+              turned off at least 24 hours before the current period ends. Manage
+              or cancel anytime in your App Store account settings.
+            </Text>
+            <View className="flex-row justify-center mt-2">
+              <Pressable onPress={() => Linking.openURL(APPLE_EULA_URL)} hitSlop={8}>
+                <Text className="text-[11px] text-brand underline">Terms of Use (EULA)</Text>
+              </Pressable>
+              <Text className="text-[11px] text-gray-400 mx-2">·</Text>
+              <Pressable onPress={() => nav.navigate('SettingsLegal')} hitSlop={8}>
+                <Text className="text-[11px] text-brand underline">Privacy Policy</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Text className="text-xs text-gray-400 text-center mt-6">
+            Apple Pay and Google Pay available at checkout. Cancel any time — access
+            continues until the end of the period.
+          </Text>
+        )}
 
         {/* 2.1.7 — Restore purchase */}
         <Pressable onPress={onRestore} disabled={restoring} className="mt-6">

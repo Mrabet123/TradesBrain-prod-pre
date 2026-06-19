@@ -12,6 +12,7 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
+import { IapProvider } from './context/IapProvider';
 import { TradeProfileProvider } from './context/TradeProfileContext';
 import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
@@ -54,16 +55,18 @@ export default function App() {
         >
           <AuthProvider>
             <SubscriptionProvider>
-              <TradeProfileProvider>
-                <NavigationContainer
-                  ref={navigationRef}
-                  linking={linking}
-                  onReady={flushPendingDeepLink}
-                >
-                  <RootLayout />
-                </NavigationContainer>
-                <StatusBar style="auto" />
-              </TradeProfileProvider>
+              <IapProvider>
+                <TradeProfileProvider>
+                  <NavigationContainer
+                    ref={navigationRef}
+                    linking={linking}
+                    onReady={flushPendingDeepLink}
+                  >
+                    <RootLayout />
+                  </NavigationContainer>
+                  <StatusBar style="auto" />
+                </TradeProfileProvider>
+              </IapProvider>
             </SubscriptionProvider>
           </AuthProvider>
         </StripeProvider>

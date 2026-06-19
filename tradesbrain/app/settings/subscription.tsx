@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,8 +23,10 @@ import * as WebBrowser from 'expo-web-browser';
 
 import { useAuthContext } from '../../context/AuthContext';
 import { useSubscriptionContext } from '../../context/SubscriptionContext';
+import { useIapContext } from '../../context/IapProvider';
 import { supabase } from '../../services/supabase';
 import { calculateDaysRemaining, createBillingPortalSession } from '../../services/stripe';
+import { iapProductId } from '../../services/appleIap';
 import {
   switchBillingCycle,
   changePlan,
@@ -31,6 +34,8 @@ import {
   restoreSubscription,
 } from '../../services/payments';
 import { PRICING } from '../../constants/pricing';
+
+const IS_IOS = Platform.OS === 'ios';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -67,6 +72,7 @@ export default function SubscriptionSettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const { subscriptionStatus, planType, refreshSubscription } = useSubscriptionContext();
+  const iap = useIapContext();
 
   const [sub, setSub] = useState<SubscriptionRow | null>(null);
   const [bills, setBills] = useState<BillingRow[]>([]);
@@ -158,6 +164,24 @@ export default function SubscriptionSettingsScreen() {
     await reload();
   }
 
+  // iOS plan/cycle changes go through StoreKit: purchasing another product in
+  // the same subscription group makes Apple perform the up/down/cross-grade.
+  // The IapProvider verifies server-side; we then poll our DB for the new state.
+  async function doIapChange(productId: string) {
+    setBusy(true);
+    const r = await iap.purchase(productId);
+    if (!r.ok) {
+      setBusy(false);
+      if (r.reason !== 'cancelled') {
+        Alert.alert('Could not change plan', 'Please try again from the App Store.');
+      }
+      await reload();
+      return;
+    }
+    await pollForUpdate();
+    setBusy(false);
+  }
+
   async function onSwitchCycle() {
     if (!sub) return;
     const target = sub.billing_cycle === 'monthly' ? 'annual' : 'monthly';
@@ -171,9 +195,14 @@ export default function SubscriptionSettingsScreen() {
         {
           text: 'Switch',
           onPress: () => {
-            // Optimistic flip — reconciled by pollForUpdate once webhook lands.
+            // Optimistic flip — reconciled by pollForUpdate once the webhook /
+            // Apple notification lands.
             setSub((s) => (s ? { ...s, billing_cycle: target } : s));
-            withBusy(() => switchBillingCycle(target));
+            if (IS_IOS) {
+              void doIapChange(iapProductId(sub.plan_type, target));
+            } else {
+              withBusy(() => switchBillingCycle(target));
+            }
           },
         },
       ],
@@ -206,6 +235,24 @@ export default function SubscriptionSettingsScreen() {
   }
 
   async function onRestore() {
+    if (IS_IOS) {
+      Alert.alert('Restore purchases?', 'Re-checks your Apple ID for an active subscription.', [
+        { text: 'Cancel' },
+        {
+          text: 'Restore',
+          onPress: async () => {
+            setBusy(true);
+            const restored = await iap.restore();
+            await reload();
+            setBusy(false);
+            if (!restored) {
+              Alert.alert('Nothing to restore', 'No active subscription was found on this Apple ID.');
+            }
+          },
+        },
+      ]);
+      return;
+    }
     Alert.alert('Restore subscription?', 'Re-activates your current plan immediately.', [
       { text: 'Cancel' },
       { text: 'Restore', onPress: () => withBusy(() => restoreSubscription()) },
@@ -219,6 +266,18 @@ export default function SubscriptionSettingsScreen() {
   // webhook landed while the portal was open.
   async function onManagePaymentMethod() {
     if (openingPortal) return;
+    // iOS: payment method, cancellation and receipts are all Apple-managed —
+    // deep-link to the system Subscriptions page (no Stripe portal on iOS).
+    if (IS_IOS) {
+      setOpeningPortal(true);
+      try {
+        await iap.openManage();
+        await reload();
+      } finally {
+        setOpeningPortal(false);
+      }
+      return;
+    }
     setOpeningPortal(true);
     try {
       const res = await createBillingPortalSession();
@@ -240,17 +299,23 @@ export default function SubscriptionSettingsScreen() {
     if (!sub || target === sub.plan_type) return;
     Alert.alert(
       'Change plan?',
-      `Switches to ${target.toUpperCase()}. Stripe prorates the difference.`,
+      IS_IOS
+        ? `Switches to ${target.toUpperCase()} via the App Store.`
+        : `Switches to ${target.toUpperCase()}. Stripe prorates the difference.`,
       [
         { text: 'Cancel' },
         {
           text: 'Switch',
           onPress: () => {
             // Optimistic: flip the visible plan immediately so the user sees
-            // the change land instantly; pollForUpdate will reconcile from the
-            // server-of-record once the Stripe webhook commits.
+            // the change land instantly; pollForUpdate reconciles from the
+            // server-of-record once the webhook / Apple notification commits.
             setSub((s) => (s ? { ...s, plan_type: target } : s));
-            withBusy(() => changePlan(target));
+            if (IS_IOS) {
+              void doIapChange(iapProductId(target, sub.billing_cycle));
+            } else {
+              withBusy(() => changePlan(target));
+            }
           },
         },
       ],
@@ -330,7 +395,7 @@ export default function SubscriptionSettingsScreen() {
                 className="py-3 rounded-lg border border-gray-300"
               >
                 <Text className="text-center text-gray-700 font-semibold">
-                  {openingPortal ? 'Opening…' : 'Manage payment method'}
+                  {openingPortal ? 'Opening…' : IS_IOS ? 'Manage / cancel in App Store' : 'Manage payment method'}
                 </Text>
               </Pressable>
             </View>
@@ -353,18 +418,23 @@ export default function SubscriptionSettingsScreen() {
                 className="py-3 rounded-lg border border-gray-300"
               >
                 <Text className="text-center text-gray-700 font-semibold">
-                  {openingPortal ? 'Opening…' : 'Manage payment method'}
+                  {openingPortal ? 'Opening…' : IS_IOS ? 'Manage / cancel in App Store' : 'Manage payment method'}
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={onCancel}
-                disabled={busy}
-                className="py-3 rounded-lg border border-red-400"
-              >
-                <Text className="text-center text-red-600 font-semibold">
-                  Cancel subscription
-                </Text>
-              </Pressable>
+              {/* iOS cancellation is Apple-managed via the system Subscriptions
+                  page (the "Manage / cancel in App Store" button above); Apple
+                  rejects in-app cancel of an IAP. Stripe keeps the in-app cancel. */}
+              {!IS_IOS && (
+                <Pressable
+                  onPress={onCancel}
+                  disabled={busy}
+                  className="py-3 rounded-lg border border-red-400"
+                >
+                  <Text className="text-center text-red-600 font-semibold">
+                    Cancel subscription
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
         </View>
@@ -408,11 +478,17 @@ export default function SubscriptionSettingsScreen() {
         </View>
       )}
 
-      {/* Billing history */}
+      {/* Billing history — Stripe only. Apple purchases are receipted by Apple,
+          not in our billing_history, so iOS shows a pointer to the App Store. */}
       <Text className="text-sm font-semibold text-gray-700 mb-2">
         Billing history
       </Text>
-      {bills.length === 0 ? (
+      {IS_IOS ? (
+        <Text className="text-sm text-gray-500 italic">
+          Your purchase receipts are available in your Apple ID account
+          (Settings → your name → Media & Purchases → Purchase History).
+        </Text>
+      ) : bills.length === 0 ? (
         <Text className="text-sm text-gray-500 italic">
           No invoices yet.
         </Text>

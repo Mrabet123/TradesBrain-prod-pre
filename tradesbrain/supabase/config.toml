@@ -380,6 +380,12 @@ verify_jwt = false
 [functions.kyc-webhook]
 verify_jwt = false
 
+# App Store Server Notifications V2 — Apple POSTs a signed payload (no Supabase
+# JWT). The signed payload itself is verified against Apple's cert chain inside
+# the function, so the JWT gate must be off here too.
+[functions.apple-iap-notifications]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

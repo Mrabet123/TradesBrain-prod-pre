@@ -63,7 +63,8 @@
       "expo-web-browser",
       "expo-font",
       "expo-sharing",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-iap"
     ],
     "extra": {
       "eas": {
