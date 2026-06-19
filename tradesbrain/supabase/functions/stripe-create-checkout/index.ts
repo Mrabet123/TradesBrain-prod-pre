@@ -29,9 +29,17 @@ serve(async (req) => {
   if (!cid) { const c = await stripe.customers.create({ email: ud.email, name: ud.full_name, metadata: { supabase_user_id: user.id } }); cid = c.id; await supabase.from("users").update({ stripe_customer_id: cid }).eq("id", user.id); }
   const priceId = PLAN_PRICE_MAP[plan_type]?.[billing_cycle];
   if (!priceId) return new Response(JSON.stringify({ error: "Invalid plan" }), { status: 400, headers: { "Content-Type": "application/json" } });
-  const sub = await stripe.subscriptions.create({ customer: cid, items: [{ price: priceId }], payment_behavior: "default_incomplete", payment_settings: { save_default_payment_method: "on_subscription" }, expand: ["latest_invoice.payment_intent"], metadata: { supabase_user_id: user.id, plan_type, billing_cycle } });
-  const pi = (sub.latest_invoice as Stripe.Invoice)?.payment_intent as Stripe.PaymentIntent;
-  if (!pi?.client_secret) return new Response(JSON.stringify({ error: "Checkout failed" }), { status: 500, headers: { "Content-Type": "application/json" } });
+  const sub = await stripe.subscriptions.create({ customer: cid, items: [{ price: priceId }], payment_behavior: "default_incomplete", payment_settings: { save_default_payment_method: "on_subscription" }, expand: ["latest_invoice.confirmation_secret"], metadata: { supabase_user_id: user.id, plan_type, billing_cycle } });
+  // Stripe API 2025-03-31.basil+ (this endpoint is pinned to 2026-04-22.dahlia)
+  // REMOVED Invoice.payment_intent. The client secret for the first payment now
+  // lives on the invoice's confirmation_secret (expanded above). For a non-zero
+  // first invoice this is a PaymentIntent secret, which the mobile PaymentSheet
+  // consumes unchanged as paymentIntentClientSecret. Reading the old
+  // latest_invoice.payment_intent here returned undefined → "Checkout failed",
+  // so the card sheet never opened while the subscription was still created.
+  const invoice = sub.latest_invoice as Stripe.Invoice & { confirmation_secret?: { client_secret?: string } };
+  const clientSecret = invoice?.confirmation_secret?.client_secret;
+  if (!clientSecret) return new Response(JSON.stringify({ error: "Checkout failed" }), { status: 500, headers: { "Content-Type": "application/json" } });
   const ek = await stripe.ephemeralKeys.create({ customer: cid }, { apiVersion: "2026-04-22.dahlia" });
-  return new Response(JSON.stringify({ client_secret: pi.client_secret, subscription_id: sub.id, customer_id: cid, ephemeral_key: ek.secret }), { status: 200, headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ client_secret: clientSecret, subscription_id: sub.id, customer_id: cid, ephemeral_key: ek.secret }), { status: 200, headers: { "Content-Type": "application/json" } });
 });

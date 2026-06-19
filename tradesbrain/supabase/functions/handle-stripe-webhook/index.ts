@@ -108,8 +108,16 @@ async function handleSubscriptionCreated(sub: Stripe.Subscription) {
   const start = new Date(startTs * 1000).toISOString();
   const cycle = sub.items.data[0]?.price.recurring?.interval === "year" ? "annual" : "monthly";
   const amount = sub.items.data.reduce((s, i) => s + ((i.price.unit_amount ?? 0) * (i.quantity ?? 1)) / 100, 0);
-  await supabase.from("users").update({ subscription_status: "active", plan_type: plan, subscription_end_date: end }).eq("id", userId);
-  await supabase.from("subscriptions").upsert({ user_id: userId, stripe_subscription_id: sub.id, plan_type: plan, status: "active", seat_count: countSeats(sub), monthly_amount: amount, billing_cycle: cycle, current_period_start: start, current_period_end: end }, { onConflict: "stripe_subscription_id" });
+  // Derive status from Stripe — do NOT hardcode 'active'. A subscription created
+  // with payment_behavior:'default_incomplete' arrives here as 'incomplete' (its
+  // first invoice is unpaid), so granting 'active' now handed out paid access
+  // before any card was charged — the user saw "already subscribed" with an
+  // overdue invoice. mapStripeStatus keeps the worker on 'trial' until the first
+  // payment confirms, when customer.subscription.updated flips them to 'active'.
+  // This now mirrors handleSubscriptionUpdated, so the two handlers can't diverge.
+  const status = mapStripeStatus(sub.status);
+  await supabase.from("users").update({ subscription_status: status.user, plan_type: status.user === "active" ? plan : null, subscription_end_date: end }).eq("id", userId);
+  await supabase.from("subscriptions").upsert({ user_id: userId, stripe_subscription_id: sub.id, plan_type: plan, status: status.subscription, seat_count: countSeats(sub), monthly_amount: amount, billing_cycle: cycle, current_period_start: start, current_period_end: end }, { onConflict: "stripe_subscription_id" });
 }
 
 async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
