@@ -31,6 +31,7 @@ import VoiceRecordButton from '../../components/rex/VoiceRecordButton';
 import PhotoCapture from '../../components/rex/PhotoCapture';
 import ContextualButtons from '../../components/rex/ContextualButtons';
 import ToastNotification from '../../components/shared/ToastNotification';
+import LottieIllustration from '../../components/shared/LottieIllustration';
 
 import { useAuthContext } from '../../context/AuthContext';
 import { useTradeProfileContext } from '../../context/TradeProfileContext';
@@ -143,6 +144,10 @@ export default function ActiveSessionScreen() {
   const [voiceDenied, setVoiceDenied] = useState(false);
   const [closeModalVisible, setCloseModalVisible] = useState(false);
   const [closeName, setCloseName] = useState('');
+  // D2 §F2 Stage 5 — one-shot "job complete" celebration played right after the
+  // job is closed (uses the approved Rex_JobComplete Lottie). Auto-dismisses when
+  // the animation finishes so the post-close Report/Quote actions are revealed.
+  const [showCelebration, setShowCelebration] = useState(false);
   const [linking, setLinking] = useState(false);
   // CC-2 — voice contextual buttons (🎙 Describe problem, 🎙 Voice confirmation)
   // are hints, not press-and-hold triggers. Tapping them shows a transient
@@ -309,6 +314,7 @@ export default function ActiveSessionScreen() {
   async function confirmClose() {
     setCloseModalVisible(false);
     await rex.closeJob(closeName.trim() || autoJobName());
+    setShowCelebration(true);
   }
 
   // CC-2 — route the D6-verbatim action keys. Input-gathering buttons (photo /
@@ -834,6 +840,25 @@ export default function ActiveSessionScreen() {
                 <Text className="text-center text-white font-semibold">Close job</Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* D2 §F2 Stage 5 — job-complete celebration (one-shot). Plays once after
+          a job is closed, then auto-dismisses to reveal the Report/Quote row. */}
+      <Modal visible={showCelebration} transparent animationType="fade">
+        <View className="flex-1 items-center justify-center bg-black/50 px-8">
+          <View className="bg-white rounded-2xl p-6 items-center w-full">
+            <LottieIllustration
+              source={require('../../assets/animations/rex-job-complete.json')}
+              size={160}
+              loop={false}
+              onAnimationFinish={() => setShowCelebration(false)}
+            />
+            <Text className="text-lg font-bold text-gray-900 mt-2">Job complete</Text>
+            <Text className="text-sm text-gray-500 text-center mt-1">
+              Saved to History. You can now generate a report or quote.
+            </Text>
           </View>
         </View>
       </Modal>
