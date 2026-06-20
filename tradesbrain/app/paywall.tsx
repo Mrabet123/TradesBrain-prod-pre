@@ -23,12 +23,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './_layout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PRICING } from '../constants/pricing';
+import { PRICING, IOS_ANNUAL_AVAILABILITY_NOTE } from '../constants/pricing';
 import { useSubscriptionContext } from '../context/SubscriptionContext';
 import { useIapContext } from '../context/IapProvider';
 import { useAuthContext } from '../context/AuthContext';
 import { checkKycStatus } from '../services/stripe';
-import { iapProductId } from '../services/appleIap';
+import { iapProductId, iapOffered } from '../services/appleIap';
+import {
+  isExternalCheckoutAllowed,
+  openExternalCheckout,
+  EXTERNAL_PURCHASE_DISCLOSURE,
+} from '../services/externalPurchase';
 import {
   purchaseSubscription,
   restoreSubscription,
@@ -95,6 +100,12 @@ export default function PaywallScreen() {
   const [kycMessage, setKycMessage] = useState<string>('Checking verification status…');
   // Subscription-activated success overlay (D6 Flow09 S6 — celebratory confirm).
   const [activated, setActivated] = useState(false);
+  // Hybrid payment (Task 3): is the US-only external Stripe web checkout allowed
+  // for this user? null = still resolving the App Store storefront.
+  const [externalAllowed, setExternalAllowed] = useState<boolean | null>(null);
+  useEffect(() => {
+    isExternalCheckoutAllowed().then(setExternalAllowed).catch(() => setExternalAllowed(false));
+  }, []);
 
   // Highlight the preselected plan card (D6 Flow10_S7 — upgrade path lands on
   // paywall with Team pre-selected).
@@ -246,6 +257,27 @@ export default function PaywallScreen() {
     }
   }
 
+  // Hybrid (Task 3) — US iOS users may opt into Stripe web checkout instead of
+  // IAP (lower fees; also the only iOS route to Pro/Team annual). Apple requires
+  // a clear disclosure before leaving the app and that the link open in the
+  // system browser (handled in services/externalPurchase). IAP stays the primary
+  // path — this is always an additional, secondary option.
+  function onExternalCheckout(plan: PlanType) {
+    AsyncStorage.setItem('tb_last_selected_plan', plan).catch(() => {});
+    Alert.alert('Continue on the web', EXTERNAL_PURCHASE_DISCLOSURE, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Continue',
+        onPress: async () => {
+          const ok = await openExternalCheckout(plan, cycle);
+          if (!ok) {
+            Alert.alert('Could not open web checkout', 'Please try again, or use the in-app option.');
+          }
+        },
+      },
+    ]);
+  }
+
   // Defense in depth: if the user is already subscribed (or the webhook just
   // confirmed it while this screen was mounting), short-circuit with an
   // "already active" message instead of showing Subscribe buttons.
@@ -347,10 +379,14 @@ export default function PaywallScreen() {
         {/* Plan cards */}
         {PLANS.map((p) => {
           const price = PRICING[p.value];
+          // Is this plan+cycle sellable via Apple IAP? (Android always uses
+          // Stripe, so it's always "offered" there.) On iOS, Pro/Team ANNUAL are
+          // NOT on IAP (over Apple's $999.99 cap) — they route to web checkout.
+          const offeredOnIap = !IS_IOS || iapOffered(p.value, cycle);
           // On iOS, show Apple's localized StoreKit price (the source of truth
           // for what the user is charged); fall back to the Stripe-derived
-          // figures if products haven't loaded yet.
-          const iosProd = IS_IOS
+          // figures if products haven't loaded yet (or aren't on IAP at all).
+          const iosProd = IS_IOS && offeredOnIap
             ? iap.products.find(
                 (pr: { id?: string }) => pr?.id === iapProductId(p.value, cycle),
               )
@@ -360,11 +396,14 @@ export default function PaywallScreen() {
             : cycle === 'monthly'
               ? `$${price.monthly.toFixed(2)}/month`
               : `$${price.monthlyEquivalent.toFixed(2)}/month`;
-          // The iOS StoreKit price already reflects the annual total; only show
-          // the Stripe-derived "Billed $X/year" line on Android.
+          // "Billed $X/year" line: shown on Android (Stripe) and on the iOS
+          // web-only annual cards (Pro/Team), where the real annual value
+          // applies. Suppressed for iOS IAP annual (StoreKit price is the total).
           const annualTotal =
-            cycle === 'annual' && !IS_IOS
-              ? `Billed $${price.annual.toFixed(2)}/year`
+            cycle === 'annual' && (!IS_IOS || !offeredOnIap)
+              ? offeredOnIap
+                ? `Billed $${price.annual.toFixed(2)}/year`
+                : `$${price.annual.toFixed(2)}/year · via web checkout`
               : null;
           const busy = busyPlan === p.value;
           const disabled = !kycReady || busy;
@@ -386,11 +425,13 @@ export default function PaywallScreen() {
               {annualTotal && (
                 <View className="flex-row items-center mb-2">
                   <Text className="text-xs text-green-700">{annualTotal}</Text>
-                  <View className="ml-2 bg-green-100 rounded-full px-2 py-0.5">
-                    <Text className="text-[10px] font-semibold text-green-700">
-                      Save 20%
-                    </Text>
-                  </View>
+                  {offeredOnIap && (
+                    <View className="ml-2 bg-green-100 rounded-full px-2 py-0.5">
+                      <Text className="text-[10px] font-semibold text-green-700">
+                        Save 20%
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
               {p.perks.map((perk) => (
@@ -398,17 +439,62 @@ export default function PaywallScreen() {
                   • {perk}
                 </Text>
               ))}
-              <Pressable
-                onPress={() => onSubscribe(p.value)}
-                disabled={disabled}
-                className={`mt-4 py-3 rounded-xl ${disabled ? 'bg-gray-300' : 'bg-brand'}`}
-              >
-                <Text
-                  className={`text-center font-semibold ${disabled ? 'text-gray-500' : 'text-white'}`}
-                >
-                  {busy ? 'Opening checkout…' : `Subscribe to ${p.label}`}
-                </Text>
-              </Pressable>
+
+              {offeredOnIap ? (
+                <>
+                  {/* Primary path — Apple IAP (iOS) / Stripe (Android). */}
+                  <Pressable
+                    onPress={() => onSubscribe(p.value)}
+                    disabled={disabled}
+                    className={`mt-4 py-3 rounded-xl ${disabled ? 'bg-gray-300' : 'bg-brand'}`}
+                  >
+                    <Text
+                      className={`text-center font-semibold ${disabled ? 'text-gray-500' : 'text-white'}`}
+                    >
+                      {busy ? 'Opening checkout…' : `Subscribe to ${p.label}`}
+                    </Text>
+                  </Pressable>
+                  {/* US iOS only — additional, secondary web-checkout option.
+                      IAP above stays the primary, full-size button so it is
+                      never disadvantaged (Apple external-link compliance). */}
+                  {IS_IOS && externalAllowed === true && (
+                    <Pressable
+                      onPress={() => onExternalCheckout(p.value)}
+                      disabled={busy}
+                      className="mt-2 py-2"
+                    >
+                      <Text className="text-center text-xs text-brand underline">
+                        or subscribe on the web
+                      </Text>
+                    </Pressable>
+                  )}
+                </>
+              ) : (
+                // iOS Pro/Team ANNUAL — not available via IAP (over Apple's cap).
+                // LINE 2 transparency note + US web-checkout route (Task 4 / Task 3).
+                <View className="mt-4">
+                  <Text className="text-xs text-gray-500 mb-3">
+                    {IOS_ANNUAL_AVAILABILITY_NOTE}
+                  </Text>
+                  {externalAllowed === true ? (
+                    <Pressable
+                      onPress={() => onExternalCheckout(p.value)}
+                      className="py-3 rounded-xl border-2 border-brand"
+                    >
+                      <Text className="text-center font-semibold text-brand">
+                        Subscribe annually on the web
+                      </Text>
+                    </Pressable>
+                  ) : externalAllowed === false ? (
+                    <Text className="text-xs text-gray-400">
+                      Annual billing for {p.label} isn't available on iOS. Choose
+                      Monthly here, or subscribe annually on Android or the web.
+                    </Text>
+                  ) : (
+                    <ActivityIndicator size="small" />
+                  )}
+                </View>
+              )}
             </View>
           );
         })}

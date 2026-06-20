@@ -37,8 +37,9 @@ const PRODUCT_MAP: Record<string, { plan: Plan; cycle: Cycle }> = {
 };
 
 // USD monthly price used only to satisfy subscriptions.monthly_amount (NOT NULL).
-// The authoritative price is Apple's; this mirrors constants/pricing.ts.
-const PLAN_PRICE: Record<Plan, number> = { solo: 69, pro: 120, team: 260 };
+// The authoritative price is Apple's; this mirrors constants/pricing.ts (the
+// Apple-aligned monthly tiers — identical on every platform).
+const PLAN_PRICE: Record<Plan, number> = { solo: 69.99, pro: 119.99, team: 259.99 };
 
 export function planFromProductId(productId: string) {
   return PRODUCT_MAP[productId] ?? null;

@@ -19,6 +19,7 @@ import {
   type Purchase,
 } from 'expo-iap';
 import { supabase } from './supabase';
+import { IAP_ANNUAL_AVAILABLE } from '../constants/pricing';
 import type { PlanType, BillingCycle } from './payments';
 
 // Must match the App Store Connect product IDs and the server PRODUCT_MAP in
@@ -26,8 +27,21 @@ import type { PlanType, BillingCycle } from './payments';
 export function iapProductId(plan: PlanType, cycle: BillingCycle): string {
   return `app.tradesbrain.${plan}.${cycle}`;
 }
+
+// Is this plan+cycle sellable through Apple IAP at launch? (Task 1 — Option A.)
+// All monthly plans are. Annual is Solo-only because Pro/Team annual exceed
+// Apple's $999.99 annual cap — they live on Android/Web + the US Stripe link.
+export function iapOffered(plan: PlanType, cycle: BillingCycle): boolean {
+  return cycle === 'monthly' || IAP_ANNUAL_AVAILABLE[plan];
+}
+
+// The exact set of products we ask StoreKit to load. Solo monthly+annual, plus
+// Pro & Team monthly only. (The server PRODUCT_MAP still recognises Pro/Team
+// annual so Option B can enable them later without a client change.)
 export const IAP_PRODUCT_IDS: string[] = (['solo', 'pro', 'team'] as PlanType[]).flatMap((p) =>
-  (['monthly', 'annual'] as BillingCycle[]).map((c) => iapProductId(p, c)),
+  (['monthly', 'annual'] as BillingCycle[])
+    .filter((c) => iapOffered(p, c))
+    .map((c) => iapProductId(p, c)),
 );
 
 export function planFromProductId(
